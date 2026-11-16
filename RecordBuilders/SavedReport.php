@@ -35,11 +35,15 @@ use Piwik\SettingsPiwik;
  *   columns of its days, so it can show more than 10 of them.
  * - Evolution and KPI card: one numeric record per metric.
  *
- * Periods other than day aggregate the day archives the core way: blobs are summed (core renames
- * nb_uniq_visitors to sum_daily_nb_uniq_visitors like in its own reports), numerics follow the metric
+ * Periods other than day aggregate the day archives the core way: blobs are summed, numerics follow the metric
  * aggregation. Distinct counts that do not add up across days (unique visitors, not visits) are recomputed from
  * the logs for the periods where core computes unique visitors (enable_processing_unique_visitors_*), like core
- * VisitsSummary; for the other periods their numeric record keeps the highest daily value.
+ * VisitsSummary; for the other periods their numeric record keeps the highest daily value. A table with a pivot
+ * column and a max, min or such distinct metric is always rebuilt from the logs for periods other than day: its
+ * pivot columns are created per archive, so no aggregation can be declared for them.
+ *
+ * "Others" of a period aggregated from days is the sum of the daily "Others" rows plus the rows cut when the
+ * period is truncated, so its distinct counts are summed per day (an approximation, like core reports).
  */
 class SavedReport extends RecordBuilder
 {
@@ -116,13 +120,12 @@ class SavedReport extends RecordBuilder
         $name = $this->name();
         if ($definition->getReportType() === ReportDefinition::REPORT_TYPE_TABLE) {
             $depth = count($definition->getRows());
-            $metricIds = $definition->getMetrics();
 
             // the live preview keeps the cap rows plus "Others", core counts "Others" in the cap
             $record = Record::make(Record::TYPE_BLOB, $name)
                 ->setMaxRowsInTable(Configuration::getMaxRowsInMainTable($depth) + 1)
                 ->setMaxRowsInSubtable(Configuration::getMaxRowsInSubTable($depth) + 1)
-                ->setColumnToSortByBeforeTruncation(reset($metricIds))
+                ->setColumnToSortByBeforeTruncation($this->sortColumn($definition->getMetrics()))
                 ->setBlobColumnAggregationOps($ops);
 
             return [$record];
@@ -147,15 +150,10 @@ class SavedReport extends RecordBuilder
 
     public function buildForNonDayPeriod(ArchiveProcessor $archiveProcessor): void
     {
-        $period = $archiveProcessor->getParams()->getPeriod()->getLabel();
-        if ($this->isEnabled($archiveProcessor) && SettingsPiwik::isUniqueVisitorsEnabled($period)) {
-            foreach ($this->resolve($this->idSite($archiveProcessor))['metrics'] as $metric) {
-                if ($this->isNotSummableAcrossDays($metric)) {
-                    $this->buildFromLogs($archiveProcessor);
+        if ($this->isEnabled($archiveProcessor) && $this->mustRebuildFromLogs($archiveProcessor)) {
+            $this->buildFromLogs($archiveProcessor);
 
-                    return;
-                }
-            }
+            return;
         }
 
         parent::buildForNonDayPeriod($archiveProcessor);
@@ -177,7 +175,8 @@ class SavedReport extends RecordBuilder
                 Configuration::getMaxRowsInMainTable($depth),
                 Configuration::getMaxRowsInSubTable($depth)
             );
-        } catch (\Exception $e) {
+        } catch (\InvalidArgumentException $e) {
+            // invalid for this site or segment: skipped, while database errors propagate so core retries
             $this->warn('archiving failed', $e);
 
             return [];
@@ -200,6 +199,8 @@ class SavedReport extends RecordBuilder
     /**
      * The archive's own LogAggregator, or one over the same site and period with the stored segment ANDed to the
      * archive segment.
+     *
+     * @throws \InvalidArgumentException when the stored segment is not valid
      */
     private function aggregator(ArchiveProcessor $archiveProcessor, ReportDefinition $definition): LogAggregator
     {
@@ -212,7 +213,12 @@ class SavedReport extends RecordBuilder
         $period = $params->getPeriod();
         $idSite = $this->idSite($archiveProcessor);
         $combined = VisualQueryRunner::combineSegments($stored, (string) $params->getSegment()->getString());
-        $segment = new Segment($combined, [$idSite], $period->getDateTimeStart(), $period->getDateTimeEnd());
+        try {
+            $segment = new Segment($combined, [$idSite], $period->getDateTimeStart(), $period->getDateTimeEnd());
+        } catch (\Exception $e) {
+            // a stored segment that no longer parses (plugin deactivated, ...) is a definition problem
+            throw new \InvalidArgumentException($e->getMessage(), 0, $e);
+        }
 
         $aggregator = new LogAggregator(new Parameters($params->getSite(), $period, $segment));
         $aggregator->setQueryOriginHint($this->getQueryOriginHint());
@@ -220,12 +226,48 @@ class SavedReport extends RecordBuilder
         return $aggregator;
     }
 
+    private function mustRebuildFromLogs(ArchiveProcessor $archiveProcessor): bool
+    {
+        $uniquesEnabled = SettingsPiwik::isUniqueVisitorsEnabled($archiveProcessor->getParams()->getPeriod()->getLabel());
+        $hasPivot = $this->definition()->getColumn() !== null;
+
+        foreach ($this->resolve($this->idSite($archiveProcessor))['metrics'] as $metric) {
+            $notSummable = $this->isNotSummableAcrossDays($metric);
+            if ($notSummable && $uniquesEnabled) {
+                return true;
+            }
+            if ($hasPivot && ($notSummable || in_array($metric->aggregation, ['max', 'min'], true))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
-     * Visits never span two archived days, so they add up; other distinct counts (visitors, ...) do not.
+     * Prefers a metric core never renames when it sums tables of several days (nb_uniq_visitors and nb_users may be
+     * renamed to sum_daily_*, Matomo 5.14 keeps them); a table of such metrics only keeps sorting by the first one.
+     *
+     * @param string[] $metricIds
+     */
+    private function sortColumn(array $metricIds): string
+    {
+        foreach ($metricIds as $metricId) {
+            if (!in_array($metricId, ['nb_uniq_visitors', 'nb_users'], true)) {
+                return $metricId;
+            }
+        }
+
+        return reset($metricIds);
+    }
+
+    /**
+     * Visits and actions never span two archived days, so their distinct counts add up; other distinct counts
+     * (visitors, values, ...) do not.
      */
     private function isNotSummableAcrossDays(MetricEntry $metric): bool
     {
-        return $metric->aggregation === 'uniq' && !preg_match('/\.idvisit\)$/', $metric->sql);
+        return $metric->aggregation === 'uniq' && !preg_match('/\.(idvisit|idlink_va)\)$/i', $metric->sql);
     }
 
     private function resolve(int $idSite): ?array
@@ -236,7 +278,7 @@ class SavedReport extends RecordBuilder
             if ($definition !== null && $definition->getType() === ReportDefinition::TYPE_VISUAL) {
                 try {
                     $this->resolved[$idSite] = $this->builder->resolve($definition, $idSite);
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     $this->warn('definition no longer matches the catalogue of site ' . $idSite, $e);
                 }
             }
@@ -256,7 +298,7 @@ class SavedReport extends RecordBuilder
                     'type' => (string) ($this->report['type'] ?? ''),
                     'report_type' => (string) ($this->report['report_type'] ?? ''),
                 ]));
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $this->warn('invalid definition', $e);
             }
         }
@@ -274,7 +316,7 @@ class SavedReport extends RecordBuilder
         return (int) $archiveProcessor->getParams()->getSite()->getId();
     }
 
-    private function warn(string $what, \Exception $e): void
+    private function warn(string $what, \Throwable $e): void
     {
         StaticContainer::get(LoggerInterface::class)->warning('DataExplorer: saved report {idreport} skipped, {what}: {message}', [
             'idreport' => $this->getIdReport(),

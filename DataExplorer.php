@@ -11,7 +11,6 @@ namespace Piwik\Plugins\DataExplorer;
 
 use Piwik\Access;
 use Piwik\Archive\ArchiveInvalidator;
-use Piwik\Common;
 use Piwik\Container\StaticContainer;
 use Piwik\Date;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
@@ -57,17 +56,13 @@ class DataExplorer extends \Piwik\Plugin
     }
 
     /**
-     * One SavedReport per visual report. The event carries no site: the reports of the requested site when the
-     * request names one (core caches the builders per requested site), else every report; each builder checks
-     * the archived site against its placement in isEnabled().
+     * One SavedReport per visual report of every site: the event carries no site and core caches the list per
+     * requested site, while one request can archive several sites. Each builder checks the archived site against
+     * its placement in isEnabled().
      */
     public function addRecordBuilders(array &$recordBuilders): void
     {
-        $idSite = Common::getRequestVar('idSite', '', 'string');
-        $dao = new ReportsDao();
-        $reports = ctype_digit($idSite) ? $dao->getForSite((int) $idSite) : $dao->getAll();
-
-        foreach ($reports as $report) {
+        foreach ((new ReportsDao())->getAll() as $report) {
             if ($report['type'] === ReportDefinition::TYPE_VISUAL) {
                 $recordBuilders[] = new SavedReport($report);
             }

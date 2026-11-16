@@ -242,7 +242,7 @@ class VisualQueryBuilder
             $query['sql'] .= ' LIMIT ' . $limit;
         }
 
-        return ['sql' => $query['sql'], 'bind' => $this->insertFilterBind($aggregator, $query['bind'], $bind)];
+        return ['sql' => $query['sql'], 'bind' => $this->insertFilterBind($aggregator, $query['sql'], $query['bind'], $bind)];
     }
 
     /**
@@ -328,9 +328,13 @@ class VisualQueryBuilder
      * between them in the WHERE clause. During segment archiving with the segment cache, the date range, sites and
      * segment move into a temporary table and generateQuery() binds nothing.
      */
-    private function insertFilterBind(LogAggregator $aggregator, array $generated, array $filterBind): array
+    private function insertFilterBind(LogAggregator $aggregator, string $sql, array $generated, array $filterBind): array
     {
         if (!$generated) {
+            if (substr_count($sql, '?') !== count($filterBind)) {
+                throw new \RuntimeException('Unexpected bind count in the generated query.');
+            }
+
             return $filterBind;
         }
 

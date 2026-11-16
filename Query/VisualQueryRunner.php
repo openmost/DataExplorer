@@ -121,11 +121,12 @@ class VisualQueryRunner
     }
 
     /**
-     * Stored segment AND requested segment, through core so an identical condition is not repeated.
+     * Stored segment AND requested segment. Plain concatenation: core Segment::combine() drops the condition when
+     * it finds it as a substring of the other segment, even inside an OR group; a repeated condition is harmless.
      */
     public static function combineSegments(string $stored, string $requested): string
     {
-        return (string) Segment::combine(trim($requested), SegmentExpression::AND_DELIMITER, trim($stored));
+        return implode(SegmentExpression::AND_DELIMITER, array_filter([trim($stored), trim($requested)], 'strlen'));
     }
 
     private function execute(ReportDefinition $definition, array $resolved, LogAggregator $aggregator, int $idSite, int $mainCap, int $subCap): DataTable

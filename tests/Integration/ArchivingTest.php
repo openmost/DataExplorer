@@ -14,6 +14,9 @@ use Piwik\ArchiveProcessor;
 use Piwik\ArchiveProcessor\Parameters;
 use Piwik\Cache;
 use Piwik\Common;
+use Piwik\Container\StaticContainer;
+use Piwik\Log\LoggerInterface;
+use Piwik\Log\NullLogger;
 use Piwik\Config;
 use Piwik\DataAccess\ArchiveWriter;
 use Piwik\DataAccess\LogAggregator;
@@ -26,6 +29,7 @@ use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\DataExplorer;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
+use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
 use Piwik\Plugins\DataExplorer\RecordBuilders\SavedReport;
 use Piwik\Plugins\DataExplorer\tests\Fixtures\ExplorerFixture;
@@ -234,7 +238,7 @@ class ArchivingTest extends IntegrationTestCase
     public function test_recordBuilders_skipSqlAndInvalidReports_andNeverThrow(): void
     {
         $visual = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);
-        $sql = $this->save(['type' => 'sql', 'sql' => 'SELECT 1'], ['sites' => [1]], 'sql');
+        $this->save(['type' => 'sql', 'sql' => 'SELECT 1'], ['sites' => [1]], 'sql');
         $broken = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);
         Db::query('UPDATE ' . Common::prefixTable('dataexplorer_report') . ' SET definition = ? WHERE idreport = ?', [
             json_encode(['rows' => ['Nope.Nope'], 'metrics' => ['nb_visits']]), $broken['idreport'],
@@ -256,7 +260,114 @@ class ArchivingTest extends IntegrationTestCase
         // the broken report archives nothing and does not stop the others
         $this->assertSame(['fr' => 2], $this->column($this->table($visual, 'day', '2024-03-01'), 'nb_visits'));
         $this->assertSame(0, $this->table($broken, 'day', '2024-03-01')->getRowsCount());
-        $this->assertNotNull($sql);
+    }
+
+    public function test_requestedSite_doesNotHideTheReportsOfAnotherArchivedSite(): void
+    {
+        $report = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']], ['sites' => [2]]);
+        $backup = $_GET;
+        $_GET['idSite'] = '1';
+
+        try {
+            $this->assertSame(['de' => 1], $this->column($this->table($report, 'day', '2024-03-03', '', 2), 'nb_visits'));
+        } finally {
+            $_GET = $backup;
+        }
+    }
+
+    public function test_databaseErrors_propagateSoCoreRetries_whileInvalidRunsAreSkipped(): void
+    {
+        $report = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);
+
+        $skipped = new SavedReport($report, null, $this->failingRunner(new \InvalidArgumentException('invalid here')));
+        $skipped->buildFromLogs($this->processor(1, 'day', '2024-03-01'));
+
+        $failing = new SavedReport($report, null, $this->failingRunner(new \RuntimeException('server has gone away')));
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('server has gone away');
+        $failing->buildFromLogs($this->processor(1, 'day', '2024-03-01'));
+    }
+
+    public function test_malformedDefinition_isSkippedWithAWarning_evenOnATypeError(): void
+    {
+        $report = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);
+        $logger = new class extends NullLogger {
+            public $warnings = [];
+
+            public function log($level, $message, array $context = array())
+            {
+                $this->warnings[] = [$level, $message, $context];
+            }
+        };
+        StaticContainer::getContainer()->set(LoggerInterface::class, $logger);
+        $builder = new class extends VisualQueryBuilder {
+            public function resolve(ReportDefinition $definition, int $idSite): array
+            {
+                throw new \TypeError('malformed');
+            }
+        };
+
+        $savedReport = new SavedReport($report, $builder);
+
+        $this->assertFalse($savedReport->isEnabled($this->processor(1, 'day', '2024-03-01')));
+        $this->assertCount(1, $logger->warnings);
+        $this->assertSame('warning', $logger->warnings[0][0]);
+        $this->assertSame('malformed', $logger->warnings[0][2]['message']);
+    }
+
+    public function test_savedSegment_isKeptWhenTheRequestedSegmentContainsItInAnOrGroup(): void
+    {
+        $saved = 'countryCode==fr';
+        $requested = 'deviceType==desktop;countryCode==fr,countryCode==de';
+        $this->assertSame($saved . ';' . $requested, VisualQueryRunner::combineSegments($saved, $requested));
+
+        $definition = ['rows' => [self::COUNTRY], 'metrics' => ['nb_visits'], 'segment' => $saved];
+        $report = $this->save($definition);
+        $this->assertSame(['fr' => 2], $this->column($this->table($report, 'week', self::WEEK, $requested), 'nb_visits'));
+
+        $live = (new VisualQueryRunner())->run(ReportDefinition::fromArray($definition + ['name' => 'preview']), 1, 'week', self::WEEK, $requested);
+        $this->assertSame(['France' => 2], $this->column($live, 'nb_visits'));
+    }
+
+    public function test_pivotOfAMaxMetric_isRebuiltFromLogsForTheWeek(): void
+    {
+        $metric = 'max_corehome_visittotaltime';
+        $definition = ['rows' => [self::COUNTRY], 'column' => self::DEVICE, 'metrics' => [$metric]];
+        $report = $this->save($definition);
+        $column = $metric . ' | ' . self::DESKTOP;
+
+        $days = $this->column($this->table($report, 'day', '2024-03-05'), $column)['fr']
+            + $this->column($this->table($report, 'day', '2024-03-06'), $column)['fr'];
+        $week = $this->column($this->table($report, 'week', '2024-03-04'), $column)['fr'];
+        $live = (new VisualQueryRunner())->run(ReportDefinition::fromArray($definition + ['name' => 'preview']), 1, 'week', '2024-03-04', '');
+
+        $this->assertEquals($this->column($live, $metric . ' | Desktop')['France'], $week);
+        $this->assertGreaterThan(0, $week);
+        $this->assertNotEquals($days, $week);
+    }
+
+    public function test_pivotOfUniqueVisitors_isRebuiltFromLogs_whenCoreDoesNotComputeUniquesForThePeriod(): void
+    {
+        $this->disableUniques(['week']);
+        $report = $this->save(['rows' => [self::COUNTRY], 'column' => self::DEVICE, 'metrics' => ['nb_uniq_visitors']]);
+
+        $week = $this->table($report, 'week', '2024-03-04');
+
+        $this->assertEquals(['fr' => 1], $this->column($week, 'nb_uniq_visitors | ' . self::DESKTOP));
+        $this->assertEquals(['fr' => 1], $this->column($week, 'nb_uniq_visitors'));
+    }
+
+    public function test_truncationOfSummedPeriods_sortsByUniqueVisitors(): void
+    {
+        $this->disableUniques(['week', 'month', 'year']);
+        Config::getInstance()->DataExplorer = ['datatable_archiving_maximum_rows_dataexplorer_dimensions_1' => 1];
+        $report = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_uniq_visitors']]);
+
+        $year = $this->table($report, 'year', '2024-01-01');
+
+        $this->assertSame(2, $year->getRowsCount());
+        $this->assertSame('fr', (string) $year->getFirstRow()->getColumn('label'));
+        $this->assertNotFalse($year->getRowFromId(DataTable::ID_SUMMARY_ROW));
     }
 
     public function test_changingTheDefinition_bumpsTheRevision_andArchivesTheNewRecord(): void
@@ -332,6 +443,34 @@ class ArchivingTest extends IntegrationTestCase
 
         $sites = array_column(Db::fetchAll("SELECT DISTINCT idsite FROM $table ORDER BY idsite"), 'idsite');
         $this->assertEquals([1, 2], $sites);
+    }
+
+    private function disableUniques(array $periods): void
+    {
+        $general = Config::getInstance()->General;
+        foreach ($periods as $period) {
+            $general['enable_processing_unique_visitors_' . $period] = 0;
+        }
+        $general['enable_processing_unique_visitors_year_and_range'] = 0;
+        Config::getInstance()->General = $general;
+    }
+
+    private function failingRunner(\Exception $exception): VisualQueryRunner
+    {
+        return new class ($exception) extends VisualQueryRunner {
+            private $exception;
+
+            public function __construct(\Exception $exception)
+            {
+                parent::__construct();
+                $this->exception = $exception;
+            }
+
+            public function runForArchive(ReportDefinition $definition, LogAggregator $aggregator, int $mainCap, int $subCap): DataTable
+            {
+                throw $this->exception;
+            }
+        };
     }
 
     private function save(array $definition, array $placement = ['sites' => [1]], string $type = 'visual'): array
