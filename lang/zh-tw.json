@@ -18,7 +18,16 @@
         "ErrorPlacementInvalid": "請選擇所有網站或至少一個有效網站。",
         "ErrorReportNotPlaced": "報表必須至少放置在一個網站上。",
         "ErrorEditNotAllowed": "您無權編輯此報表。",
-        "ErrorReportNotAvailable": "此報表無法使用。"
+        "ErrorReportNotAvailable": "此報表無法使用。",
+        "ErrorUnknownDimension": "未知維度：%s。",
+        "ErrorUnknownMetric": "未知指標：%s。",
+        "ErrorIncompatibleCombination": "指標 %1$s 無法與維度 %2$s 組合使用。",
+        "ErrorScopesCannotBeCombined": "動作資料和轉換資料無法在同一個探索中組合。",
+        "ErrorFilterOperatorInvalid": "不支援的篩選運算子：%s。",
+        "ErrorFilterValueNotNumeric": "%s 上的篩選需要數值。",
+        "ErrorFilterRegexInvalid": "無效的正規表示式：%s。",
+        "ErrorQueryTimeout": "探索耗時超過 %s 秒。請縮短期間或新增篩選條件。",
+        "ErrorDefinitionInvalid": "探索定義無效。"
     },
     "OpenmostCommunication": {
         "Dismiss": "關閉",

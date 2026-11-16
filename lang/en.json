@@ -18,7 +18,16 @@
         "ErrorPlacementInvalid": "Choose all websites or at least one valid website.",
         "ErrorReportNotPlaced": "The report must be placed on at least one website.",
         "ErrorEditNotAllowed": "You are not allowed to edit this report.",
-        "ErrorReportNotAvailable": "This report is not available."
+        "ErrorReportNotAvailable": "This report is not available.",
+        "ErrorUnknownDimension": "Unknown dimension: %s.",
+        "ErrorUnknownMetric": "Unknown metric: %s.",
+        "ErrorIncompatibleCombination": "The metric %1$s cannot be combined with the dimension %2$s.",
+        "ErrorScopesCannotBeCombined": "Action data and conversion data cannot be combined in one exploration.",
+        "ErrorFilterOperatorInvalid": "Unsupported filter operator: %s.",
+        "ErrorFilterValueNotNumeric": "The filter on %s needs a numeric value.",
+        "ErrorFilterRegexInvalid": "Invalid regular expression: %s.",
+        "ErrorQueryTimeout": "The exploration took longer than %s seconds. Shorten the period or add filters.",
+        "ErrorDefinitionInvalid": "The exploration definition is invalid."
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

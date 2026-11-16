@@ -11,11 +11,14 @@ declare(strict_types=1);
 
 namespace Piwik\Plugins\DataExplorer;
 
+use Piwik\DataTable;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\MetricCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\ScopeCompatibility;
+use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
+use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
 use Piwik\Plugins\SegmentEditor\API as SegmentEditorAPI;
 
 /**
@@ -59,6 +62,32 @@ class API extends \Piwik\Plugin\API
             'metrics' => $this->groupByCategory($metrics),
             'segments' => $segments,
         ];
+    }
+
+    /**
+     * Runs a visual exploration live (the explorer canvas). Nothing is saved.
+     *
+     * @param int $idSite
+     * @param string $period
+     * @param string $date
+     * @param string $definition JSON of the exploration, same shape as a saved visual definition
+     * @param string $segment combined (AND) with the segment stored in the definition
+     * @return DataTable
+     */
+    public function runVisual(int $idSite, string $period, string $date, string $definition, string $segment = ''): DataTable
+    {
+        (new ReportPermissions())->checkCanExplore($idSite);
+
+        $raw = json_decode($definition, true);
+        if (!is_array($raw)) {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorDefinitionInvalid'));
+        }
+        $raw['type'] = ReportDefinition::TYPE_VISUAL;
+        if (!isset($raw['name']) || !is_string($raw['name']) || trim($raw['name']) === '') {
+            $raw['name'] = 'preview';
+        }
+
+        return (new VisualQueryRunner())->run(ReportDefinition::fromArray($raw), $idSite, $period, $date, $segment);
     }
 
     private function groupByCategory(array $items): array

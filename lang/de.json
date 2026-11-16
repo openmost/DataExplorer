@@ -18,7 +18,16 @@
         "ErrorPlacementInvalid": "Wählen Sie alle Websites oder mindestens eine gültige Website.",
         "ErrorReportNotPlaced": "Der Bericht muss auf mindestens einer Website platziert werden.",
         "ErrorEditNotAllowed": "Sie dürfen diesen Bericht nicht bearbeiten.",
-        "ErrorReportNotAvailable": "Dieser Bericht ist nicht verfügbar."
+        "ErrorReportNotAvailable": "Dieser Bericht ist nicht verfügbar.",
+        "ErrorUnknownDimension": "Unbekannte Dimension: %s.",
+        "ErrorUnknownMetric": "Unbekannte Metrik: %s.",
+        "ErrorIncompatibleCombination": "Die Metrik %1$s kann nicht mit der Dimension %2$s kombiniert werden.",
+        "ErrorScopesCannotBeCombined": "Aktions- und Conversion-Daten können nicht in einer Exploration kombiniert werden.",
+        "ErrorFilterOperatorInvalid": "Nicht unterstützter Filteroperator: %s.",
+        "ErrorFilterValueNotNumeric": "Der Filter auf %s benötigt einen numerischen Wert.",
+        "ErrorFilterRegexInvalid": "Ungültiger regulärer Ausdruck: %s.",
+        "ErrorQueryTimeout": "Die Exploration hat länger als %s Sekunden gedauert. Verkürzen Sie den Zeitraum oder fügen Sie Filter hinzu.",
+        "ErrorDefinitionInvalid": "Die Definition der Exploration ist ungültig."
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",

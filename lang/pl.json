@@ -18,7 +18,16 @@
         "ErrorPlacementInvalid": "Wybierz wszystkie witryny lub co najmniej jedną prawidłową witrynę.",
         "ErrorReportNotPlaced": "Raport musi być umieszczony na co najmniej jednej witrynie.",
         "ErrorEditNotAllowed": "Nie masz uprawnień do edycji tego raportu.",
-        "ErrorReportNotAvailable": "Ten raport jest niedostępny."
+        "ErrorReportNotAvailable": "Ten raport jest niedostępny.",
+        "ErrorUnknownDimension": "Nieznany wymiar: %s.",
+        "ErrorUnknownMetric": "Nieznana metryka: %s.",
+        "ErrorIncompatibleCombination": "Metryki %1$s nie można łączyć z wymiarem %2$s.",
+        "ErrorScopesCannotBeCombined": "Danych akcji i konwersji nie można łączyć w jednej eksploracji.",
+        "ErrorFilterOperatorInvalid": "Nieobsługiwany operator filtra: %s.",
+        "ErrorFilterValueNotNumeric": "Filtr dla %s wymaga wartości liczbowej.",
+        "ErrorFilterRegexInvalid": "Nieprawidłowe wyrażenie regularne: %s.",
+        "ErrorQueryTimeout": "Eksploracja trwała dłużej niż %s s. Skróć okres lub dodaj filtry.",
+        "ErrorDefinitionInvalid": "Definicja eksploracji jest nieprawidłowa."
     },
     "OpenmostCommunication": {
         "Dismiss": "Odrzuć",

@@ -18,7 +18,16 @@
         "ErrorPlacementInvalid": "اختر كل المواقع أو موقعا صالحا واحدا على الأقل.",
         "ErrorReportNotPlaced": "يجب وضع التقرير على موقع ويب واحد على الأقل.",
         "ErrorEditNotAllowed": "ليس لديك إذن بتعديل هذا التقرير.",
-        "ErrorReportNotAvailable": "هذا التقرير غير متاح."
+        "ErrorReportNotAvailable": "هذا التقرير غير متاح.",
+        "ErrorUnknownDimension": "بُعد غير معروف: %s.",
+        "ErrorUnknownMetric": "مقياس غير معروف: %s.",
+        "ErrorIncompatibleCombination": "لا يمكن دمج المقياس %1$s مع البُعد %2$s.",
+        "ErrorScopesCannotBeCombined": "لا يمكن دمج بيانات الإجراءات وبيانات التحويلات في استكشاف واحد.",
+        "ErrorFilterOperatorInvalid": "عامل تصفية غير مدعوم: %s.",
+        "ErrorFilterValueNotNumeric": "يتطلب عامل التصفية على %s قيمة رقمية.",
+        "ErrorFilterRegexInvalid": "تعبير نمطي غير صالح: %s.",
+        "ErrorQueryTimeout": "استغرق الاستكشاف أكثر من %s ثانية. قلّص الفترة أو أضف عوامل تصفية.",
+        "ErrorDefinitionInvalid": "تعريف الاستكشاف غير صالح."
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

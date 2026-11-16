@@ -18,7 +18,16 @@
         "ErrorPlacementInvalid": "Kies alle websites of ten minste één geldige website.",
         "ErrorReportNotPlaced": "Het rapport moet op minstens één website worden geplaatst.",
         "ErrorEditNotAllowed": "U mag dit rapport niet bewerken.",
-        "ErrorReportNotAvailable": "Dit rapport is niet beschikbaar."
+        "ErrorReportNotAvailable": "Dit rapport is niet beschikbaar.",
+        "ErrorUnknownDimension": "Onbekende dimensie: %s.",
+        "ErrorUnknownMetric": "Onbekende metriek: %s.",
+        "ErrorIncompatibleCombination": "De metriek %1$s kan niet worden gecombineerd met de dimensie %2$s.",
+        "ErrorScopesCannotBeCombined": "Actie- en conversiegegevens kunnen niet in één verkenning worden gecombineerd.",
+        "ErrorFilterOperatorInvalid": "Niet-ondersteunde filteroperator: %s.",
+        "ErrorFilterValueNotNumeric": "Het filter op %s heeft een numerieke waarde nodig.",
+        "ErrorFilterRegexInvalid": "Ongeldige reguliere expressie: %s.",
+        "ErrorQueryTimeout": "De verkenning duurde langer dan %s seconden. Verkort de periode of voeg filters toe.",
+        "ErrorDefinitionInvalid": "De definitie van de verkenning is ongeldig."
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",

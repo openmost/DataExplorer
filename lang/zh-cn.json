@@ -18,7 +18,16 @@
         "ErrorPlacementInvalid": "请选择所有网站或至少一个有效网站。",
         "ErrorReportNotPlaced": "报表必须至少放置在一个网站上。",
         "ErrorEditNotAllowed": "您无权编辑此报表。",
-        "ErrorReportNotAvailable": "此报表不可用。"
+        "ErrorReportNotAvailable": "此报表不可用。",
+        "ErrorUnknownDimension": "未知维度：%s。",
+        "ErrorUnknownMetric": "未知指标：%s。",
+        "ErrorIncompatibleCombination": "指标 %1$s 不能与维度 %2$s 组合使用。",
+        "ErrorScopesCannotBeCombined": "操作数据和转化数据不能在同一个探索中组合。",
+        "ErrorFilterOperatorInvalid": "不支持的筛选运算符：%s。",
+        "ErrorFilterValueNotNumeric": "%s 上的筛选需要数值。",
+        "ErrorFilterRegexInvalid": "无效的正则表达式：%s。",
+        "ErrorQueryTimeout": "探索耗时超过 %s 秒。请缩短时间段或添加筛选条件。",
+        "ErrorDefinitionInvalid": "探索定义无效。"
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",

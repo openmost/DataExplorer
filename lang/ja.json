@@ -18,7 +18,16 @@
         "ErrorPlacementInvalid": "すべてのウェブサイトまたは有効なウェブサイトを 1 つ以上選択してください。",
         "ErrorReportNotPlaced": "レポートは少なくとも1つのウェブサイトに配置する必要があります。",
         "ErrorEditNotAllowed": "このレポートを編集する権限がありません。",
-        "ErrorReportNotAvailable": "このレポートは利用できません。"
+        "ErrorReportNotAvailable": "このレポートは利用できません。",
+        "ErrorUnknownDimension": "不明なディメンション: %s。",
+        "ErrorUnknownMetric": "不明な指標: %s。",
+        "ErrorIncompatibleCombination": "指標 %1$s はディメンション %2$s と組み合わせることができません。",
+        "ErrorScopesCannotBeCombined": "アクションのデータとコンバージョンのデータは 1 つのデータ探索で組み合わせることができません。",
+        "ErrorFilterOperatorInvalid": "サポートされていないフィルタ演算子: %s。",
+        "ErrorFilterValueNotNumeric": "%s のフィルタには数値が必要です。",
+        "ErrorFilterRegexInvalid": "無効な正規表現: %s。",
+        "ErrorQueryTimeout": "データ探索が %s 秒を超えました。期間を短くするか、フィルタを追加してください。",
+        "ErrorDefinitionInvalid": "データ探索の定義が無効です。"
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",
