@@ -387,6 +387,20 @@ class VisualQueryTest extends IntegrationTestCase
         $this->assertEquals(0, $db->fetchOne('SELECT @@SESSION.' . $variable));
     }
 
+    public function test_statementTimeout_previousSessionValueIsRestored(): void
+    {
+        $db = Db::getReader();
+        $variable = stripos((string) $db->fetchOne('SELECT VERSION()'), 'mariadb') !== false ? 'max_statement_time' : 'max_execution_time';
+        $db->query('SET SESSION ' . $variable . ' = ' . ($variable === 'max_statement_time' ? '7' : '7000'));
+
+        try {
+            $this->explore(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);
+            $this->assertEquals($variable === 'max_statement_time' ? 7 : 7000, $db->fetchOne('SELECT @@SESSION.' . $variable));
+        } finally {
+            $db->query('SET SESSION ' . $variable . ' = 0');
+        }
+    }
+
     public function test_api_runVisual_checksAccess_andReturnsTheTable(): void
     {
         $definition = json_encode(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);

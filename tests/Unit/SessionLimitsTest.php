@@ -55,10 +55,30 @@ class SessionLimitsTest extends TestCase
         $this->assertFalse(SessionLimits::isTimeout($db, new \Exception('SQLSTATE[42S22]: Column not found: 1054 Unknown column')));
     }
 
-    private function db(string $version): AdapterInterface
+    public function test_restoreStatement_setsBackTheCurrentSessionValue(): void
+    {
+        $this->assertSame('SET SESSION MAX_EXECUTION_TIME=2500', SessionLimits::restoreStatement($this->db('8.0.36', ['SELECT @@SESSION.max_execution_time' => '2500'])));
+        $this->assertSame('SET SESSION max_statement_time=1.500', SessionLimits::restoreStatement($this->db('10.11.6-MariaDB', ['SELECT @@SESSION.max_statement_time' => '1.500000'])));
+        $this->assertSame('SET SESSION max_statement_time=0', SessionLimits::restoreStatement($this->db('10.11.6-MariaDB', ['SELECT @@SESSION.max_statement_time' => '0.000000'])));
+    }
+
+    public function test_restoreStatement_unreadableValueMeansNoLimit(): void
+    {
+        $this->assertSame('SET SESSION MAX_EXECUTION_TIME=0', SessionLimits::restoreStatement($this->db('8.0.36', ['SELECT @@SESSION.max_execution_time' => '1; DROP TABLE x'])));
+        $this->assertSame('SET SESSION MAX_EXECUTION_TIME=0', SessionLimits::restoreStatement($this->db('8.0.37', ['SELECT @@SESSION.max_execution_time' => false])));
+    }
+
+    private function db(string $version, array $answers = []): AdapterInterface
     {
         $db = $this->getMockBuilder(Mysql::class)->disableOriginalConstructor()->onlyMethods(['fetchOne'])->getMock();
-        $db->method('fetchOne')->with('SELECT VERSION()')->willReturn($version);
+        $answers['SELECT VERSION()'] = $version;
+        $db->method('fetchOne')->willReturnCallback(function (string $sql) use ($answers) {
+            if (!array_key_exists($sql, $answers)) {
+                throw new \LogicException('Unexpected query ' . $sql);
+            }
+
+            return $answers[$sql];
+        });
 
         return $db;
     }

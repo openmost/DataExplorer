@@ -1,0 +1,34 @@
+{% extends 'admin.twig' %}
+
+{% set title %}{{ 'DataExplorer_SetupTitle'|translate }}{% endset %}
+
+{% block content %}
+<div vue-entry="CoreHome.ContentBlock" content-title="{{ title|e('html_attr') }}">
+    <p>{{ 'DataExplorer_SetupIntro'|translate }}</p>
+    {% if status.state == 'ready' %}
+        <div class="alert alert-success">{{ status.message }}</div>
+    {% elseif status.state == 'not_configured' %}
+        <div class="alert alert-info">{{ status.message }}</div>
+    {% else %}
+        <div class="alert alert-danger">{{ status.message }}</div>
+    {% endif %}
+</div>
+
+<div vue-entry="CoreHome.ContentBlock" content-title="{{ 'DataExplorer_SetupCreateUserTitle'|translate|e('html_attr') }}">
+    <p>{{ 'DataExplorer_SetupCreateUserHelp'|translate }}</p>
+    {% if isAnyHost %}
+        <p>{{ 'DataExplorer_SetupAnyHostHelp'|translate }}</p>
+    {% endif %}
+    {% if hasTables %}
+        <pre>{{ sqlSnippet }}</pre>
+    {% else %}
+        <div class="alert alert-warning">{{ 'DataExplorer_SetupNoTables'|translate }}</div>
+    {% endif %}
+    <p>{{ 'DataExplorer_SetupArchiveTablesHelp'|translate }}</p>
+</div>
+
+<div vue-entry="CoreHome.ContentBlock" content-title="{{ 'DataExplorer_SetupConfigTitle'|translate|e('html_attr') }}">
+    <p>{{ 'DataExplorer_SetupConfigHelp'|translate }}</p>
+    <pre>{{ iniBlock }}</pre>
+</div>
+{% endblock %}

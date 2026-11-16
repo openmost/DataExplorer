@@ -13,6 +13,8 @@ namespace Piwik\Plugins\DataExplorer\tests\Integration;
 
 use Piwik\Common;
 use Piwik\Config;
+use Piwik\DataAccess\ArchiveTableCreator;
+use Piwik\Date;
 use Piwik\Db;
 use Piwik\Plugins\DataExplorer\Sql\RejectedQueryException;
 use Piwik\Plugins\DataExplorer\Sql\SqlGuard;
@@ -21,7 +23,13 @@ use Piwik\Tests\Framework\TestCase\IntegrationTestCase;
 /**
  * Differential test of SqlGuard against MySQL itself: thousands of generated queries, each with one table reference
  * outside the allowlist in a table-region position (or an allowlisted control). Every query the guard accepts is
- * explained by MySQL, and every table MySQL resolves must be an allowlisted table of the Matomo database.
+ * checked by two oracles:
+ * - EXPLAIN as a probe MySQL user granted SELECT on the allowlisted tables only: an access error means the query
+ *   reads another table, even one the optimizer drops afterwards;
+ * - EXPLAIN as the test user then SHOW WARNINGS: every table of the rewritten query must be allowlisted, and there is
+ *   at least one.
+ * It runs twice: on the test database with its empty prefix, and on a schema of its own with the "matomo_" prefix
+ * holding unprefixed and near-miss tables too.
  *
  * @group DataExplorer
  * @group SqlGuardDifferentialTest
@@ -30,19 +38,43 @@ use Piwik\Tests\Framework\TestCase\IntegrationTestCase;
 class SqlGuardDifferentialTest extends IntegrationTestCase
 {
     private const OUTSIDE_SCHEMA = 'dataexplorer_outside';
+    private const PREFIXED_SCHEMA = 'dataexplorer_prefixed';
+    private const PREFIXED_PREFIX = 'matomo_';
+    private const PROBE_USER = 'dataexplorer_probe';
+    private const PROBE_HOSTS = ['localhost', '127.0.0.1', '::1'];
+
+    /** MySQL errors of a denied table, column or database: the query reads something outside the grants. */
+    private const ACCESS_DENIED_ERRORS = [1142, 1143, 1044];
+    private const SYNTAX_ERROR = 1064;
+
+    /** Tables copied in the prefixed schema besides the allowlisted ones. */
+    private const FORBIDDEN_COPIES = ['user', 'option', 'access', 'session', 'site_setting', 'archive_invalidations', 'log_profiling'];
 
     private const MIN_GENERATED = 5000;
     private const MIN_ACCEPTED = 1000;
     private const MIN_EXPLAINED = 500;
+    private const MIN_PARSED_BY_PROBE = 900;
 
     /** @var \PDO */
     private $pdo;
+
+    /** @var \PDO|null */
+    private $probe;
 
     /** @var string */
     private $database;
 
     /** @var string */
     private $prefix;
+
+    /** @var string the database of the test framework */
+    private $testDatabase;
+
+    /** @var string */
+    private $probePassword;
+
+    /** @var bool */
+    private $createdArchiveTable = false;
 
     public static function setUpBeforeClass(): void
     {
@@ -55,25 +87,53 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $config = Config::getInstance()->database;
-        $this->database = (string) $config['dbname'];
-        $this->prefix = Common::prefixTable('');
-
-        // A connection of its own: SHOW WARNINGS must follow its EXPLAIN on the same session, unprepared.
-        $dsn = 'mysql:host=' . $config['host'] . ';port=' . ($config['port'] ?? 3306) . ';dbname=' . $this->database;
-        $this->pdo = new \PDO($dsn, (string) $config['username'], (string) $config['password']);
-        $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $this->testDatabase = (string) Config::getInstance()->database['dbname'];
+        $this->probePassword = 'p' . bin2hex(random_bytes(12));
 
         Db::exec('CREATE DATABASE IF NOT EXISTS ' . self::OUTSIDE_SCHEMA);
         Db::exec('CREATE TABLE IF NOT EXISTS ' . self::OUTSIDE_SCHEMA . '.t (a INT, idsite INT)');
+
+        $archive = Common::prefixTable('archive_numeric_2024_01');
+        $this->createdArchiveTable = !in_array($archive, $this->tablesOf($this->testDatabase), true);
+        ArchiveTableCreator::getNumericTable(Date::factory('2024-01-15'), true);
+
+        Db::exec('DROP DATABASE IF EXISTS ' . self::PREFIXED_SCHEMA);
+        Db::exec('CREATE DATABASE ' . self::PREFIXED_SCHEMA);
+        $testPrefix = Common::prefixTable('');
+        foreach ($this->tablesOf($this->testDatabase) as $table) {
+            $name = substr($table, strlen($testPrefix));
+            if (strpos($table, $testPrefix) !== 0 || (!SqlGuard::isAllowedTable($name) && !in_array($name, self::FORBIDDEN_COPIES, true))) {
+                continue;
+            }
+            Db::exec(sprintf('CREATE TABLE `%s`.`%s` LIKE `%s`.`%s`', self::PREFIXED_SCHEMA, self::PREFIXED_PREFIX . $name, $this->testDatabase, $table));
+            if (in_array($name, ['site', 'log_visit'], true)) {
+                // The same tables without the prefix: readable by name in the Matomo schema, never allowlisted.
+                Db::exec(sprintf('CREATE TABLE `%s`.`%s` LIKE `%s`.`%s`', self::PREFIXED_SCHEMA, $name, $this->testDatabase, $table));
+            }
+        }
+
+        $this->useMode($this->testDatabase, $testPrefix);
     }
 
     public function tearDown(): void
     {
-        Db::exec('DROP DATABASE IF EXISTS ' . self::OUTSIDE_SCHEMA);
         $this->pdo = null;
+        $this->probe = null;
+        $this->dropProbe();
+        Db::exec('DROP DATABASE IF EXISTS ' . self::OUTSIDE_SCHEMA);
+        Db::exec('DROP DATABASE IF EXISTS ' . self::PREFIXED_SCHEMA);
+        if ($this->createdArchiveTable) {
+            Db::exec('DROP TABLE IF EXISTS ' . Common::prefixTable('archive_numeric_2024_01'));
+            ArchiveTableCreator::clear();
+        }
+
+        $users = Db::fetchOne('SELECT COUNT(*) FROM mysql.user WHERE user = ?', [self::PROBE_USER]);
+        $schemas = Db::fetchAll("SHOW DATABASES LIKE 'dataexplorer%'");
 
         parent::tearDown();
+
+        $this->assertEquals(0, $users, 'probe user left behind');
+        $this->assertSame([], $schemas, 'schema left behind');
     }
 
     public function test_theResolvedTablesShowWhatMysqlReads(): void
@@ -85,27 +145,70 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
         $this->assertNull($this->resolvedTables('SELECT 1 FROM no_such_table'));
     }
 
+    public function test_theProbeUserReadsTheAllowlistedTablesOnly(): void
+    {
+        foreach ([$this->testDatabase => Common::prefixTable(''), self::PREFIXED_SCHEMA => self::PREFIXED_PREFIX] as $database => $prefix) {
+            $this->useMode($database, $prefix);
+            $this->assertSame('parsed', $this->probe('SELECT 1 FROM ' . $prefix . 'site s JOIN ' . $prefix . 'archive_numeric_2024_01 a ON 1'));
+            $this->assertSame('parsed', $this->probe('SELECT no_such_column FROM ' . $prefix . 'site'));
+            $this->assertSame('parsed', $this->probe('SELECT 1 FROM ' . $prefix . 'site PARTITION (p0)'));
+            $this->assertSame('unparsed', $this->probe('SELECT 1 FROM FROM'));
+            $this->assertSame('denied', $this->probe('SELECT 1 FROM ' . $prefix . 'user'));
+            $this->assertSame('denied', $this->probe('SELECT 1 FROM ' . $prefix . 'site WHERE 0 AND EXISTS (SELECT 1 FROM `' . $prefix . 'option`)'));
+            $this->assertSame('denied', $this->probe('SELECT 1 FROM ' . self::OUTSIDE_SCHEMA . '.t'));
+            $this->assertSame('denied', $this->probe('SELECT 1 FROM ((SELECT 1 a FROM DUAL) z, ' . $prefix . 'site_setting)'));
+        }
+        $this->assertSame('denied', $this->probe('SELECT 1 FROM site'));
+        $this->assertSame('denied', $this->probe('SELECT 1 FROM `' . $this->testDatabase . '`.site'));
+    }
+
     public function test_everyAcceptedQueryReadsAllowlistedTablesOnly(): void
+    {
+        $this->runDifferential('empty prefix');
+    }
+
+    public function test_prefixedSchema_everyAcceptedQueryReadsAllowlistedTablesOnly(): void
+    {
+        $this->useMode(self::PREFIXED_SCHEMA, self::PREFIXED_PREFIX);
+
+        $this->runDifferential('prefixed');
+    }
+
+    private function runDifferential(string $mode): void
     {
         $queries = $this->generate();
         $this->assertGreaterThanOrEqual(self::MIN_GENERATED, count($queries));
 
         $accepted = 0;
         $explained = 0;
+        $parsedByProbe = 0;
         $mismatches = [];
+        $empty = [];
         foreach ($queries as $sql) {
             try {
-                $executable = SqlGuard::validate($sql, $this->prefix)->getExecutableSql();
+                $executable = SqlGuard::validate($sql, $this->prefix, $this->database)->getExecutableSql();
             } catch (RejectedQueryException $e) {
                 continue;
             }
             $accepted++;
+
+            $probe = $this->probe($executable);
+            if ($probe === 'denied') {
+                $mismatches[] = $sql . '  =>  denied to the probe user';
+                continue;
+            }
+            if ($probe === 'parsed') {
+                $parsedByProbe++;
+            }
 
             $resolved = $this->resolvedTables($executable);
             if ($resolved === null) {
                 continue;
             }
             $explained++;
+            if ($resolved === []) {
+                $empty[] = $sql;
+            }
             foreach ($resolved as [$schema, $table]) {
                 if (strtolower($schema) !== strtolower($this->database) || !$this->isAllowlisted($table)) {
                     $mismatches[] = $sql . '  =>  ' . $schema . '.' . $table;
@@ -114,10 +217,90 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
             }
         }
 
-        fwrite(STDERR, sprintf("\nSqlGuard differential: %d generated, %d accepted, %d explained, %d mismatches\n", count($queries), $accepted, $explained, count($mismatches)));
+        fwrite(STDERR, sprintf("\nSqlGuard differential (%s): %d generated, %d accepted, %d parsed by the probe, %d explained, %d mismatches\n",
+            $mode, count($queries), $accepted, $parsedByProbe, $explained, count($mismatches)));
         $this->assertSame([], $mismatches, 'Accepted queries reading a table outside the allowlist');
+        $this->assertSame([], $empty, 'Explained queries where no table was resolved: the detector missed them');
         $this->assertGreaterThanOrEqual(self::MIN_ACCEPTED, $accepted);
         $this->assertGreaterThanOrEqual(self::MIN_EXPLAINED, $explained);
+        $this->assertGreaterThanOrEqual(self::MIN_PARSED_BY_PROBE, $parsedByProbe);
+    }
+
+    /**
+     * Runs EXPLAIN as the probe user, granted SELECT on the allowlisted tables of the current schema only. MySQL
+     * checks the privileges of every table it opens, before optimizing any away.
+     *
+     * @return string "denied" when MySQL refuses a table, "unparsed" on a syntax error, else "parsed"
+     */
+    private function probe(string $executable): string
+    {
+        try {
+            $this->probe->query('EXPLAIN ' . $this->literals($executable))->fetchAll();
+        } catch (\PDOException $e) {
+            $code = (int) ($e->errorInfo[1] ?? 0);
+            if (in_array($code, self::ACCESS_DENIED_ERRORS, true)) {
+                return 'denied';
+            }
+
+            return $code === self::SYNTAX_ERROR ? 'unparsed' : 'parsed';
+        }
+
+        return 'parsed';
+    }
+
+    private function useMode(string $database, string $prefix): void
+    {
+        $this->database = $database;
+        $this->prefix = $prefix;
+
+        $config = Config::getInstance()->database;
+        // A connection of its own: SHOW WARNINGS must follow its EXPLAIN on the same session, unprepared.
+        $this->pdo = $this->connect((string) $config['username'], (string) $config['password'], $database);
+
+        $this->probe = null;
+        $this->dropProbe();
+        $tables = array_filter($this->tablesOf($database), function ($table) use ($prefix) {
+            return strpos($table, $prefix) === 0 && SqlGuard::isAllowedTable(substr($table, strlen($prefix)));
+        });
+        foreach (self::PROBE_HOSTS as $host) {
+            Db::exec(sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s'", self::PROBE_USER, $host, $this->probePassword));
+            foreach ($tables as $table) {
+                Db::exec(sprintf("GRANT SELECT ON `%s`.`%s` TO '%s'@'%s'", $database, $table, self::PROBE_USER, $host));
+            }
+        }
+        $this->probe = $this->connect(self::PROBE_USER, $this->probePassword, $database);
+    }
+
+    private function connect(string $username, string $password, string $database): \PDO
+    {
+        $config = Config::getInstance()->database;
+        $dsn = 'mysql:host=' . $config['host'] . ';port=' . ($config['port'] ?? 3306) . ';dbname=' . $database;
+        $pdo = new \PDO($dsn, $username, $password);
+        $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+        return $pdo;
+    }
+
+    private function dropProbe(): void
+    {
+        foreach (self::PROBE_HOSTS as $host) {
+            Db::exec(sprintf("DROP USER IF EXISTS '%s'@'%s'", self::PROBE_USER, $host));
+        }
+    }
+
+    /**
+     * @return string[]
+     */
+    private function tablesOf(string $database): array
+    {
+        return array_map(function ($row) {
+            return (string) reset($row);
+        }, Db::fetchAll('SHOW TABLES FROM `' . $database . '`'));
+    }
+
+    private function literals(string $executable): string
+    {
+        return str_replace(['{idsite}', '{date_start}', '{date_end}'], ['1', "'2024-01-01'", "'2024-01-31'"], $executable);
     }
 
     /**
@@ -128,7 +311,7 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
      */
     private function resolvedTables(string $executable): ?array
     {
-        $sql = str_replace(['{idsite}', '{date_start}', '{date_end}'], ['1', "'2024-01-01'", "'2024-01-31'"], $executable);
+        $sql = $this->literals($executable);
         try {
             $this->pdo->query('EXPLAIN ' . $sql)->fetchAll();
             $notes = $this->pdo->query('SHOW WARNINGS')->fetchAll(\PDO::FETCH_ASSOC);
@@ -176,7 +359,8 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
         $controls = $this->controlFactors();
         $placements = $this->placements();
         $trailers = ['', ' WHERE 1 = 1', ' WHERE a1.idsite = {idsite}', ' GROUP BY 1', ' ORDER BY 1 LIMIT 1', ' LIMIT 1',
-            ' WINDOW w AS (ORDER BY 1)', ' HAVING 1 = 1'];
+            ' WINDOW w AS (ORDER BY 1)', ' HAVING 1 = 1', " HAVING EXISTS (SELECT 1 FROM {$this->prefix}site)",
+            " ORDER BY (SELECT idsite FROM {$this->prefix}goal LIMIT 1)"];
 
         // Every hidden reference in every position of every region shape, in a random placement.
         foreach ($this->regionShapes() as $shape) {
@@ -244,6 +428,16 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
             '{F} JOIN {F} JOIN {F} ON {C} ON {C}',
             '{F} JOIN {F} ON {C} {F}',
             '{F} {F}',
+            '{F} RIGHT OUTER JOIN {F} ON {C}',
+            '{F} NATURAL LEFT OUTER JOIN {F}',
+            '{F} NATURAL RIGHT JOIN {F}',
+            '{F} NATURAL RIGHT OUTER JOIN {F}',
+            '{F} JOIN {F}',
+            '{F} INNER JOIN {F}',
+            '{F} LEFT /* a */ OUTER /* b */ JOIN {F} ON {C}',
+            "{F} NATURAL -- c\n JOIN {F}",
+            "{F} INNER # c\nJOIN {F} ON {C}",
+            '{F} INNER JOIN {F} USING (idsite)',
         ];
     }
 
@@ -276,7 +470,7 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
         $db = $this->database;
         $out = self::OUTSIDE_SCHEMA;
 
-        return [
+        return array_merge([
             "`{$p}user` {A}",
             "{$p}user",
             "`{$p}option` AS {A}",
@@ -301,7 +495,29 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
             "{$p}site {A} CROSS JOIN `{$p}user`",
             "{$p}site {A} JOIN goal ON 1 {$out}.t",
             "{$p}site {A}, LATERAL (SELECT a FROM {$out}.t) x{A}",
-        ];
+            "{$p}site_setting {A}",
+            "{$p}archive_invalidations",
+            "`{$p}log_profiling` AS {A}",
+            "(SELECT idsite FROM (SELECT a AS idsite FROM {$out}.t) d1) {A}",
+            "(SELECT (SELECT COUNT(*) FROM `{$p}user`) AS idsite FROM {$p}site) {A}",
+            "{$p}site PARTITION (p0) AS {A} USE INDEX (PRIMARY), `{$p}option`",
+            "(SELECT idsite FROM {$p}site WHERE 1 = ANY (SELECT a FROM {$out}.t)) {A}",
+        ], $this->unprefixedFactors());
+    }
+
+    /**
+     * With a prefix: the unprefixed names of allowlisted tables, present in the Matomo schema, and a table of the
+     * test database under its real name.
+     *
+     * @return string[]
+     */
+    private function unprefixedFactors(): array
+    {
+        if ($this->prefix === '') {
+            return [];
+        }
+
+        return ['site {A}', '`log_visit` AS {A}', "`{$this->testDatabase}`.site {A}"];
     }
 
     /**
@@ -351,6 +567,10 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
             "{$p}site status",
             "{$p}goal `order`",
             'DUAL',
+            "(SELECT idsite FROM (SELECT idsite FROM {$p}site) d1) {A}",
+            "(SELECT (SELECT COUNT(*) FROM {$p}goal) AS idsite FROM {$p}site) {A}",
+            "{$p}site PARTITION (p0) AS {A} USE INDEX (PRIMARY)",
+            "{$p}archive_numeric_2024_01 {A}",
         ];
     }
 
@@ -383,6 +603,12 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
             "'a' = 'a' COLLATE utf8mb4_general_ci",
             'GREATEST(1, 2) IN (2)',
             '(1, 2) = (1, 2)',
+            "a1.idsite IN (SELECT idsite FROM {$p}site_url)",
+            "EXISTS (SELECT 1 FROM {$p}segment WHERE {$p}segment.enable_only_idsite = a1.idsite)",
+            "1 = ANY (SELECT idsite FROM {$p}site)",
+            "1 = SOME (SELECT idsite FROM {$p}goal)",
+            "COALESCE((SELECT idsite FROM {$p}site LIMIT 1), 0) >= 0",
+            "CASE WHEN EXISTS (SELECT 1 FROM {$p}segment) THEN 1 ELSE 1 END = 1",
         ];
     }
 
@@ -471,6 +697,27 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
             "SELECT (SELECT 1 FROM {$site} q), q.a FROM {$out} q",
             "SELECT x.a FROM {$site} s WHERE EXISTS (SELECT 1 FROM {$site} x)",
             "SELECT 1 FROM {$site} s, (SELECT 1 a FROM {$site} " . self::OUTSIDE_SCHEMA . ') z, ' . $out,
+            "SELECT 1 FROM {$site} s JOIN {$goal} g ON 1 = ANY (SELECT a FROM {$out})",
+            "SELECT 1 FROM {$site} s JOIN {$goal} g ON 1 = SOME (SELECT 1 FROM {$user})",
+            "SELECT 1 FROM {$site} s JOIN {$goal} g ON s.idsite IN (SELECT a FROM {$out})",
+            "SELECT 1 FROM {$site} s JOIN {$goal} g ON EXISTS (SELECT 1 FROM {$user})",
+            "SELECT 1 FROM {$site} s GROUP BY s.idsite HAVING EXISTS (SELECT 1 FROM {$user})",
+            "SELECT 1 FROM {$site} s ORDER BY (SELECT a FROM {$out} LIMIT 1)",
+            "SELECT COALESCE((SELECT a FROM {$out} LIMIT 1), 0) FROM {$site} s",
+            "SELECT CASE WHEN EXISTS (SELECT 1 FROM {$user}) THEN 1 ELSE 0 END FROM {$site} s",
+            "SELECT 1 FROM (SELECT * FROM (SELECT a FROM {$out}) d2) d1",
+            "SELECT 1 FROM (SELECT (SELECT 1 FROM {$user} LIMIT 1) AS x FROM {$site}) d",
+            "SELECT 1 FROM {$site} PARTITION (p0) AS s USE INDEX (PRIMARY), {$out}",
+            "SELECT 1 FROM {$site} s RIGHT OUTER JOIN {$out} ON 1",
+            "SELECT 1 FROM {$site} s NATURAL RIGHT OUTER JOIN {$user}",
+            "SELECT 1 FROM {$site} s NATURAL LEFT OUTER JOIN {$out}",
+            "SELECT 1 FROM {$site} s INNER JOIN {$user} USING (idsite)",
+            "SELECT 1 FROM {$site} s JOIN {$goal} g JOIN {$out}",
+            "SELECT 1 FROM {$site} s LEFT /* a */ OUTER /* b */ JOIN {$out} ON 1",
+            "SELECT 1 FROM {$p}site_setting",
+            "SELECT 1 FROM {$p}archive_invalidations",
+            "SELECT 1 FROM {$p}log_profiling",
+            "SELECT 1 FROM {$p}archive_numeric_2024_01 WHERE idsite = {idsite}",
         ];
     }
 }

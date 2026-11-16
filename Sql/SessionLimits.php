@@ -50,6 +50,24 @@ final class SessionLimits
         return 'SET SESSION MAX_EXECUTION_TIME=' . $milliseconds;
     }
 
+    /**
+     * The statement setting back the timeout the session has now, to run once the limited queries are done: the
+     * connection is shared with the rest of the request.
+     */
+    public static function restoreStatement(AdapterInterface $db): string
+    {
+        if (self::isMariaDb($db)) {
+            $value = $db->fetchOne('SELECT @@SESSION.max_statement_time');
+            $milliseconds = is_numeric($value) ? (int) round((float) $value * 1000) : 0;
+
+            return self::forCurrentServerMilliseconds($db, $milliseconds);
+        }
+
+        $value = $db->fetchOne('SELECT @@SESSION.max_execution_time');
+
+        return self::forCurrentServerMilliseconds($db, is_numeric($value) ? (int) $value : 0);
+    }
+
     public static function isTimeout(AdapterInterface $db, \Throwable $e): bool
     {
         foreach (self::TIMEOUT_ERROR_CODES as $code) {

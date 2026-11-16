@@ -85,6 +85,8 @@ class VisualQueryRunner
         $this->deadline = ($this->clock)() + $this->seconds;
 
         $metricIds = array_map(fn (MetricEntry $m) => $m->id, $resolved['metrics']);
+        $restore = SessionLimits::restoreStatement($this->db);
+        $failure = null;
 
         try {
             if (!$resolved['rows']) {
@@ -102,12 +104,19 @@ class VisualQueryRunner
 
             $data = $this->collect($resolved);
         } catch (\Exception $e) {
+            $failure = $e;
             if (SessionLimits::isTimeout($this->db, $e)) {
                 throw $this->timeout($e);
             }
             throw $e;
         } finally {
-            $this->db->query(SessionLimits::forCurrentServer($this->db, 0));
+            try {
+                $this->db->query($restore);
+            } catch (\Exception $restoreFailure) {
+                if ($failure === null) {
+                    throw $restoreFailure;
+                }
+            }
         }
 
         $formatter = new Formatter();

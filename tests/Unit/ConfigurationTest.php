@@ -188,7 +188,53 @@ class ConfigurationTest extends TestCase
             'password' => 'ropass',
             'dbname' => 'matomo',
             'tables_prefix' => 'mt_',
+            'unix_socket' => '',
+            'charset' => '',
+            'collation' => '',
+            'adapter' => 'PDO\\MYSQL',
         ], Configuration::getReadOnlyDbConfig());
+    }
+
+    public function test_readOnlyDbConfig_carriesSocketCharsetAndAdapterOfTheMainDatabase(): void
+    {
+        Config::getInstance()->database = [
+            'host' => 'localhost', 'port' => '3306', 'dbname' => 'matomo', 'tables_prefix' => '',
+            'unix_socket' => '/tmp/mysql.sock', 'charset' => 'utf8mb4', 'collation' => 'utf8mb4_general_ci', 'adapter' => 'MYSQLI',
+        ];
+        Config::getInstance()->DataExplorer = ['readonly_username' => 'ro'];
+
+        $config = Configuration::getReadOnlyDbConfig();
+        $this->assertSame('/tmp/mysql.sock', $config['unix_socket']);
+        $this->assertSame('utf8mb4', $config['charset']);
+        $this->assertSame('utf8mb4_general_ci', $config['collation']);
+        $this->assertSame('MYSQLI', $config['adapter']);
+        $this->assertSame('3306', $config['port']);
+    }
+
+    public function test_readOnlyDbConfig_overridesOfSocketCharsetAndAdapterWin(): void
+    {
+        Config::getInstance()->database = [
+            'host' => 'localhost', 'dbname' => 'matomo', 'unix_socket' => '/tmp/mysql.sock', 'charset' => 'utf8', 'adapter' => 'MYSQLI',
+        ];
+        Config::getInstance()->DataExplorer = [
+            'readonly_username' => 'ro', 'readonly_unix_socket' => '/var/run/ro.sock', 'readonly_charset' => 'utf8mb4',
+            'readonly_collation' => 'utf8mb4_bin', 'readonly_adapter' => 'PDO\\MYSQL',
+        ];
+
+        $config = Configuration::getReadOnlyDbConfig();
+        $this->assertSame('/var/run/ro.sock', $config['unix_socket']);
+        $this->assertSame('utf8mb4', $config['charset']);
+        $this->assertSame('utf8mb4_bin', $config['collation']);
+        $this->assertSame('PDO\\MYSQL', $config['adapter']);
+        $this->assertSame('3306', $config['port']);
+    }
+
+    public function test_readOnlyDbConfig_anOtherHostDropsTheMainSocket(): void
+    {
+        Config::getInstance()->database = ['host' => 'localhost', 'dbname' => 'matomo', 'unix_socket' => '/tmp/mysql.sock'];
+        Config::getInstance()->DataExplorer = ['readonly_username' => 'ro', 'readonly_host' => 'replica'];
+
+        $this->assertSame('', Configuration::getReadOnlyDbConfig()['unix_socket']);
     }
 
     public function test_readOnlyDbConfig_explicitSettingsWin(): void

@@ -149,7 +149,10 @@ class Configuration
     }
 
     /**
-     * @return array{host: string, port: string, username: string, password: string, dbname: string, tables_prefix: string}|null
+     * Each setting falls back to the main [database] section when its readonly_* key is empty. The main socket is
+     * only reused when no other host is set, a socket wins over the host for PDO.
+     *
+     * @return array{host: string, port: string, username: string, password: string, dbname: string, tables_prefix: string, unix_socket: string, charset: string, collation: string, adapter: string}|null
      *         null when no read-only user is configured
      */
     public static function getReadOnlyDbConfig(): ?array
@@ -161,14 +164,25 @@ class Configuration
 
         $database = Config::getInstance()->database;
         $database = is_array($database) ? $database : [];
+        $main = function (string $key, string $default = '') use ($database): string {
+            $value = $database[$key] ?? '';
+
+            return is_scalar($value) && trim((string) $value) !== '' ? trim((string) $value) : $default;
+        };
+
+        $host = self::getString('readonly_host');
 
         return [
-            'host' => self::getString('readonly_host') ?: (string) ($database['host'] ?? ''),
-            'port' => self::getString('readonly_port') ?: (string) ($database['port'] ?? '3306'),
+            'host' => $host ?: $main('host'),
+            'port' => self::getString('readonly_port') ?: $main('port', '3306'),
             'username' => $username,
             'password' => self::getString('readonly_password'),
-            'dbname' => self::getString('readonly_dbname') ?: (string) ($database['dbname'] ?? ''),
-            'tables_prefix' => self::getString('readonly_tables_prefix') ?: (string) ($database['tables_prefix'] ?? ''),
+            'dbname' => self::getString('readonly_dbname') ?: $main('dbname'),
+            'tables_prefix' => self::getString('readonly_tables_prefix') ?: $main('tables_prefix'),
+            'unix_socket' => self::getString('readonly_unix_socket') ?: ($host === '' ? $main('unix_socket') : ''),
+            'charset' => self::getString('readonly_charset') ?: $main('charset'),
+            'collation' => self::getString('readonly_collation') ?: $main('collation'),
+            'adapter' => self::getString('readonly_adapter') ?: $main('adapter', 'PDO\\MYSQL'),
         ];
     }
 
