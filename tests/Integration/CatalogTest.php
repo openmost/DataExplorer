@@ -71,6 +71,15 @@ class CatalogTest extends IntegrationTestCase
         }
     }
 
+    public function test_technicalIdDimensionsAreExcludedButTheirMetricsStay(): void
+    {
+        $dimensions = (new DimensionCatalog())->all(1);
+
+        $this->assertArrayNotHasKey('CoreHome.LinkVisitActionId', $dimensions);
+        $this->assertArrayNotHasKey('CoreHome.LinkVisitActionIdPages', $dimensions);
+        $this->assertArrayHasKey('nb_actions', (new MetricCatalog())->all(1));
+    }
+
     public function test_metricCatalogContainsCoreCounters(): void
     {
         $metrics = (new MetricCatalog())->all(1);

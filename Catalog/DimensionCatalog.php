@@ -23,6 +23,15 @@ class DimensionCatalog
     ];
 
     /**
+     * Internal row id columns of log_link_visit_action, both labelled "Actions" by core and
+     * meaningless as a grouping: the metrics derived from them (nb_actions, ...) stay available.
+     */
+    public const TECHNICAL_DIMENSION_IDS = [
+        'CoreHome.LinkVisitActionId',
+        'CoreHome.LinkVisitActionIdPages',
+    ];
+
+    /**
      * @return array<string, DimensionEntry> keyed by Dimension::getId()
      */
     public function all(int $idSite): array
@@ -43,6 +52,10 @@ class DimensionCatalog
             }
 
             $id = $dimension->getId();
+            if (in_array($id, self::TECHNICAL_DIMENSION_IDS, true)) {
+                continue;
+            }
+
             $entries[$id] = new DimensionEntry(
                 $id,
                 (string) $dimension->getName(),

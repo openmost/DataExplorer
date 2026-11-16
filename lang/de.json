@@ -123,7 +123,7 @@
         "IncompatibleWithMetric": "Nicht verfügbar mit dem Messwert %s.",
         "UnknownVariable": "Dieses Element ist auf dieser Website nicht verfügbar.",
         "ExploreTab": "Freies Format",
-        "SqlTab": "Raw SQL",
+        "SqlTab": "SQL-Abfrage",
         "OpenReport": "Bericht",
         "NewExploration": "Neue Exploration",
         "SaveReport": "Als Bericht speichern",
