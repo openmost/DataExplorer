@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace Piwik\Plugins\DataExplorer;
 
+use Piwik\Access;
 use Piwik\Cache;
 use Piwik\Category\CategoryList;
 use Piwik\Category\Subcategory;
@@ -25,10 +26,12 @@ use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\MetricCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\ScopeCompatibility;
+use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
+use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
 use Piwik\Plugins\DataExplorer\Sql\ParsedQuery;
 use Piwik\Plugins\DataExplorer\Sql\RawSqlRunner;
@@ -36,6 +39,8 @@ use Piwik\Plugins\DataExplorer\Sql\RejectedQueryException;
 use Piwik\Plugins\DataExplorer\Sql\SiteScopeProof;
 use Piwik\Plugins\DataExplorer\Sql\SqlGuard;
 use Piwik\Plugins\SegmentEditor\API as SegmentEditorAPI;
+use Piwik\Plugins\SitesManager\API as SitesManagerAPI;
+use Piwik\Segment;
 
 /**
  * API of the DataExplorer plugin.
@@ -211,7 +216,7 @@ class API extends \Piwik\Plugin\API
      * @param string $definition JSON of the definition, {"sql": "..."} for a raw SQL report
      * @param string $placement JSON, {"all": true} or {"sites": [1, 2]}
      * @param string $category an id of getCategories(), empty for the Data Explorer category
-     * @param string $subcategory an existing subcategory id of the category or the name of a new one
+     * @param string $subcategory required, an existing subcategory id of the category or the name of a new one
      * @param int $order 0 to 1000
      * @return int id of the report
      */
@@ -220,8 +225,9 @@ class API extends \Piwik\Plugin\API
         $permissions = new ReportPermissions();
         $newPlacement = $this->parsePlacement($placement);
         $permissions->checkCanSave($newPlacement, $type);
+        $this->checkSitesExist($newPlacement);
 
-        $row = $this->buildRow($name, $type, $reportType, $definition, $category, $subcategory, $order);
+        $row = $this->buildRow($name, $type, $reportType, $definition, $newPlacement, $category, $subcategory, $order);
         $row['created_by'] = Piwik::getCurrentUserLogin();
 
         $dao = new ReportsDao();
@@ -266,8 +272,9 @@ class API extends \Piwik\Plugin\API
         $permissions = new ReportPermissions();
         $newPlacement = $this->parsePlacement($placement);
         $permissions->checkCanSave($newPlacement, $type);
+        $this->checkSitesExist($newPlacement);
 
-        $row = $this->buildRow($name, $type, $reportType, $definition, $category, $subcategory, $order);
+        $row = $this->buildRow($name, $type, $reportType, $definition, $newPlacement, $category, $subcategory, $order);
         $dao->update($idReport, $row, $newPlacement);
         $report = $dao->get($idReport);
 
@@ -470,10 +477,57 @@ class API extends \Piwik\Plugin\API
         return Placement::fromArray($raw);
     }
 
+    private function checkSitesExist(Placement $placement): void
+    {
+        if ($placement->isAllWebsites()) {
+            return;
+        }
+
+        $existing = Access::doAsSuperUser(fn () => array_map('intval', SitesManagerAPI::getInstance()->getAllSitesId()));
+        foreach ($placement->getSiteIds() as $idSite) {
+            if (!in_array($idSite, $existing, true)) {
+                throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorSiteUnknown', [$idSite]));
+            }
+        }
+    }
+
+    /**
+     * Resolves the dimensions, metrics, filters and segment of a visual report on every listed site, so an id the
+     * catalogue of a site lacks is refused at save rather than failing at archiving. An "all websites" report is
+     * checked on the site of the request only: site-specific dimensions are missing elsewhere by design and the
+     * read path skips them there.
+     */
+    private function checkVisualOnSites(ReportDefinition $definition, Placement $placement): void
+    {
+        if ($placement->isAllWebsites()) {
+            $idSite = Common::getRequestVar('idSite', 0, 'int');
+            if ($idSite < 1) {
+                $ids = Access::doAsSuperUser(fn () => SitesManagerAPI::getInstance()->getAllSitesId());
+                $idSite = $ids ? (int) reset($ids) : 0;
+            }
+            $siteIds = $idSite > 0 ? [$idSite] : [];
+        } else {
+            $siteIds = $placement->getSiteIds();
+        }
+
+        $builder = new VisualQueryBuilder();
+        foreach ($siteIds as $idSite) {
+            $builder->resolve($definition, $idSite);
+
+            if ($definition->getSegment() !== '') {
+                try {
+                    new Segment($definition->getSegment(), [$idSite]);
+                } catch (\Exception $e) {
+                    throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorSegmentInvalid', [$e->getMessage()]));
+                }
+            }
+        }
+    }
+
     /**
      * @return array the columns of a ReportsDao row, validated
      */
-    private function buildRow(string $name, string $type, string $reportType, string $definition, string $category, string $subcategory, int $order): array
+    private function buildRow(string $name, string $type, string $reportType, string $definition, Placement $placement, string $category, string $subcategory, int $order): array
     {
         $raw = json_decode($definition, true);
         if (!is_array($raw)) {
@@ -487,14 +541,22 @@ class API extends \Piwik\Plugin\API
             if ($unproven !== null) {
                 throw new RejectedQueryException(Piwik::translate('DataExplorer_SqlWarningNotSiteScoped', [$unproven]), $unproven);
             }
+        } else {
+            $this->checkVisualOnSites($validated, $placement);
         }
 
         $category = trim($category);
-        if ($category !== '' && !isset($this->reportingCategoryIds()[$category])) {
+        if ($category === '') {
+            $category = ExploreSubcategory::CATEGORY;
+        }
+        if (!isset($this->reportingCategoryIds()[$category])) {
             throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorCategoryInvalid'));
         }
 
         $subcategory = trim($subcategory);
+        if ($subcategory === '') {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorSubcategoryRequired'));
+        }
         if (mb_strlen($subcategory) > self::MAX_SUBCATEGORY_LENGTH) {
             throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorSubcategoryInvalid', [self::MAX_SUBCATEGORY_LENGTH]));
         }

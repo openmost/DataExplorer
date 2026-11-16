@@ -50,6 +50,10 @@ class ReportPermissions
      */
     public function checkCanEdit(array $report): void
     {
+        if (!empty($report['deleted'])) {
+            throw new NoAccessException(Piwik::translate('DataExplorer_ErrorReportNotAvailable'));
+        }
+
         if (Piwik::hasUserSuperUserAccess()) {
             return;
         }

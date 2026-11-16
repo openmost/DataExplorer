@@ -106,6 +106,28 @@ class ReportDefinitionTest extends TestCase
         $this->assertSame('SELECT 1', $def->getSql());
     }
 
+    public function testVisualDefinitionDropsSqlText(): void
+    {
+        $def = ReportDefinition::fromArray($this->valid(['sql' => 'SELECT login FROM user']));
+
+        $this->assertSame('', $def->getSql());
+        $this->assertSame('', $def->toArray()['sql']);
+    }
+
+    public function testSqlDefinitionKeepsOnlyTheQuery(): void
+    {
+        $def = ReportDefinition::fromArray($this->valid(['type' => 'sql', 'sql' => 'SELECT 1', 'segment' => 'visitCount>1']));
+
+        $this->assertSame([], $def->getRows());
+        $this->assertSame([], $def->getMetrics());
+        $this->assertSame([], $def->getFilters());
+        $this->assertSame('', $def->getSegment());
+        $this->assertSame(
+            ['name' => 'Pages by country', 'type' => 'sql', 'technique' => 'freeform', 'report_type' => 'table', 'sql' => 'SELECT 1'],
+            $def->toArray()
+        );
+    }
+
     /**
      * @dataProvider invalidProvider
      */

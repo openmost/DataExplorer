@@ -178,4 +178,13 @@ class ReportPermissionsTest extends IntegrationTestCase
         $this->as([], [], [], 'root', true);
         $this->assertDenied(function () { $this->permissions->checkCanView($this->report([1], 'visual', 'alice', true), 1); });
     }
+
+    public function test_edit_deletedReportRefused_evenForSuperUser(): void
+    {
+        $this->as([], [], [], 'root', true);
+        $this->assertDenied(function () { $this->permissions->checkCanEdit($this->report([1], 'visual', 'alice', true)); });
+
+        $this->as([1], [1], [1]);
+        $this->assertDenied(function () { $this->permissions->checkCanEdit($this->report([1], 'visual', 'alice', true)); });
+    }
 }

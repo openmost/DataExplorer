@@ -391,9 +391,10 @@ class ManagementApiTest extends IntegrationTestCase
     {
         $this->as([1], [1]);
 
-        $id = $this->api->addReport('Default place', 'visual', 'table', self::VISUAL, '{"sites":[1]}', '', '', 5000);
+        $id = $this->api->addReport('Default place', 'visual', 'table', self::VISUAL, '{"sites":[1]}', '', 'My page', 5000);
         $report = (new ReportsDao())->get($id);
-        $this->assertSame('', $report['category']);
+        $this->assertSame(ExploreSubcategory::CATEGORY, $report['category']);
+        $this->assertSame('My page', $report['subcategory']);
         $this->assertSame(1000, $report['order']);
 
         $id = $this->api->addReport('Trimmed', 'visual', 'table', self::VISUAL, '{"sites":[1]}', ExploreSubcategory::CATEGORY, '  <b>New</b> page  ', -4);
@@ -401,13 +402,110 @@ class ManagementApiTest extends IntegrationTestCase
         $this->assertSame('<b>New</b> page', $report['subcategory']);
         $this->assertSame(0, $report['order']);
 
-        foreach ([['Unknown_Category', 'x'], ['General_Visitors', str_repeat('a', 256)]] as [$category, $subcategory]) {
+        $cases = [
+            ['Unknown_Category', 'x', Piwik::translate('DataExplorer_ErrorCategoryInvalid')],
+            ['General_Visitors', str_repeat('a', 256), Piwik::translate('DataExplorer_ErrorSubcategoryInvalid', [255])],
+            ['General_Visitors', '   ', Piwik::translate('DataExplorer_ErrorSubcategoryRequired')],
+            ['', '', Piwik::translate('DataExplorer_ErrorSubcategoryRequired')],
+        ];
+        foreach ($cases as [$category, $subcategory, $message]) {
             try {
                 $this->api->addReport('Bad', 'visual', 'table', self::VISUAL, '{"sites":[1]}', $category, $subcategory);
                 $this->fail('InvalidArgumentException expected');
             } catch (\InvalidArgumentException $e) {
-                $this->assertNotSame('', $e->getMessage());
+                $this->assertSame($message, $e->getMessage());
             }
+        }
+    }
+
+    public function test_savedWithTheDefaultCategory_isAPageOfTheReportingMenu(): void
+    {
+        $this->as([1], [1]);
+        $this->api->addReport('Default place', 'visual', 'table', self::VISUAL, '{"sites":[1]}', '', 'My page');
+
+        $categories = array_column($this->api->getCategories(1), null, 'id');
+        $this->assertContains('My page', array_column($categories[ExploreSubcategory::CATEGORY]['subcategories'], 'id'));
+    }
+
+    public function test_visualReport_neverStoresSqlText(): void
+    {
+        $this->as([1], [1]);
+
+        $id = $this->add('{"sites":[1]}', 'visual', '{"rows":["UserCountry.Country"],"metrics":["nb_visits"],"sql":"SELECT login FROM user"}');
+
+        $this->assertSame('', (new ReportsDao())->get($id)['definition']['sql']);
+        $this->asSuperUser();
+        $this->assertSame('', $this->api->getReports(1)[0]['definition']['sql']);
+    }
+
+    public function test_sqlReport_storesOnlyItsQuery(): void
+    {
+        $this->asSuperUser();
+        $sql = 'SELECT name FROM ' . Common::prefixTable('log_action');
+
+        $id = $this->add('{"sites":[1]}', 'sql', (string) json_encode(['sql' => $sql, 'rows' => ['x'], 'metrics' => ['y'], 'segment' => 'nope']));
+
+        $this->assertSame(['technique' => 'freeform', 'sql' => $sql], (new ReportsDao())->get($id)['definition']);
+    }
+
+    /**
+     * @dataProvider invalidVisualProvider
+     */
+    public function test_visualDefinition_isResolvedAgainstTheCatalogueOfEveryListedSite(string $definition, string $key): void
+    {
+        $this->as([1], [1]);
+        try {
+            $this->add('{"sites":[1]}', 'visual', $definition);
+            $this->fail('InvalidArgumentException expected');
+        } catch (\InvalidArgumentException $e) {
+            $message = Piwik::translate($key);
+            $prefix = strpos($message, '%') === false ? $message : strstr($message, '%', true);
+            $this->assertStringStartsWith($prefix, $e->getMessage());
+        }
+        $this->assertSame([], (new ReportsDao())->getAll());
+    }
+
+    public function invalidVisualProvider(): array
+    {
+        return [
+            'unknown dimension' => ['{"rows":["Nope.Nope"],"metrics":["nb_visits"]}', 'DataExplorer_ErrorUnknownDimension'],
+            'unknown metric' => ['{"rows":["UserCountry.Country"],"metrics":["nope"]}', 'DataExplorer_ErrorUnknownMetric'],
+            'incompatible combination' => ['{"rows":["Actions.ActionUrl"],"metrics":["sum_visit_length"]}', 'DataExplorer_ErrorIncompatibleCombination'],
+            'invalid segment' => ['{"rows":["UserCountry.Country"],"metrics":["nb_visits"],"segment":"notADimension==1"}', 'DataExplorer_ErrorSegmentInvalid'],
+        ];
+    }
+
+    public function test_customDimensionOfSite1_refusedOnASiteList_acceptedOnAllWebsites(): void
+    {
+        $this->asSuperUser();
+        \Piwik\Plugins\CustomDimensions\API::getInstance()->configureNewCustomDimension(1, 'Plan', 'visit', true);
+        Cache::getTransientCache()->flushAll();
+        $ids = array_values(array_filter(
+            array_keys((new \Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog())->all(1)),
+            fn ($id) => strpos($id, 'CustomDimension.') === 0
+        ));
+        $this->assertCount(1, $ids);
+        $definition = (string) json_encode(['rows' => [$ids[0]], 'metrics' => ['nb_visits']]);
+
+        try {
+            $this->add('{"sites":[1,2]}', 'visual', $definition);
+            $this->fail('InvalidArgumentException expected');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_ErrorUnknownDimension', [$ids[0]]), $e->getMessage());
+        }
+
+        $this->assertGreaterThan(0, $this->add('{"sites":[1]}', 'visual', $definition));
+        $this->assertGreaterThan(0, $this->add('{"all":true}', 'visual', $definition));
+    }
+
+    public function test_unknownSiteIds_areRefused(): void
+    {
+        $this->asSuperUser();
+        try {
+            $this->add('{"sites":[1,99]}');
+            $this->fail('InvalidArgumentException expected');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_ErrorSiteUnknown', [99]), $e->getMessage());
         }
     }
 

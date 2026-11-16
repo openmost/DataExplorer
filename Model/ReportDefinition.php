@@ -95,10 +95,18 @@ class ReportDefinition
             if ($def->sql === '') {
                 throw self::error('DataExplorer_ErrorSqlEmpty');
             }
+            // a raw SQL report is its query only, nothing unvalidated rides along in storage
+            $def->rows = [];
+            $def->column = null;
+            $def->metrics = [];
+            $def->filters = [];
+            $def->segment = '';
 
             return $def;
         }
 
+        // the SQL text of a visual report would be stored unguarded, write users can save visual reports
+        $def->sql = '';
         $def->validateVisual();
 
         return $def;
@@ -270,6 +278,16 @@ class ReportDefinition
 
     public function toArray(): array
     {
+        if ($this->type === self::TYPE_SQL) {
+            return [
+                'name' => $this->name,
+                'type' => $this->type,
+                'technique' => $this->technique,
+                'report_type' => $this->reportType,
+                'sql' => $this->sql,
+            ];
+        }
+
         return [
             'name' => $this->name,
             'type' => $this->type,
