@@ -29,21 +29,14 @@ use Piwik\Piwik;
  */
 final class SqlGuard
 {
-    /** Unprefixed Matomo tables holding credentials, sessions or settings, never readable. */
-    public const EXCLUDED_TABLES = [
-        'user',
-        'user_token_auth',
-        'session',
-        'option',
-        'access',
-        'logger_message',
-        'user_dashboard',
-        'brute_force_log',
-        'twofactor_recovery_code',
-        'user_language',
-        'changes',
-        'tracking_failure',
+    /** Unprefixed Matomo tables a raw query may read, every other table is refused. */
+    private const ALLOWED_TABLES = [
+        'log_visit', 'log_link_visit_action', 'log_conversion', 'log_conversion_item', 'log_action',
+        'log_page_view_time', 'site', 'site_url', 'goal', 'custom_dimensions', 'segment',
     ];
+
+    /** Monthly archive tables, e.g. archive_numeric_2024_01. */
+    private const ALLOWED_ARCHIVE_KINDS = ['numeric', 'blob'];
 
     private const FORBIDDEN_SCHEMAS = ['information_schema', 'mysql', 'performance_schema', 'sys'];
 
@@ -86,6 +79,32 @@ final class SqlGuard
 
     /** Non-reserved, non-function keywords that may precede a parenthesis without naming a stored function. */
     private const KEYWORDS_BEFORE_PARENTHESIS = ['ANY', 'SOME'];
+
+    /**
+     * Unprefixed names of the readable tables, the monthly archive tables as "archive_numeric_*" and
+     * "archive_blob_*". Use isAllowedTable() to filter the tables that exist.
+     *
+     * @return string[]
+     */
+    public static function allowedTables(): array
+    {
+        $archives = array_map(function ($kind) {
+            return 'archive_' . $kind . '_*';
+        }, self::ALLOWED_ARCHIVE_KINDS);
+
+        return array_merge(array_slice(self::ALLOWED_TABLES, 0, 6), $archives, array_slice(self::ALLOWED_TABLES, 6));
+    }
+
+    /**
+     * @param string $name unprefixed table name, any case
+     */
+    public static function isAllowedTable(string $name): bool
+    {
+        $name = strtolower($name);
+
+        return in_array($name, self::ALLOWED_TABLES, true)
+            || (bool) preg_match('/^archive_(' . implode('|', self::ALLOWED_ARCHIVE_KINDS) . ')_\d{4}_\d{2}$/', $name);
+    }
 
     /** Placeholders a saved query uses for the current site and period, bound by the runner. */
     public const PLACEHOLDERS = ['{idsite}', '{date_start}', '{date_end}'];
@@ -340,7 +359,8 @@ final class SqlGuard
         if (in_array($lower, self::FORBIDDEN_SCHEMAS, true)) {
             throw self::table($raw);
         }
-        if (strpos($lower, $this->prefix) === 0 && in_array(substr($lower, strlen($this->prefix)), self::EXCLUDED_TABLES, true)) {
+        // Net under the parser: a prefixed name anywhere, even where no table was reported, must be an allowed table.
+        if ($this->prefix !== '' && $name !== $this->databaseName && strpos($lower, $this->prefix) === 0 && !self::isAllowedTable(substr($lower, strlen($this->prefix)))) {
             throw self::table($name);
         }
         if (!$quoted && !$qualified && in_array(strtoupper($name), self::DENIED_WORDS, true)) {
@@ -478,7 +498,7 @@ final class SqlGuard
 
         $lower = strtolower($table);
         $name = strpos($lower, $this->prefix) === 0 ? substr($lower, strlen($this->prefix)) : '';
-        if ($name === '' || !preg_match('/^[a-z0-9_]+$/', $name) || in_array($name, self::EXCLUDED_TABLES, true)) {
+        if ($name === '' || !self::isAllowedTable($name)) {
             throw self::table($table);
         }
 

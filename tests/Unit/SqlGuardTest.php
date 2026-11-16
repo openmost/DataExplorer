@@ -93,6 +93,11 @@ class SqlGuardTest extends TestCase
         $this->assertSame(['log_visit', 'site'], $query->getTables());
     }
 
+    public function test_aDatabaseNamedLikeThePrefixIsNotTakenForATable(): void
+    {
+        $this->assertSame(['log_visit'], SqlGuard::validate('SELECT 1 FROM matomo_prod.matomo_log_visit', self::PREFIX, 'matomo_prod')->getTables());
+    }
+
     public function test_defaultsToTheConfiguredDatabase(): void
     {
         $dbName = Config::getInstance()->database['dbname'];
@@ -123,6 +128,40 @@ SQL;
 
         $this->assertSame(['log_visit', 'log_conversion', 'log_action', 'site', 'goal'], $query->getTables());
         $this->assertCount(4, $query->getStatements());
+    }
+
+    /**
+     * @dataProvider getAllowedTables
+     */
+    public function test_acceptsEveryAllowedTable(string $table): void
+    {
+        $this->assertSame([$table], SqlGuard::validate('SELECT * FROM matomo_' . $table, self::PREFIX, self::DB)->getTables());
+    }
+
+    public function getAllowedTables(): array
+    {
+        $tables = [
+            'log_visit', 'log_link_visit_action', 'log_conversion', 'log_conversion_item', 'log_action',
+            'log_page_view_time', 'archive_numeric_2024_01', 'archive_blob_2026_12', 'site', 'site_url', 'goal',
+            'custom_dimensions', 'segment',
+        ];
+
+        return array_combine($tables, array_map(function ($table) {
+            return [$table];
+        }, $tables));
+    }
+
+    public function test_allowedTablesListsTheFixedNamesAndTheArchivePatterns(): void
+    {
+        $this->assertSame([
+            'log_visit', 'log_link_visit_action', 'log_conversion', 'log_conversion_item', 'log_action',
+            'log_page_view_time', 'archive_numeric_*', 'archive_blob_*', 'site', 'site_url', 'goal',
+            'custom_dimensions', 'segment',
+        ], SqlGuard::allowedTables());
+        $this->assertTrue(SqlGuard::isAllowedTable('archive_blob_2025_03'));
+        $this->assertTrue(SqlGuard::isAllowedTable('LOG_VISIT'));
+        $this->assertFalse(SqlGuard::isAllowedTable('archive_blob_2025_3'));
+        $this->assertFalse(SqlGuard::isAllowedTable('plugin_setting'));
     }
 
     public function test_acceptsTheSiteAndPeriodPlaceholders(): void
@@ -218,6 +257,13 @@ SQL;
             'excluded table in select list subquery' => ['SELECT idvisit, (SELECT login FROM matomo_access LIMIT 1) AS l FROM matomo_log_visit', 'matomo_access'],
             'benchmark' => ['SELECT BENCHMARK(1000000, MD5(1))', 'BENCHMARK'],
             'excluded table in union' => ['SELECT 1 UNION SELECT * FROM matomo_option', 'matomo_option'],
+            'plugin settings' => ['SELECT * FROM matomo_plugin_setting', 'matomo_plugin_setting'],
+            'site settings' => ['SELECT * FROM matomo_site_setting', 'matomo_site_setting'],
+            'scheduled reports' => ['SELECT * FROM matomo_report', 'matomo_report'],
+            'unknown future table' => ['SELECT * FROM matomo_foo', 'matomo_foo'],
+            'unknown table in subquery' => ['SELECT * FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_foo)', 'matomo_foo'],
+            'archive table with a malformed date' => ['SELECT * FROM matomo_archive_numeric_2024_1', 'matomo_archive_numeric_2024_1'],
+            'archive table of another kind' => ['SELECT * FROM matomo_archive_invalidations', 'matomo_archive_invalidations'],
             'unprefixed table' => ['SELECT * FROM log_visit', 'log_visit'],
             'uppercase excluded table' => ['SELECT * FROM MATOMO_USER', 'MATOMO_USER'],
             'for update' => ['SELECT * FROM matomo_log_visit FOR UPDATE', 'FOR'],
