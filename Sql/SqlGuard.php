@@ -890,6 +890,8 @@ final class SqlGuard
         $joined = false;
         $joinTarget = false;
         $rightJoin = false;
+        $naturalJoin = false;
+        $outerJoin = false;
         $firstInstance = count($this->instances);
         while (true) {
             $start = $this->regionToken($cursor, $end);
@@ -904,9 +906,20 @@ final class SqlGuard
             }
 
             $next = $this->regionToken($cursor, $end);
+            $hasSpecification = $next !== null && ($this->isWord($next, 'ON') || $this->isWord($next, 'USING'));
+            // MySQL reads "x RIGHT JOIN a NATURAL JOIN c ON X" as "x RIGHT JOIN (a NATURAL JOIN c) ON X": the condition
+            // would look like c's own while c's rows are all kept. A NATURAL join never takes a condition of its own.
+            if ($joinTarget && $naturalJoin && $hasSpecification) {
+                throw self::syntax((string) $this->tokens[$next]->token, $this->tokens[$next]->position);
+            }
+            // MySQL requires ON or USING right after an outer join target, so a condition is never left to a later join.
+            if ($joinTarget && $outerJoin && !$naturalJoin && !$hasSpecification) {
+                $at = $next ?? $cursor;
+                throw self::syntax((string) $this->tokens[$at]->token, $this->tokens[$at]->position);
+            }
             if ($joinTarget && $next !== null && $this->isWord($next, 'ON')) {
                 $cursor = $this->skipCondition($next, $end);
-                if ($instance !== null) {
+                if ($instance !== null && !$naturalJoin) {
                     $this->instances[$instance]['on'] = [$next + 1, $cursor];
                 }
             } elseif ($joinTarget && $next !== null && $this->isWord($next, 'USING')) {
@@ -927,19 +940,25 @@ final class SqlGuard
                 $cursor = $next;
                 $joinTarget = false;
                 $rightJoin = false;
+                $naturalJoin = false;
+                $outerJoin = false;
                 continue;
             }
             if (!$this->isJoinWord($next)) {
                 throw $this->rejectTokenAt($next);
             }
-            $rightJoin = $this->isRightJoinWord($next);
+            $rightJoin = $this->joinWordHas($next, 'RIGHT');
+            $naturalJoin = $this->joinWordHas($next, 'NATURAL');
+            $outerJoin = $rightJoin || $this->joinWordHas($next, 'LEFT');
             while ($this->clauseOf($next) !== 'JOIN') {
                 $previous = $next;
                 $next = $this->regionToken($next, $end);
                 if ($next === null || !$this->isJoinWord($next)) {
                     throw $next === null ? $this->rejectTokenAt($previous) : $this->rejectTokenAt($next);
                 }
-                $rightJoin = $rightJoin || $this->isRightJoinWord($next);
+                $rightJoin = $rightJoin || $this->joinWordHas($next, 'RIGHT');
+                $naturalJoin = $naturalJoin || $this->joinWordHas($next, 'NATURAL');
+                $outerJoin = $outerJoin || $rightJoin || $this->joinWordHas($next, 'LEFT');
             }
             $cursor = $next;
             $joined = true;
@@ -1178,9 +1197,9 @@ final class SqlGuard
         return !(($word === 'LEFT' || $word === 'RIGHT') && $this->isFollowedByParenthesis($i));
     }
 
-    private function isRightJoinWord(int $i): bool
+    private function joinWordHas(int $i, string $word): bool
     {
-        return (bool) preg_match('/(^|\s)RIGHT(\s|$)/', strtoupper((string) $this->tokens[$i]->token));
+        return (bool) preg_match('/(^|\s)' . $word . '(\s|$)/', strtoupper((string) $this->tokens[$i]->token));
     }
 
     private function isWord(int $i, string $word): bool

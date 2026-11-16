@@ -48,8 +48,8 @@ final class ParsedQuery
         array $statements,
         array $tables,
         string $executableSql,
-        array $tokens = [],
-        array $tableInstances = []
+        array $tokens,
+        array $tableInstances
     ) {
         $this->statement = $statement;
         $this->statements = $statements;
@@ -78,7 +78,8 @@ final class ParsedQuery
      * - name: the table name as written, unquoted (empty for a derived table);
      * - alias: the alias as written, unquoted, or null;
      * - position: character offset of the table name (or of the derived table's "(");
-     * - on: first and last token index of its own JOIN ... ON condition, or null;
+     * - on: first and last token index of the ON condition right after it, which the guard only accepts as its own
+     *   join's condition (never after a NATURAL join target, always after an outer join target), or null;
      * - preserved: true when it is the target of a RIGHT JOIN, so its ON condition does not filter its rows;
      * - where: first and last token index of the WHERE condition of its SELECT, or null.
      *

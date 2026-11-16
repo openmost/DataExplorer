@@ -449,6 +449,48 @@ SQL;
         ];
     }
 
+    /**
+     * MySQL hands an ON or USING written after a NATURAL join target to the enclosing outer join, whose preserved
+     * side then keeps every row of that target: the condition would look like the target's own. The enclosing outer
+     * join target is refused first, as it lacks its own ON or USING.
+     *
+     * @dataProvider getConditionsMySqlGivesToAnEnclosingJoin
+     */
+    public function test_refusesAConditionMySqlGivesToAnEnclosingJoin(string $sql, string $token, string $before): void
+    {
+        try {
+            SqlGuard::validate($sql, self::PREFIX, self::DB);
+            $this->fail('Expected RejectedQueryException for: ' . $sql);
+        } catch (RejectedQueryException $e) {
+            $this->assertSame($token, $e->getOffendingToken());
+            $this->assertSame(strrpos($sql, $before) + strlen($before), $e->getOffset());
+            $this->assertSame(Piwik::translate('DataExplorer_SqlRejectedSyntax', [$token]), $e->getMessage());
+        }
+    }
+
+    public function getConditionsMySqlGivesToAnEnclosingJoin(): array
+    {
+        return [
+            'on after natural join, segment' => ['SELECT s.idsegment, s.enable_only_idsite FROM matomo_log_action la RIGHT JOIN matomo_log_visit v NATURAL JOIN matomo_segment s ON s.enable_only_idsite = {idsite} WHERE v.idsite = {idsite}', 'NATURAL JOIN', 'matomo_log_visit v '],
+            'on after natural join, site url' => ['SELECT u.idsite, u.url FROM matomo_log_action la RIGHT JOIN matomo_segment s NATURAL JOIN matomo_site_url u ON u.idsite = {idsite} WHERE s.enable_only_idsite = {idsite}', 'NATURAL JOIN', 'matomo_segment s '],
+            'on after natural join, derived table' => ['SELECT u.idsite, u.url FROM (SELECT 1 AS zz) d RIGHT JOIN matomo_segment s NATURAL JOIN matomo_site_url u ON u.idsite = {idsite} WHERE s.enable_only_idsite = {idsite}', 'NATURAL JOIN', 'matomo_segment s '],
+            'on after natural join, right outer join' => ['SELECT s.enable_only_idsite FROM matomo_log_action la RIGHT OUTER JOIN matomo_site_url u NATURAL JOIN matomo_segment s ON s.enable_only_idsite = {idsite} WHERE u.idsite = {idsite}', 'NATURAL JOIN', 'matomo_site_url u '],
+            'using after natural join' => ['SELECT 1 FROM matomo_log_action la RIGHT JOIN matomo_log_visit v NATURAL JOIN matomo_log_conversion c USING (idvisit)', 'NATURAL JOIN', 'matomo_log_visit v '],
+            'on after an inner natural join' => ['SELECT 1 FROM matomo_log_visit v NATURAL JOIN matomo_log_conversion c ON c.idsite = {idsite}', 'ON', 'matomo_log_conversion c '],
+            'using after an inner natural join' => ['SELECT 1 FROM matomo_log_visit v NATURAL JOIN matomo_log_conversion c USING (idvisit)', 'USING', 'matomo_log_conversion c '],
+            'on after natural left join' => ['SELECT 1 FROM matomo_log_visit v NATURAL LEFT JOIN matomo_log_conversion c ON c.idsite = 1', 'ON', 'matomo_log_conversion c '],
+            'left join target without its own condition' => ['SELECT 1 FROM matomo_log_visit x LEFT JOIN matomo_log_visit a JOIN matomo_log_conversion c ON c.idsite = {idsite}', 'JOIN', 'matomo_log_visit a '],
+            'right join target without its own condition' => ['SELECT 1 FROM matomo_log_visit x RIGHT JOIN matomo_log_visit a CROSS JOIN matomo_log_conversion c ON c.idsite = {idsite}', 'CROSS JOIN', 'matomo_log_visit a '],
+            'right join target at the end' => ['SELECT 1 FROM matomo_log_visit x RIGHT JOIN matomo_log_visit a', 'a', 'matomo_log_visit '],
+        ];
+    }
+
+    public function test_acceptsNaturalJoinsWithoutCondition(): void
+    {
+        $sql = 'SELECT 1 FROM matomo_log_visit v NATURAL JOIN matomo_log_conversion c NATURAL RIGHT JOIN matomo_site s JOIN matomo_goal g ON g.idsite = s.idsite';
+        $this->assertSame(['log_visit', 'log_conversion', 'site', 'goal'], SqlGuard::validate($sql, self::PREFIX, self::DB)->getTables());
+    }
+
     public function test_listsEverySubqueryAndUnionBranchOnce(): void
     {
         $sql = 'SELECT idvisit FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_log_conversion)'

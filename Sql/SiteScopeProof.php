@@ -24,6 +24,9 @@ use PhpMyAdmin\SqlParser\Token;
  * where q is the instance's alias, or its table name when it has none, spelled in the same case, and col its site
  * column. The unqualified column proves it only when it is the only table reference of its SELECT. A conjunct counts
  * inside "(a AND b)" groups, never under OR, XOR, ||, NOT, a function, a CASE, a BETWEEN or a subquery.
+ * An ON is credited to a table reference only when it directly follows that reference as the target of its own JOIN
+ * keywords, with no other join in between: the guard refuses the shapes where MySQL hands that ON to an enclosing
+ * join (an ON or USING after a NATURAL join target, an outer join target without its own ON or USING).
  * Everything is read from the tokens the guard validated, not from the parser's view of the expressions.
  * Anything not matching these forms (<=>, a database-qualified column, an IN list of two) is not proven.
  */
@@ -59,7 +62,17 @@ final class SiteScopeProof
      */
     public static function check(ParsedQuery $query): ?string
     {
-        return (new self($query->getTokens()))->firstUnproven($query->getTableInstances());
+        $instances = $query->getTableInstances();
+
+        // Fails closed when a table read by the query has no recorded reference.
+        $recorded = array_column($instances, 'table');
+        foreach ($query->getTables() as $table) {
+            if (!in_array($table, $recorded, true)) {
+                return $table;
+            }
+        }
+
+        return (new self($query->getTokens()))->firstUnproven($instances);
     }
 
     /**
