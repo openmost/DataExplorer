@@ -101,12 +101,15 @@ class ReportsDao
         return $id;
     }
 
-    public function update(int $id, array $row, Placement $placement): void
+    /**
+     * @param bool $bumpRevision true when what the report computes changed: its archives get a new record name
+     */
+    public function update(int $id, array $row, Placement $placement, bool $bumpRevision = true): void
     {
         Db::query(
             'UPDATE ' . self::reportTable() . '
                 SET `all_websites` = ?, `name` = ?, `type` = ?, `report_type` = ?, `definition` = ?, `category` = ?,
-                    `subcategory` = ?, `order` = ?, `revision` = `revision` + 1, `updated_date` = ?
+                    `subcategory` = ?, `order` = ?, `revision` = `revision` + ' . ($bumpRevision ? 1 : 0) . ', `updated_date` = ?
               WHERE `idreport` = ?',
             [
                 $placement->isAllWebsites() ? 1 : 0,

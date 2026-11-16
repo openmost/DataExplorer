@@ -111,6 +111,27 @@ class GetReportTest extends IntegrationTestCase
         $this->assertSame('fr', $table->getRowFromLabel('France')->getMetadata('value'));
     }
 
+    public function test_visualTable_renamed_keepsItsArchivedData(): void
+    {
+        $report = $this->save('visual', 'table', ['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);
+        $this->assertSame(3, $this->api()->getReport(1, 'week', self::WEEK, $report)->getRowsCount());
+
+        $_GET['idSite'] = '1';
+        $this->api()->updateReport($report, 'Renamed', 'visual', 'table', '{"rows":["UserCountry.Country"],"metrics":["nb_visits"]}', '{"sites":[1]}', 'General_Visitors', 'Renamed page', 5);
+        unset($_GET['idSite']);
+        Cache::getTransientCache()->flushAll();
+        $general = Config::getInstance()->General;
+        Config::getInstance()->General = array_merge($general, ['enable_browser_archiving_triggering' => 0, 'browser_archiving_disabled_enforce' => 1]);
+
+        try {
+            $table = $this->api()->getReport(1, 'week', self::WEEK, $report);
+        } finally {
+            Config::getInstance()->General = $general;
+        }
+
+        $this->assertEquals(['France' => 3, 'United States' => 2, 'Germany' => 1], $this->column($table, 'nb_visits'));
+    }
+
     public function test_visualTable_expanded_returnsFormattedSubtables(): void
     {
         $report = $this->save('visual', 'table', ['rows' => [self::COUNTRY, self::DEVICE], 'metrics' => ['nb_visits']]);

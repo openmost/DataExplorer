@@ -307,20 +307,85 @@ class ManagementApiTest extends IntegrationTestCase
         }
     }
 
-    public function test_update_invalidatesTheOldAndTheNewSites_andBumpsTheRevision(): void
+    public function test_update_ofAComputedField_bumpsTheRevision_andInvalidatesThePlacedSites(): void
     {
         $this->as([1, 2], [1, 2]);
-        $id = $this->add('{"sites":[1]}');
+        $id = $this->add('{"sites":[1,2]}');
         $this->clearInvalidations();
 
-        $this->update($id, '{"sites":[2]}', 'visual', self::VISUAL, 'Moved');
+        $this->update($id, '{"sites":[1,2]}', 'visual', '{"rows":["UserCountry.Country"],"metrics":["nb_actions"]}');
 
         $report = (new ReportsDao())->get($id);
         $this->assertSame(2, $report['revision']);
-        $this->assertSame('Moved', $report['name']);
         $this->assertSame('alice', $report['created_by']);
         $this->assertSame([1, 2], $this->invalidatedSites());
         $this->assertSame('DataExplorer.reportSaved', end($this->events)[0]);
+    }
+
+    public function test_update_ofTheReportType_bumpsTheRevision(): void
+    {
+        $this->as([1], [1]);
+        $id = $this->add();
+        $this->clearInvalidations();
+
+        $this->api->updateReport($id, 'Countries', 'visual', 'evolution', '{"metrics":["nb_visits"]}', '{"sites":[1]}', 'General_Visitors', 'Explorations', 10);
+
+        $this->assertSame(2, (new ReportsDao())->get($id)['revision']);
+        $this->assertSame([1], $this->invalidatedSites());
+    }
+
+    public function test_renameReorderOrRecategorize_keepsTheRevision_andInvalidatesNothing(): void
+    {
+        $this->as([1], [1]);
+        $id = $this->add();
+        $this->clearInvalidations();
+
+        $this->api->updateReport($id, 'Renamed', 'visual', 'table', self::VISUAL, '{"sites":[1]}', 'General_Actions', 'Other page', 42);
+
+        $report = (new ReportsDao())->get($id);
+        $this->assertSame('Renamed', $report['name']);
+        $this->assertSame('General_Actions', $report['category']);
+        $this->assertSame(42, $report['order']);
+        $this->assertSame(1, $report['revision']);
+        $this->assertSame([], $this->invalidatedSites());
+        $this->assertSame('DataExplorer.reportSaved', end($this->events)[0]);
+    }
+
+    public function test_placementChange_invalidatesTheAddedSitesOnly_andKeepsTheRevision(): void
+    {
+        $this->as([1, 2, 3], [1, 2, 3]);
+        $id = $this->add('{"sites":[1,2]}');
+        $this->clearInvalidations();
+
+        $this->update($id, '{"sites":[2,3]}', 'visual', self::VISUAL, 'Moved');
+
+        $report = (new ReportsDao())->get($id);
+        $this->assertSame(1, $report['revision']);
+        $this->assertSame([2, 3], $report['placement']->getSiteIds());
+        $this->assertSame([3], $this->invalidatedSites());
+    }
+
+    public function test_placementChange_toAllWebsites_invalidatesTheSitesNotPlacedBefore(): void
+    {
+        $this->asSuperUser();
+        $id = $this->add('{"sites":[1]}');
+        $this->clearInvalidations();
+
+        $this->update($id, '{"all":true}');
+
+        $this->assertSame(1, (new ReportsDao())->get($id)['revision']);
+        $this->assertSame([2, 3], $this->invalidatedSites());
+    }
+
+    public function test_delete_invalidatesNothing(): void
+    {
+        $this->as([1], [1]);
+        $id = $this->add();
+        $this->clearInvalidations();
+
+        $this->api->deleteReport($id);
+
+        $this->assertSame([], $this->invalidatedSites());
     }
 
     public function test_getReports_redactsSqlForNonSuperUsers_andFlagsEditable(): void

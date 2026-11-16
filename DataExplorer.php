@@ -166,6 +166,8 @@ class DataExplorer extends \Piwik\Plugin
             'Category.addSubcategories' => ['function' => 'addSubcategories', 'after' => true],
             'AssetManager.getStylesheetFiles' => 'getStylesheetFiles',
             'Translate.getClientSideTranslationKeys' => 'getClientSideTranslationKeys',
+            // after ScheduledReports lists the reports
+            'ScheduledReports.getReportMetadata' => ['function' => 'removeReportsWithoutKnownColumns', 'after' => true],
         ];
     }
 
@@ -259,6 +261,33 @@ class DataExplorer extends \Piwik\Plugin
             $subcategory->setOrder($order++);
             $subcategories[] = $subcategory;
         }
+    }
+
+    /**
+     * A raw SQL report whose result columns are only known once it ran ("*", an expression without alias) would
+     * be sent without columns, so it cannot be scheduled.
+     */
+    public function removeReportsWithoutKnownColumns(&$availableReportMetadata, $reportType = null, $idSite = null): void
+    {
+        if (!is_array($availableReportMetadata) || !$idSite) {
+            return;
+        }
+
+        $dao = new ReportsDao();
+        $availableReportMetadata = array_values(array_filter($availableReportMetadata, function ($metadata) use ($dao, $idSite) {
+            if (($metadata['module'] ?? '') !== 'DataExplorer' || empty($metadata['parameters'][GetSavedReport::PARAMETER])) {
+                return true;
+            }
+
+            $row = $dao->getCached((int) $metadata['parameters'][GetSavedReport::PARAMETER]);
+            if ($row === null) {
+                return false;
+            }
+            $report = new GetSavedReport();
+            $report->initFromRow($row, (int) $idSite, false);
+
+            return $report->hasKnownColumns();
+        }));
     }
 
     public function getStylesheetFiles(array &$stylesheets): void

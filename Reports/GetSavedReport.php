@@ -28,6 +28,7 @@ use Piwik\Plugins\DataExplorer\Query\LabelFormatter;
 use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\RecordBuilders\SavedReport;
+use Piwik\Plugins\DataExplorer\Sql\ResultColumns;
 use Piwik\Plugins\DataExplorer\Visualizations\EChartsBar;
 use Piwik\Plugins\DataExplorer\Visualizations\EChartsKpi;
 use Piwik\Plugins\DataExplorer\Visualizations\EChartsLine;
@@ -53,6 +54,10 @@ class GetSavedReport extends Report
     private $listed = false;
     /** @var array<string, string> */
     private $metricNames = [];
+    /** @var string[]|null result columns of a raw SQL report, null when only known once it ran */
+    private $sqlColumns;
+    /** @var array<string, string> pivot columns of the period the metadata is built for */
+    private $pivotColumns = [];
 
     protected function init()
     {
@@ -94,10 +99,24 @@ class GetSavedReport extends Report
         $this->dimension = null;
         $this->metrics = [];
         $this->metricNames = [];
+        // core adds its visit ratios to every report by default, as zero columns here
+        $this->processedMetrics = [];
+        $this->sqlColumns = null;
 
         if ($row['type'] === ReportDefinition::TYPE_VISUAL) {
             $this->initVisual($row, $idSite);
+        } else {
+            $this->initSql($row);
         }
+    }
+
+    /**
+     * False for a raw SQL report whose result columns are only known once it ran: its processed report (scheduled
+     * reports) would have no column.
+     */
+    public function hasKnownColumns(): bool
+    {
+        return !$this->isSql() || $this->sqlColumns !== null;
     }
 
     public function getIdReport(): int
@@ -145,9 +164,71 @@ class GetSavedReport extends Report
 
     public function configureReportMetadata(&$availableReports, $infos)
     {
-        if ($this->listed) {
-            parent::configureReportMetadata($availableReports, $infos);
+        if (!$this->listed) {
+            return;
         }
+
+        $this->pivotColumns = $this->pivotColumnsOf($infos['period'] ?? null, $infos['date'] ?? null);
+        try {
+            parent::configureReportMetadata($availableReports, $infos);
+        } finally {
+            $this->pivotColumns = [];
+        }
+    }
+
+    protected function buildReportMetadata()
+    {
+        $report = parent::buildReportMetadata();
+
+        if ($this->isSql() && $this->sqlColumns !== null && $this->getReportType() === ReportDefinition::REPORT_TYPE_TABLE) {
+            $label = in_array('label', $this->sqlColumns, true) ? 'label' : $this->sqlColumns[0];
+            $report['dimension'] = $label;
+            unset($report['metrics']['label'], $report['metrics'][$label]);
+        }
+        if ($this->pivotColumns) {
+            $report['metrics'] = array_merge($report['metrics'], $this->pivotColumns);
+        }
+
+        return $report;
+    }
+
+    /**
+     * The pivot columns are values of the column dimension found in the archives, so they are only known for a
+     * period: read from the data the processed report of that period is about to fetch.
+     *
+     * @param mixed $period
+     * @param mixed $date
+     * @return array<string, string> column => translated name
+     */
+    private function pivotColumnsOf($period, $date): array
+    {
+        if ($this->row === null || $this->isSql() || $this->getReportType() !== ReportDefinition::REPORT_TYPE_TABLE
+            || empty($this->row['definition']['column']) || !is_string($period) || $period === '' || empty($date)) {
+            return [];
+        }
+
+        try {
+            $segment = Common::getRequestVar('segment', '', 'string');
+            $table = (new SavedReportReader())->read($this->row, $this->idSite, $period, (string) $date, $segment);
+        } catch (\Exception $e) {
+            return [];
+        }
+
+        $columns = [];
+        $tables = $table instanceof DataTable\Map ? $table->getDataTables() : [$table];
+        foreach ($tables as $one) {
+            foreach ($one->getRows() as $row) {
+                foreach (array_keys($row->getColumns()) as $column) {
+                    $position = strpos((string) $column, LabelFormatter::PIVOT_SEPARATOR);
+                    if ($position !== false) {
+                        $metric = substr((string) $column, 0, $position);
+                        $columns[$column] = ($this->metricNames[$metric] ?? $metric) . substr((string) $column, $position);
+                    }
+                }
+            }
+        }
+
+        return $columns;
     }
 
     public function configureWidgets(\Piwik\Widget\WidgetsList $widgetsList, \Piwik\Report\ReportWidgetFactory $factory)
@@ -243,6 +324,16 @@ class GetSavedReport extends Report
         }
 
         return $groups;
+    }
+
+    private function initSql(array $row): void
+    {
+        $sql = is_array($row['definition'] ?? null) && is_string($row['definition']['sql'] ?? null) ? $row['definition']['sql'] : '';
+        $this->sqlColumns = ResultColumns::of($sql);
+        foreach ($this->sqlColumns ?? [] as $column) {
+            $this->metrics[] = $column;
+            $this->metricNames[$column] = $column;
+        }
     }
 
     private function initVisual(array $row, int $idSite): void

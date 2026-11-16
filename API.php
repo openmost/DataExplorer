@@ -278,7 +278,7 @@ class API extends \Piwik\Plugin\API
         $idReport = $dao->insert($row, $newPlacement);
         $report = $dao->get($idReport);
 
-        $this->afterWrite([$report]);
+        $this->afterWrite($report);
 
         /**
          * Triggered after a DataExplorer report is created or updated.
@@ -295,7 +295,8 @@ class API extends \Piwik\Plugin\API
     /**
      * Updates a report, with the access rules of addReport() for its new placement plus the right to edit it:
      * its author with write access on every site it is placed on, or an admin of all those sites. Raw SQL
-     * reports, and turning a report into or out of raw SQL, need super user access.
+     * reports, and turning a report into or out of raw SQL, need super user access. Only a change of what the
+     * report computes rebuilds its history; a new placement only builds it on the sites added.
      *
      * @unsanitized
      * @param int $idReport
@@ -319,10 +320,15 @@ class API extends \Piwik\Plugin\API
         $this->checkSitesExist($newPlacement);
 
         $row = $this->buildRow($name, $type, $reportType, $definition, $newPlacement, $category, $subcategory, $order);
-        $dao->update($idReport, $row, $newPlacement);
+        $computedChanged = $this->computesSomethingElse($previous, $row);
+        $dao->update($idReport, $row, $newPlacement, $computedChanged);
         $report = $dao->get($idReport);
 
-        $this->afterWrite([$previous, $report]);
+        if ($computedChanged) {
+            $this->afterWrite($report);
+        } else {
+            $this->afterWrite($report, $this->addedSites($previous['placement'], $newPlacement));
+        }
 
         Piwik::postEvent('DataExplorer.reportSaved', [$idReport, $report, $previous]);
     }
@@ -339,7 +345,7 @@ class API extends \Piwik\Plugin\API
 
         $dao->softDelete($idReport);
 
-        $this->afterWrite([$report]);
+        $this->afterWrite(null);
 
         /**
          * Triggered after a DataExplorer report is deleted.
@@ -620,38 +626,59 @@ class API extends \Piwik\Plugin\API
     }
 
     /**
-     * Rebuilds the history of the visual reports among $reports (old and new placements of an update) and drops
-     * what core cached for this request, so the same request already lists and archives the new definitions.
-     *
-     * @param array[] $reports hydrated ReportsDao rows
+     * True when the update changes what the report computes, so its archived records no longer match it. A rename,
+     * a new place in the menu or a new placement keeps the archived history.
      */
-    private function afterWrite(array $reports): void
+    private function computesSomethingElse(array $previous, array $row): bool
+    {
+        try {
+            $before = ReportDefinition::fromReport($previous)->toArray();
+            $after = ReportDefinition::fromReport($row)->toArray();
+        } catch (\InvalidArgumentException $e) {
+            return true;
+        }
+        unset($before['name'], $after['name']);
+
+        return $before !== $after;
+    }
+
+    /**
+     * @return int[] sites of $new that $old did not include
+     */
+    private function addedSites(Placement $old, Placement $new): array
+    {
+        if ($old->isAllWebsites()) {
+            return [];
+        }
+
+        $siteIds = $new->isAllWebsites()
+            ? Access::doAsSuperUser(fn () => array_map('intval', SitesManagerAPI::getInstance()->getAllSitesId()))
+            : $new->getSiteIds();
+
+        return array_values(array_filter($siteIds, fn (int $idSite) => !$old->includes($idSite)));
+    }
+
+    /**
+     * Drops what core cached for this request, so the same request already lists and archives the new
+     * definitions, then rebuilds the history of a visual report: on every placed site, or on $onlySites.
+     *
+     * @param array|null $report hydrated ReportsDao row, null to only drop the caches
+     * @param int[]|null $onlySites
+     */
+    private function afterWrite(?array $report, ?array $onlySites = null): void
     {
         ReportsDao::clearCache();
         Cache::getTransientCache()->flushAll();
 
-        $all = false;
-        $sites = [];
-        foreach ($reports as $report) {
-            if ($report === null || $report['type'] !== ReportDefinition::TYPE_VISUAL) {
-                continue;
-            }
-            /** @var Placement $placement */
-            $placement = $report['placement'];
-            $all = $all || $placement->isAllWebsites();
-            foreach ($placement->getSiteIds() as $idSite) {
-                $sites[$idSite] = $idSite;
-            }
-        }
-
-        if (!$all && !$sites) {
+        if ($report === null || $report['type'] !== ReportDefinition::TYPE_VISUAL || $onlySites === []) {
             return;
         }
 
-        $plugin = PluginManager::getInstance()->getLoadedPlugin('DataExplorer');
-        $plugin->invalidateHistory([
+        $placement = $onlySites === null ? $report['placement'] : Placement::fromArray(['sites' => $onlySites]);
+
+        PluginManager::getInstance()->getLoadedPlugin('DataExplorer')->invalidateHistory([
             'type' => ReportDefinition::TYPE_VISUAL,
-            'placement' => $all ? Placement::fromArray(['all' => true]) : Placement::fromArray(['sites' => array_values($sites)]),
+            'placement' => $placement,
         ]);
     }
 
