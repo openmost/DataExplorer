@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Verken je Matomo-data zoals in GA4 Explorations, of met beveiligde ruwe SQL, en sla het resultaat op, deel en exporteer het."
+        "PluginDescription": "Verken je Matomo-data zoals in GA4 Explorations, of met beveiligde ruwe SQL, en sla het resultaat op, deel en exporteer het.",
+        "ErrorNameInvalid": "De rapportnaam is verplicht en mag maximaal %s tekens bevatten.",
+        "ErrorTechniqueInvalid": "Niet-ondersteunde verkenningstechniek.",
+        "ErrorTypeInvalid": "Niet-ondersteund rapporttype.",
+        "ErrorReportTypeInvalid": "De visualisatie moet een tabel, een verloopgrafiek of een KPI-kaart zijn.",
+        "ErrorSqlEmpty": "De SQL-query mag niet leeg zijn.",
+        "ErrorTooManyRows": "Een rapport accepteert maximaal %s rijdimensies.",
+        "ErrorTooManyMetrics": "Een rapport accepteert maximaal %s statistieken.",
+        "ErrorMetricRequired": "Selecteer ten minste één statistiek.",
+        "ErrorRowRequired": "Een tabel heeft ten minste één rijdimensie nodig.",
+        "ErrorColumnOnlyForTable": "Een kolomdimensie (pivot) is alleen beschikbaar voor tabellen.",
+        "ErrorRowsOnlyForTable": "Verloopgrafieken en KPI-kaarten kunnen geen rijdimensies hebben.",
+        "ErrorKpiCardOneMetric": "Een KPI-kaart toont precies één statistiek.",
+        "ErrorListInvalid": "Het veld %s moet een lijst met identificaties zijn.",
+        "ErrorFiltersInvalid": "De filters zijn ongeldig.",
+        "ErrorPlacementInvalid": "Kies alle websites of ten minste één geldige website."
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",

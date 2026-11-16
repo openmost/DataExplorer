@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Explorez vos données Matomo comme dans les explorations GA4, ou avec du SQL brut encadré, puis enregistrez, partagez et exportez le résultat."
+        "PluginDescription": "Explorez vos données Matomo comme dans les explorations GA4, ou avec du SQL brut encadré, puis enregistrez, partagez et exportez le résultat.",
+        "ErrorNameInvalid": "Le nom du rapport est obligatoire et limité à %s caractères.",
+        "ErrorTechniqueInvalid": "Technique d'exploration non prise en charge.",
+        "ErrorTypeInvalid": "Type de rapport non pris en charge.",
+        "ErrorReportTypeInvalid": "La visualisation doit être un tableau, un graphique d'évolution ou une carte KPI.",
+        "ErrorSqlEmpty": "La requête SQL ne peut pas être vide.",
+        "ErrorTooManyRows": "Un rapport accepte au plus %s dimensions en ligne.",
+        "ErrorTooManyMetrics": "Un rapport accepte au plus %s métriques.",
+        "ErrorMetricRequired": "Sélectionnez au moins une métrique.",
+        "ErrorRowRequired": "Un tableau nécessite au moins une dimension en ligne.",
+        "ErrorColumnOnlyForTable": "Une dimension en colonne (pivot) n'est disponible que pour les tableaux.",
+        "ErrorRowsOnlyForTable": "Les graphiques d'évolution et les cartes KPI n'acceptent pas de dimensions en ligne.",
+        "ErrorKpiCardOneMetric": "Une carte KPI affiche exactement une métrique.",
+        "ErrorListInvalid": "Le champ %s doit être une liste d'identifiants.",
+        "ErrorFiltersInvalid": "Les filtres sont invalides.",
+        "ErrorPlacementInvalid": "Choisissez tous les sites ou au moins un site valide."
     },
     "OpenmostCommunication": {
         "Dismiss": "Masquer",

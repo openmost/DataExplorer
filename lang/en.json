@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Explore your Matomo data like in GA4 Explorations, or with guarded raw SQL, then save, share and export it."
+        "PluginDescription": "Explore your Matomo data like in GA4 Explorations, or with guarded raw SQL, then save, share and export it.",
+        "ErrorNameInvalid": "The report name is required and must be at most %s characters.",
+        "ErrorTechniqueInvalid": "Unsupported exploration technique.",
+        "ErrorTypeInvalid": "Unsupported report type.",
+        "ErrorReportTypeInvalid": "The visualization must be a table, an evolution chart or a KPI card.",
+        "ErrorSqlEmpty": "The SQL query cannot be empty.",
+        "ErrorTooManyRows": "A report accepts at most %s row dimensions.",
+        "ErrorTooManyMetrics": "A report accepts at most %s metrics.",
+        "ErrorMetricRequired": "Select at least one metric.",
+        "ErrorRowRequired": "A table needs at least one row dimension.",
+        "ErrorColumnOnlyForTable": "A column (pivot) dimension is only available on tables.",
+        "ErrorRowsOnlyForTable": "Evolution charts and KPI cards cannot have row dimensions.",
+        "ErrorKpiCardOneMetric": "A KPI card shows exactly one metric.",
+        "ErrorListInvalid": "The field %s must be a list of identifiers.",
+        "ErrorFiltersInvalid": "The filters are invalid.",
+        "ErrorPlacementInvalid": "Choose all websites or at least one valid website."
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

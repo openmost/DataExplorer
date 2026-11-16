@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "GA4の探索のようにMatomoのデータを調べたり、保護されたSQLを直接実行したりして、結果を保存、共有、エクスポートできます。"
+        "PluginDescription": "GA4の探索のようにMatomoのデータを調べたり、保護されたSQLを直接実行したりして、結果を保存、共有、エクスポートできます。",
+        "ErrorNameInvalid": "レポート名は必須で、%s 文字以内で入力してください。",
+        "ErrorTechniqueInvalid": "サポートされていない探索手法です。",
+        "ErrorTypeInvalid": "サポートされていないレポートタイプです。",
+        "ErrorReportTypeInvalid": "可視化は表、推移グラフ、KPI カードのいずれかにしてください。",
+        "ErrorSqlEmpty": "SQL クエリを空にすることはできません。",
+        "ErrorTooManyRows": "レポートで使用できる行ディメンションは最大 %s 個です。",
+        "ErrorTooManyMetrics": "レポートで使用できる指標は最大 %s 個です。",
+        "ErrorMetricRequired": "指標を 1 つ以上選択してください。",
+        "ErrorRowRequired": "表には行ディメンションが 1 つ以上必要です。",
+        "ErrorColumnOnlyForTable": "列(ピボット)ディメンションは表でのみ使用できます。",
+        "ErrorRowsOnlyForTable": "推移グラフと KPI カードには行ディメンションを指定できません。",
+        "ErrorKpiCardOneMetric": "KPI カードに表示できる指標は 1 つだけです。",
+        "ErrorListInvalid": "フィールド %s は識別子のリストである必要があります。",
+        "ErrorFiltersInvalid": "フィルターが無効です。",
+        "ErrorPlacementInvalid": "すべてのウェブサイトまたは有効なウェブサイトを 1 つ以上選択してください。"
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",

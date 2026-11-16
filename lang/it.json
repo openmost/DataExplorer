@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Esplora i tuoi dati Matomo come nelle esplorazioni di GA4, o con SQL diretto protetto, poi salva, condividi ed esporta il risultato."
+        "PluginDescription": "Esplora i tuoi dati Matomo come nelle esplorazioni di GA4, o con SQL diretto protetto, poi salva, condividi ed esporta il risultato.",
+        "ErrorNameInvalid": "Il nome del report è obbligatorio e può contenere al massimo %s caratteri.",
+        "ErrorTechniqueInvalid": "Tecnica di esplorazione non supportata.",
+        "ErrorTypeInvalid": "Tipo di report non supportato.",
+        "ErrorReportTypeInvalid": "La visualizzazione deve essere una tabella, un grafico di evoluzione o una scheda KPI.",
+        "ErrorSqlEmpty": "La query SQL non può essere vuota.",
+        "ErrorTooManyRows": "Un report accetta al massimo %s dimensioni di riga.",
+        "ErrorTooManyMetrics": "Un report accetta al massimo %s metriche.",
+        "ErrorMetricRequired": "Seleziona almeno una metrica.",
+        "ErrorRowRequired": "Una tabella richiede almeno una dimensione di riga.",
+        "ErrorColumnOnlyForTable": "Una dimensione di colonna (pivot) è disponibile solo per le tabelle.",
+        "ErrorRowsOnlyForTable": "I grafici di evoluzione e le schede KPI non possono avere dimensioni di riga.",
+        "ErrorKpiCardOneMetric": "Una scheda KPI mostra esattamente una metrica.",
+        "ErrorListInvalid": "Il campo %s deve essere un elenco di identificatori.",
+        "ErrorFiltersInvalid": "I filtri non sono validi.",
+        "ErrorPlacementInvalid": "Scegli tutti i siti web o almeno un sito valido."
     },
     "OpenmostCommunication": {
         "Dismiss": "Ignora",

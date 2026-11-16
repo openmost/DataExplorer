@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Explore sus datos de Matomo como en las exploraciones de GA4, o con SQL directo controlado, y luego guarde, comparta y exporte el resultado."
+        "PluginDescription": "Explore sus datos de Matomo como en las exploraciones de GA4, o con SQL directo controlado, y luego guarde, comparta y exporte el resultado.",
+        "ErrorNameInvalid": "El nombre del informe es obligatorio y admite como máximo %s caracteres.",
+        "ErrorTechniqueInvalid": "Técnica de exploración no compatible.",
+        "ErrorTypeInvalid": "Tipo de informe no compatible.",
+        "ErrorReportTypeInvalid": "La visualización debe ser una tabla, un gráfico de evolución o una tarjeta KPI.",
+        "ErrorSqlEmpty": "La consulta SQL no puede estar vacía.",
+        "ErrorTooManyRows": "Un informe admite como máximo %s dimensiones de fila.",
+        "ErrorTooManyMetrics": "Un informe admite como máximo %s métricas.",
+        "ErrorMetricRequired": "Seleccione al menos una métrica.",
+        "ErrorRowRequired": "Una tabla necesita al menos una dimensión de fila.",
+        "ErrorColumnOnlyForTable": "Una dimensión de columna (pivote) solo está disponible en las tablas.",
+        "ErrorRowsOnlyForTable": "Los gráficos de evolución y las tarjetas KPI no admiten dimensiones de fila.",
+        "ErrorKpiCardOneMetric": "Una tarjeta KPI muestra exactamente una métrica.",
+        "ErrorListInvalid": "El campo %s debe ser una lista de identificadores.",
+        "ErrorFiltersInvalid": "Los filtros no son válidos.",
+        "ErrorPlacementInvalid": "Elija todos los sitios web o al menos un sitio válido."
     },
     "OpenmostCommunication": {
         "Dismiss": "Descartar",

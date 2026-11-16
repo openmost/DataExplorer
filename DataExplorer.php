@@ -9,6 +9,8 @@
 
 namespace Piwik\Plugins\DataExplorer;
 
+use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
+
 class DataExplorer extends \Piwik\Plugin
 {
     public function registerEvents()
@@ -17,7 +19,29 @@ class DataExplorer extends \Piwik\Plugin
             'Template.afterEventsReport' => 'renderOpenmostCommunicationAfterEvents',
             'Widget.filterWidgets' => 'addOpenmostCommunicationWidgets',
             'Template.beforeContent' => 'renderOpenmostCommunication',
+            'Db.getTablesInstalled' => 'getTablesInstalled',
+            'SitesManager.deleteSite.end' => 'onSiteDeleted',
         ];
+    }
+
+    public function install()
+    {
+        ReportsDao::install();
+    }
+
+    public function uninstall()
+    {
+        ReportsDao::uninstall();
+    }
+
+    public function getTablesInstalled(&$allTablesInstalled)
+    {
+        $allTablesInstalled = array_merge($allTablesInstalled, ReportsDao::getTableNames());
+    }
+
+    public function onSiteDeleted($idSite)
+    {
+        (new ReportsDao())->removeSite((int) $idSite);
     }
 
     public function renderOpenmostCommunication(&$out, $layout, $module = '', $action = '')

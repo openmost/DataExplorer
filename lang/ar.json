@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "استكشف بيانات Matomo كما في استكشافات GA4، أو باستخدام SQL مباشر خاضع للرقابة، ثم احفظ النتيجة وشاركها وصدّرها."
+        "PluginDescription": "استكشف بيانات Matomo كما في استكشافات GA4، أو باستخدام SQL مباشر خاضع للرقابة، ثم احفظ النتيجة وشاركها وصدّرها.",
+        "ErrorNameInvalid": "اسم التقرير مطلوب ولا يتجاوز %s حرفا.",
+        "ErrorTechniqueInvalid": "أسلوب الاستكشاف غير مدعوم.",
+        "ErrorTypeInvalid": "نوع التقرير غير مدعوم.",
+        "ErrorReportTypeInvalid": "يجب أن يكون التمثيل جدولا أو رسما بيانيا للتطور أو بطاقة KPI.",
+        "ErrorSqlEmpty": "لا يمكن أن يكون استعلام SQL فارغا.",
+        "ErrorTooManyRows": "يقبل التقرير %s أبعاد صفوف كحد أقصى.",
+        "ErrorTooManyMetrics": "يقبل التقرير %s مقاييس كحد أقصى.",
+        "ErrorMetricRequired": "اختر مقياسا واحدا على الأقل.",
+        "ErrorRowRequired": "يحتاج الجدول إلى بعد صفوف واحد على الأقل.",
+        "ErrorColumnOnlyForTable": "بعد الأعمدة (المحوري) متاح للجداول فقط.",
+        "ErrorRowsOnlyForTable": "لا يمكن أن تحتوي الرسوم البيانية للتطور وبطاقات KPI على أبعاد صفوف.",
+        "ErrorKpiCardOneMetric": "تعرض بطاقة KPI مقياسا واحدا بالضبط.",
+        "ErrorListInvalid": "يجب أن يكون الحقل %s قائمة من المعرفات.",
+        "ErrorFiltersInvalid": "عوامل التصفية غير صالحة.",
+        "ErrorPlacementInvalid": "اختر كل المواقع أو موقعا صالحا واحدا على الأقل."
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

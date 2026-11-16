@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "像 GA4 探索一樣瀏覽 Matomo 資料，或使用受保護的原始 SQL，然後儲存、分享並匯出結果。"
+        "PluginDescription": "像 GA4 探索一樣瀏覽 Matomo 資料，或使用受保護的原始 SQL，然後儲存、分享並匯出結果。",
+        "ErrorNameInvalid": "報表名稱為必填,且不得超過 %s 個字元。",
+        "ErrorTechniqueInvalid": "不支援的探索技術。",
+        "ErrorTypeInvalid": "不支援的報表類型。",
+        "ErrorReportTypeInvalid": "視覺化必須是表格、趨勢圖或 KPI 卡片。",
+        "ErrorSqlEmpty": "SQL 查詢不能為空。",
+        "ErrorTooManyRows": "一個報表最多接受 %s 個列維度。",
+        "ErrorTooManyMetrics": "一個報表最多接受 %s 個指標。",
+        "ErrorMetricRequired": "請至少選擇一個指標。",
+        "ErrorRowRequired": "表格至少需要一個列維度。",
+        "ErrorColumnOnlyForTable": "欄(樞紐)維度僅適用於表格。",
+        "ErrorRowsOnlyForTable": "趨勢圖和 KPI 卡片不能有列維度。",
+        "ErrorKpiCardOneMetric": "KPI 卡片只顯示一個指標。",
+        "ErrorListInvalid": "欄位 %s 必須是識別碼清單。",
+        "ErrorFiltersInvalid": "篩選條件無效。",
+        "ErrorPlacementInvalid": "請選擇所有網站或至少一個有效網站。"
     },
     "OpenmostCommunication": {
         "Dismiss": "關閉",

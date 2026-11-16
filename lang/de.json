@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Erkunden Sie Ihre Matomo-Daten wie in GA4 Explorations oder mit abgesichertem Roh-SQL, und speichern, teilen und exportieren Sie das Ergebnis."
+        "PluginDescription": "Erkunden Sie Ihre Matomo-Daten wie in GA4 Explorations oder mit abgesichertem Roh-SQL, und speichern, teilen und exportieren Sie das Ergebnis.",
+        "ErrorNameInvalid": "Der Berichtsname ist erforderlich und darf höchstens %s Zeichen lang sein.",
+        "ErrorTechniqueInvalid": "Nicht unterstützte Explorationstechnik.",
+        "ErrorTypeInvalid": "Nicht unterstützter Berichtstyp.",
+        "ErrorReportTypeInvalid": "Die Visualisierung muss eine Tabelle, ein Verlaufsdiagramm oder eine KPI-Karte sein.",
+        "ErrorSqlEmpty": "Die SQL-Abfrage darf nicht leer sein.",
+        "ErrorTooManyRows": "Ein Bericht akzeptiert höchstens %s Zeilendimensionen.",
+        "ErrorTooManyMetrics": "Ein Bericht akzeptiert höchstens %s Metriken.",
+        "ErrorMetricRequired": "Wählen Sie mindestens eine Metrik aus.",
+        "ErrorRowRequired": "Eine Tabelle benötigt mindestens eine Zeilendimension.",
+        "ErrorColumnOnlyForTable": "Eine Spaltendimension (Pivot) ist nur bei Tabellen verfügbar.",
+        "ErrorRowsOnlyForTable": "Verlaufsdiagramme und KPI-Karten können keine Zeilendimensionen haben.",
+        "ErrorKpiCardOneMetric": "Eine KPI-Karte zeigt genau eine Metrik.",
+        "ErrorListInvalid": "Das Feld %s muss eine Liste von Bezeichnern sein.",
+        "ErrorFiltersInvalid": "Die Filter sind ungültig.",
+        "ErrorPlacementInvalid": "Wählen Sie alle Websites oder mindestens eine gültige Website."
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",

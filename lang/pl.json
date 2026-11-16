@@ -1,6 +1,21 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Eksploruj dane Matomo jak w eksploracjach GA4 lub za pomocą zabezpieczonego surowego SQL, a następnie zapisuj, udostępniaj i eksportuj wynik."
+        "PluginDescription": "Eksploruj dane Matomo jak w eksploracjach GA4 lub za pomocą zabezpieczonego surowego SQL, a następnie zapisuj, udostępniaj i eksportuj wynik.",
+        "ErrorNameInvalid": "Nazwa raportu jest wymagana i może mieć najwyżej %s znaków.",
+        "ErrorTechniqueInvalid": "Nieobsługiwana technika eksploracji.",
+        "ErrorTypeInvalid": "Nieobsługiwany typ raportu.",
+        "ErrorReportTypeInvalid": "Wizualizacja musi być tabelą, wykresem zmian w czasie lub kartą KPI.",
+        "ErrorSqlEmpty": "Zapytanie SQL nie może być puste.",
+        "ErrorTooManyRows": "Raport przyjmuje najwyżej %s wymiarów wierszy.",
+        "ErrorTooManyMetrics": "Raport przyjmuje najwyżej %s metryk.",
+        "ErrorMetricRequired": "Wybierz co najmniej jedną metrykę.",
+        "ErrorRowRequired": "Tabela wymaga co najmniej jednego wymiaru wierszy.",
+        "ErrorColumnOnlyForTable": "Wymiar kolumn (przestawny) jest dostępny tylko dla tabel.",
+        "ErrorRowsOnlyForTable": "Wykresy zmian w czasie i karty KPI nie mogą mieć wymiarów wierszy.",
+        "ErrorKpiCardOneMetric": "Karta KPI pokazuje dokładnie jedną metrykę.",
+        "ErrorListInvalid": "Pole %s musi być listą identyfikatorów.",
+        "ErrorFiltersInvalid": "Filtry są nieprawidłowe.",
+        "ErrorPlacementInvalid": "Wybierz wszystkie witryny lub co najmniej jedną prawidłową witrynę."
     },
     "OpenmostCommunication": {
         "Dismiss": "Odrzuć",
