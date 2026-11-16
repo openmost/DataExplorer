@@ -320,6 +320,60 @@ SQL;
         $this->assertCount(5, $query->getStatements());
     }
 
+    /**
+     * @dataProvider getSwallowedTableReferences
+     */
+    public function test_refusesATableReferenceTheParserSwallowsIntoAJoin(string $sql, string $prefix, string $offendingAt, string $token): void
+    {
+        try {
+            SqlGuard::validate($sql, $prefix, 'platform_matomo5');
+            $this->fail('Expected RejectedQueryException for: ' . $sql);
+        } catch (RejectedQueryException $e) {
+            $this->assertSame($token, $e->getOffendingToken());
+            $this->assertSame(strpos($sql, $offendingAt), $e->getOffset());
+        }
+    }
+
+    public function getSwallowedTableReferences(): array
+    {
+        return [
+            'after cross join' => ['SELECT LEFT(u.email,3) FROM matomo_site CROSS JOIN matomo_site s2, platform_accounts.users u LIMIT 1', 'matomo_', ', platform', ','],
+            'after on 1' => ['SELECT u.email IS NOT NULL AS leaked, COUNT(*) FROM matomo_log_visit JOIN matomo_site ON 1, platform_accounts.users u GROUP BY 1', 'matomo_', ', platform', ','],
+            'after on condition' => ['SELECT LEFT(u.email,3) FROM matomo_log_visit v JOIN matomo_site s ON s.idsite = v.idsite, platform_accounts.users u WHERE v.idsite = {idsite}', 'matomo_', ', platform', ','],
+            'after parenthesized on' => ['SELECT 1 FROM matomo_log_visit v LEFT JOIN matomo_site s ON (s.idsite = v.idsite), platform_accounts.users u', 'matomo_', ', platform', ','],
+            'followed by another join' => ['SELECT 1 FROM matomo_log_visit v JOIN matomo_site s ON 1, platform_accounts.users u JOIN matomo_goal g ON 1', 'matomo_', ', platform', ','],
+            'empty prefix' => ['SELECT 1 FROM log_visit JOIN site s ON 1, `user` u WHERE log_visit.idsite = {idsite}', '', ', `user`', ','],
+            'in a derived table' => ['SELECT * FROM (SELECT 1 FROM matomo_log_visit JOIN matomo_site ON 1, platform_accounts.users u) t', 'matomo_', ', platform', ','],
+            'in IN' => ['SELECT 1 FROM matomo_log_visit WHERE idvisit IN (SELECT 1 FROM matomo_site JOIN matomo_goal ON 1, platform_accounts.users u)', 'matomo_', ', platform', ','],
+            'in EXISTS' => ['SELECT 1 FROM matomo_log_visit WHERE EXISTS (SELECT 1 FROM matomo_site NATURAL JOIN matomo_goal, platform_accounts.users u)', 'matomo_', ', platform', ','],
+            'in a parenthesized union branch' => ['SELECT 1 FROM matomo_site UNION (SELECT 1 FROM matomo_site JOIN matomo_goal ON 1, platform_accounts.users u)', 'matomo_', ', platform', ','],
+            'in a union branch' => ['SELECT 1 FROM matomo_site UNION SELECT 1 FROM matomo_site JOIN matomo_goal ON 1, platform_accounts.users u', 'matomo_', ', platform', ','],
+            'qualified column of an undeclared alias' => ['SELECT u.email FROM matomo_log_visit v', 'matomo_', 'u.email', 'u'],
+            'qualified column of another database' => ['SELECT platform_accounts.users.email FROM matomo_log_visit', 'matomo_', 'platform_accounts', 'platform_accounts'],
+            'qualified column of a non allowlisted table' => ['SELECT matomo_user.login FROM matomo_log_visit', 'matomo_', 'matomo_user', 'matomo_user'],
+            'matomo database with a non allowlisted table' => ['SELECT platform_matomo5.matomo_foo.x FROM matomo_log_visit', 'matomo_', 'matomo_foo', 'matomo_foo'],
+            'matomo database with an unprefixed table' => ['SELECT platform_matomo5.foo.x FROM matomo_log_visit', 'matomo_', 'platform_matomo5', 'platform_matomo5'],
+            'select alias as qualifier' => ['SELECT idvisit AS z, z.a FROM matomo_log_visit', 'matomo_', 'z.a', 'z'],
+        ];
+    }
+
+    public function test_acceptsJoinsAndQualifiedColumnsOfDeclaredTables(): void
+    {
+        $queries = [
+            'SELECT v.idvisit, s.name FROM matomo_log_visit v, matomo_site s WHERE s.idsite = v.idsite',
+            'SELECT 1 FROM matomo_log_visit v, matomo_site s, matomo_goal g WHERE g.idsite = s.idsite AND v.idsite = s.idsite',
+            'SELECT v.idvisit FROM matomo_log_visit v JOIN matomo_site s ON s.idsite = v.idsite LEFT JOIN matomo_goal g ON (g.idsite = s.idsite AND g.idgoal IN (1, 2)) WHERE v.idsite = {idsite}',
+            'SELECT matomo_log_visit.idvisit, matomo_site.name FROM matomo_log_visit JOIN matomo_site USING (idsite)',
+            'SELECT platform_matomo5.matomo_log_visit.idvisit FROM platform_matomo5.matomo_log_visit',
+            'SELECT v.* FROM `platform_matomo5`.`matomo_log_visit` `v` WHERE `v`.`idsite` = 1',
+            'SELECT t.idvisit FROM (SELECT idvisit FROM matomo_log_visit) t, matomo_site s WHERE t.idvisit > s.idsite',
+            'SELECT 1 FROM matomo_log_visit v WHERE EXISTS (SELECT 1 FROM matomo_log_conversion c WHERE c.idvisit = v.idvisit)',
+        ];
+        foreach ($queries as $sql) {
+            $this->assertNotEmpty(SqlGuard::validate($sql, self::PREFIX, 'platform_matomo5')->getTables(), $sql);
+        }
+    }
+
     public function test_listsEverySubqueryAndUnionBranchOnce(): void
     {
         $sql = 'SELECT idvisit FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_log_conversion)'

@@ -134,6 +134,9 @@ final class SqlGuard
     /** @var Token[] tokens of the unit being parsed, to locate what its statements refer to */
     private $unitTokens = [];
 
+    /** @var array<int, int> "(" index => ")" index of every parenthesis */
+    private $closing = [];
+
     /** @var string */
     private $prefix;
 
@@ -228,9 +231,15 @@ final class SqlGuard
             $units[$open] = $this->parseUnit($tokens, $tables);
         }
 
-        $statements = [];
+        $this->closing = $closing;
         foreach ($units as $unit => $branches) {
             $this->checkBranchesMatchSegments($branches, $segments[$unit]);
+            $this->checkTableRegions($unit, $branches, $segments[$unit]);
+        }
+        $this->checkQualifiers($units);
+
+        $statements = [];
+        foreach ($units as $unit => $branches) {
             foreach ($branches as $k => $branch) {
                 if (!$segments[$unit][$k]['parenthesized']) {
                     $statements[$this->keyOf($branch)] = $statements[$this->keyOf($branch)] ?? $branch;
@@ -761,6 +770,120 @@ final class SqlGuard
                     $at = $segment[$clause][$expected] ?? ($segment[$clause][0] ?? null);
                     throw self::syntax($clause, $at === null ? $this->findInUnit($clause) : $this->tokens[$at]->position);
                 }
+            }
+        }
+    }
+
+    /**
+     * The parser reads ", t" after a JOIN condition as part of the condition, MySQL as one more table. So in the table
+     * region of each branch (its FROM up to WHERE, GROUP, HAVING, WINDOW, ORDER, LIMIT, UNION or the end of the unit),
+     * the commas at the unit's own depth must separate exactly the parsed FROM entries, all before the first join.
+     *
+     * @param SelectStatement[] $branches
+     * @param array<int, array{parenthesized: bool, FROM: int[], JOIN: int[]}> $segments
+     */
+    private function checkTableRegions(int $unit, array $branches, array $segments): void
+    {
+        $end = $unit === -1 ? count($this->tokens) : $this->closing[$unit];
+        foreach ($segments as $k => $segment) {
+            if ($segment['parenthesized'] || empty($segment['FROM'])) {
+                continue;
+            }
+
+            $commas = [];
+            $joinSeen = false;
+            for ($i = $segment['FROM'][0] + 1; $i < $end; $i++) {
+                if ($this->enclosing[$i] !== $unit || isset($this->qualifiedNames[$i])) {
+                    continue;
+                }
+                $token = $this->tokens[$i];
+                if ($token->type === Token::TYPE_DELIMITER) {
+                    break;
+                }
+                if ($token->type === Token::TYPE_OPERATOR && $token->token === ',') {
+                    if ($joinSeen) {
+                        throw self::syntax(',', $token->position);
+                    }
+                    $commas[] = $i;
+                    continue;
+                }
+                if ($token->type !== Token::TYPE_KEYWORD) {
+                    continue;
+                }
+                $word = (string) preg_replace('/\s+/', ' ', strtoupper((string) $token->token));
+                $first = (string) strtok($word, ' ');
+                if (in_array($first, ['WHERE', 'GROUP', 'HAVING', 'WINDOW', 'ORDER', 'LIMIT', 'UNION'], true)) {
+                    break;
+                }
+                if (in_array($first, ['JOIN', 'INNER', 'CROSS', 'LEFT', 'RIGHT', 'NATURAL', 'STRAIGHT_JOIN', 'OUTER'], true)) {
+                    $joinSeen = true;
+                }
+            }
+
+            $expected = count($branches[$k]->from ?: []) - 1;
+            if (count($commas) !== $expected) {
+                $at = $commas[max(0, $expected)] ?? $segment['FROM'][0];
+                throw self::syntax((string) $this->tokens[$at]->token, $this->tokens[$at]->position);
+            }
+        }
+    }
+
+    /**
+     * Second net under the parser: a qualified name "q.x" or "q.x.y" anywhere must start with a table or alias
+     * declared by a parsed FROM / JOIN entry, a prefixed allowlisted table, or the Matomo database followed by an
+     * allowlisted table. A table the parser missed cannot be reached by its alias or its schema.
+     *
+     * @param array<int, SelectStatement[]> $units
+     */
+    private function checkQualifiers(array $units): void
+    {
+        $declared = [];
+        foreach ($units as $branches) {
+            foreach ($branches as $branch) {
+                $expressions = $branch->from ?: [];
+                foreach ($branch->join ?: [] as $join) {
+                    $expressions[] = $join->expr;
+                }
+                foreach ($expressions as $expression) {
+                    foreach ([$expression->table, $expression->alias] as $name) {
+                        if ((string) $name !== '') {
+                            $declared[strtolower((string) $name)] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        $count = count($this->tokens);
+        foreach ($this->tokens as $i => $token) {
+            if (!isset($this->nameTokens[$i]) || isset($this->qualifiedNames[$i])) {
+                continue;
+            }
+            $chain = [$i];
+            $j = $i;
+            while (($dot = $this->nextMeaningfulIndex($j)) !== null && $this->tokens[$dot]->type === Token::TYPE_OPERATOR
+                && $this->tokens[$dot]->token === '.' && ($j = $this->nextMeaningfulIndex($dot)) !== null) {
+                $chain[] = $j;
+            }
+            if (count($chain) === 1) {
+                continue;
+            }
+
+            $names = array_map(function ($index) {
+                return strtolower((string) $this->tokens[$index]->value);
+            }, $chain);
+            $isDatabase = $names[0] === strtolower($this->databaseName);
+            $isAllowedTable = function (string $name): bool {
+                return strpos($name, $this->prefix) === 0 && self::isAllowedTable(substr($name, strlen($this->prefix)));
+            };
+
+            if (count($chain) === 2) {
+                $accepted = isset($declared[$names[0]]) || $isAllowedTable($names[0]) || ($isDatabase && $isAllowedTable($names[1]));
+            } else {
+                $accepted = count($chain) === 3 && $isDatabase && $isAllowedTable($names[1]);
+            }
+            if (!$accepted) {
+                throw self::table((string) $this->tokens[$i]->value, $token->position);
             }
         }
     }
