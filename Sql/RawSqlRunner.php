@@ -21,6 +21,7 @@ use Piwik\Period\Factory as PeriodFactory;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Configuration;
+use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 use Piwik\Site;
 
 /**
@@ -58,12 +59,48 @@ final class RawSqlRunner
     {
         (new ReportPermissions())->checkCanRunRawSql();
 
+        return $this->runChecked($sql, $this->validate($sql), $idSite, $period, $date, $useCache);
+    }
+
+    /**
+     * Runs a saved raw SQL report for whoever may view it on $idSite (visibility follows placement, no super user
+     * needed), through the cache. The stored query is checked again by the guard and must still be proven
+     * site-scoped, {idsite} is bound to $idSite.
+     *
+     * @param array $report a hydrated row of ReportsDao
+     * @throws NotConfiguredException|NotReadOnlyException|RejectedQueryException
+     * @throws \InvalidArgumentException with a translated message when the query fails or times out
+     */
+    public function runSaved(array $report, int $idSite, string $period, string $date): DataTable
+    {
+        (new ReportPermissions())->checkCanView($report, $idSite);
+
+        if (($report['type'] ?? '') !== ReportDefinition::TYPE_SQL) {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorReportNotAvailable'));
+        }
+
+        $sql = is_array($report['definition'] ?? null) && is_string($report['definition']['sql'] ?? null) ? $report['definition']['sql'] : '';
+        $parsed = $this->validate($sql);
+        $unproven = SiteScopeProof::check($parsed);
+        if ($unproven !== null) {
+            throw new RejectedQueryException(Piwik::translate('DataExplorer_SqlWarningNotSiteScoped', [$unproven]), $unproven);
+        }
+
+        return $this->runChecked($sql, $parsed, $idSite, $period, $date, true);
+    }
+
+    private function validate(string $sql): ParsedQuery
+    {
         $config = Configuration::getReadOnlyDbConfig();
         if ($config === null) {
             throw new NotConfiguredException();
         }
 
-        $parsed = SqlGuard::validate($sql, $config['tables_prefix'], $config['dbname']);
+        return SqlGuard::validate($sql, $config['tables_prefix'], $config['dbname']);
+    }
+
+    private function runChecked(string $sql, ParsedQuery $parsed, int $idSite, string $period, string $date, bool $useCache): DataTable
+    {
         [$executable, $placeholders] = self::prepare($parsed, Configuration::getRawSqlRowLimit());
         $values = ['{idsite}' => $idSite] + self::dateBounds($idSite, $period, $date);
         $bind = array_map(function ($placeholder) use ($values) {

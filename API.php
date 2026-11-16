@@ -14,12 +14,15 @@ namespace Piwik\Plugins\DataExplorer;
 use Piwik\Common;
 use Piwik\Config;
 use Piwik\DataTable;
+use Piwik\NoAccessException;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\MetricCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\ScopeCompatibility;
+use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
+use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
 use Piwik\Plugins\DataExplorer\Sql\RawSqlRunner;
 use Piwik\Plugins\DataExplorer\Sql\RejectedQueryException;
@@ -111,6 +114,31 @@ class API extends \Piwik\Plugin\API
         (new ReportPermissions())->checkCanRunRawSql();
 
         return (new RawSqlRunner())->run($sql, $idSite, $period, $date);
+    }
+
+    /**
+     * Data of a saved report on a site where it is placed, for any user with view access on that site.
+     * Visual reports are read from their archives (segment applied), raw SQL reports run live with a short cache
+     * (segment ignored). Evolution and KPI card raw SQL reports run once per sub-period of a multiple period,
+     * at most raw_sql_max_points times (the most recent ones).
+     *
+     * @param int $idSite
+     * @param string $period
+     * @param string $date
+     * @param int $idReport
+     * @param string $segment
+     * @param bool $expanded
+     * @param int $idSubtable
+     * @return DataTable\DataTableInterface
+     */
+    public function getReport(int $idSite, string $period, string $date, int $idReport, string $segment = '', bool $expanded = false, int $idSubtable = 0)
+    {
+        $report = (new ReportsDao())->get($idReport);
+        if ($report === null) {
+            throw new NoAccessException(Piwik::translate('DataExplorer_ErrorReportNotAvailable'));
+        }
+
+        return (new SavedReportReader())->read($report, $idSite, $period, $date, $segment, $expanded, $idSubtable);
     }
 
     /**

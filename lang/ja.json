@@ -53,7 +53,13 @@
         "SetupConfigTitle": "2. config.ini.php にユーザーを追加する",
         "SetupConfigHelp": "同じパスワードでこのセクションを config/config.ini.php に追加してください。readonly_host、readonly_port、readonly_dbname、readonly_unix_socket は、ユーザーが Matomo とは別のサーバーに接続する場合にのみ追加してください。",
         "SetupPasswordPlaceholder": "change-me",
-        "SetupMissingGrants": "読み取り専用ユーザー %1$s は、許可されたテーブルのうち %2$s 個をまだ読み取れません。これらのテーブルへのクエリは失敗します。次の GRANT 行を実行してください:"
+        "SetupMissingGrants": "読み取り専用ユーザー %1$s は、許可されたテーブルのうち %2$s 個をまだ読み取れません。これらのテーブルへのクエリは失敗します。次の GRANT 行を実行してください:",
+        "DataExplorer": "Data Explorer",
+        "Explore": "探索",
+        "ExploreWidget": "エクスプローラー",
+        "ExploreIntro": "このサイトのディメンションと指標から探索を作成し、レポートとして保存します。",
+        "KpiCard": "KPI カード",
+        "KpiPreviousPeriod": "前の期間: %s"
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",

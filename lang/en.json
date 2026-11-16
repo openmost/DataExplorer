@@ -53,7 +53,13 @@
         "SetupConfigTitle": "2. Add the user to config.ini.php",
         "SetupConfigHelp": "Add this section to config/config.ini.php with the same password. Add readonly_host, readonly_port, readonly_dbname or readonly_unix_socket only when the user connects to another server than Matomo.",
         "SetupPasswordPlaceholder": "change-me",
-        "SetupMissingGrants": "The read-only user %1$s cannot read %2$s allowed tables yet, queries on them will fail. Run these GRANT lines:"
+        "SetupMissingGrants": "The read-only user %1$s cannot read %2$s allowed tables yet, queries on them will fail. Run these GRANT lines:",
+        "DataExplorer": "Data Explorer",
+        "Explore": "Explore",
+        "ExploreWidget": "Explorer",
+        "ExploreIntro": "Build explorations from the dimensions and metrics of this site, then save them as reports.",
+        "KpiCard": "KPI card",
+        "KpiPreviousPeriod": "Previous period: %s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

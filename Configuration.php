@@ -36,6 +36,7 @@ class Configuration
     public const DEFAULT_MAX_EXECUTION_TIME_SECONDS = 30;
     public const DEFAULT_RAW_SQL_CACHE_TTL = 300;
     public const DEFAULT_INVALIDATION_MONTHS = 6;
+    public const DEFAULT_RAW_SQL_MAX_POINTS = 30;
     public const DEFAULT_SQL_MAX_LENGTH = 65536;
     public const DEFAULT_SQL_MAX_SUBQUERIES = 50;
 
@@ -141,6 +142,14 @@ class Configuration
     public static function getSqlMaxSubqueries(): int
     {
         return self::getInt(self::KEY_SQL_MAX_SUBQUERIES, self::DEFAULT_SQL_MAX_SUBQUERIES, 0);
+    }
+
+    /**
+     * Most points of a raw SQL evolution chart or KPI card sparkline: the query runs once per point.
+     */
+    public static function getRawSqlMaxPoints(): int
+    {
+        return self::getInt('raw_sql_max_points', self::DEFAULT_RAW_SQL_MAX_POINTS, 1);
     }
 
     public static function getInvalidationMonths(): int

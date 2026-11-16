@@ -1,0 +1,19 @@
+{
+  "name": "data-explorer",
+  "private": true,
+  "description": "Build dependencies of the DataExplorer Vue library (charts and SQL editor)",
+  "dependencies": {
+    "@codemirror/lang-sql": "^6.8.0",
+    "@codemirror/lint": "^6.8.5",
+    "codemirror": "^6.0.2",
+    "echarts": "^5.6.0"
+  },
+  "peerDependencies": {
+    "vue": "^3.2.0"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
+  }
+}

@@ -12,18 +12,14 @@ declare(strict_types=1);
 namespace Piwik\Plugins\DataExplorer\Query;
 
 use Piwik\ArchiveProcessor\Parameters;
-use Piwik\Columns\Dimension;
-use Piwik\Columns\DimensionsProvider;
 use Piwik\DataAccess\LogAggregator;
 use Piwik\DataTable;
 use Piwik\DataTable\Row;
 use Piwik\Db;
-use Piwik\Metrics\Formatter;
 use Piwik\Period\Factory as PeriodFactory;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionEntry;
 use Piwik\Plugins\DataExplorer\Catalog\MetricEntry;
-use Piwik\Plugins\DataExplorer\Catalog\SiteContext;
 use Piwik\Plugins\DataExplorer\Configuration;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 use Piwik\Plugins\DataExplorer\Sql\SessionLimits;
@@ -56,8 +52,8 @@ class VisualQueryRunner
     private $builder;
     /** @var callable(): float */
     private $clock;
-    /** @var array<string, Dimension|null> */
-    private $dimensions = [];
+    /** @var LabelFormatter */
+    private $labels;
 
     /** @var ReportDefinition */
     private $definition;
@@ -83,6 +79,7 @@ class VisualQueryRunner
     {
         $this->builder = $builder ?: new VisualQueryBuilder();
         $this->clock = $clock ?: fn () => microtime(true);
+        $this->labels = new LabelFormatter();
     }
 
     /**
@@ -174,10 +171,9 @@ class VisualQueryRunner
             }
         }
 
-        $formatter = new Formatter();
         $pivotLabels = [];
         foreach ($data['pivotValues'] as $pivotKey => $value) {
-            $pivotLabels[$pivotKey] = $this->archiving ? $this->archivedLabel($value) : $this->label($resolved['column'], $value, $idSite, $formatter);
+            $pivotLabels[$pivotKey] = $this->archiving ? $this->archivedLabel($value) : $this->label($resolved['column'], $value, $idSite);
         }
 
         $context = $data + [
@@ -186,7 +182,6 @@ class VisualQueryRunner
             'pivotLabels' => $pivotLabels,
             'aggregationOps' => $this->aggregationOps($resolved['metrics'], $pivotLabels),
             'idSite' => $idSite,
-            'formatter' => $formatter,
         ];
 
         return $this->buildTable($context, 0, $this->key([]));
@@ -384,7 +379,7 @@ class VisualQueryRunner
             $node = $context['nodes'][$level][$key];
             $value = $node['values'][$level];
 
-            $label = $this->archiving ? $this->archivedLabel($value) : $this->label($dimension, $value, $context['idSite'], $context['formatter']);
+            $label = $this->archiving ? $this->archivedLabel($value) : $this->label($dimension, $value, $context['idSite']);
             $columns = ['label' => $label];
             $columns += $this->cellColumns($node, $context);
 
@@ -441,35 +436,14 @@ class VisualQueryRunner
         return $ops;
     }
 
-    private function label(DimensionEntry $entry, $value, int $idSite, Formatter $formatter): string
+    private function label(DimensionEntry $entry, $value, int $idSite): string
     {
-        if ($value === null) {
-            return Piwik::translate('General_NotDefined', $entry->name);
-        }
-
-        $dimension = $this->dimensionObject($entry->id, $idSite);
-        if (!$dimension) {
-            return (string) $value;
-        }
-
-        $formatted = $dimension->formatValue($value, $idSite, $formatter);
-
-        return $formatted === null || $formatted === '' ? (string) $value : (string) $formatted;
+        return $this->labels->format($entry, $value, $idSite);
     }
 
     private function archivedLabel($value)
     {
         return $value === null ? self::ARCHIVED_NOT_DEFINED : $value;
-    }
-
-    private function dimensionObject(string $id, int $idSite): ?Dimension
-    {
-        $cacheKey = $idSite . '|' . $id;
-        if (!array_key_exists($cacheKey, $this->dimensions)) {
-            $this->dimensions[$cacheKey] = SiteContext::run($idSite, fn () => (new DimensionsProvider())->factory($id));
-        }
-
-        return $this->dimensions[$cacheKey];
     }
 
     /**

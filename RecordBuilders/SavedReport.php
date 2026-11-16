@@ -273,7 +273,7 @@ class SavedReport extends RecordBuilder
      * Visits and actions never span two archived days, so their distinct counts add up; other distinct counts
      * (visitors, values, ...) do not.
      */
-    private function isNotSummableAcrossDays(MetricEntry $metric): bool
+    public static function isNotSummableAcrossDays(MetricEntry $metric): bool
     {
         return $metric->aggregation === 'uniq' && !preg_match('/\.(idvisit|idlink_va)\)$/i', $metric->sql);
     }

@@ -53,7 +53,13 @@
         "SetupConfigTitle": "2. Den Benutzer in config.ini.php eintragen",
         "SetupConfigHelp": "Fügen Sie diesen Abschnitt mit demselben Passwort in config/config.ini.php ein. Fügen Sie readonly_host, readonly_port, readonly_dbname oder readonly_unix_socket nur hinzu, wenn sich der Benutzer mit einem anderen Server als Matomo verbindet.",
         "SetupPasswordPlaceholder": "change-me",
-        "SetupMissingGrants": "Der schreibgeschützte Benutzer %1$s kann %2$s erlaubte Tabellen noch nicht lesen, Abfragen darauf schlagen fehl. Führen Sie diese GRANT-Zeilen aus:"
+        "SetupMissingGrants": "Der schreibgeschützte Benutzer %1$s kann %2$s erlaubte Tabellen noch nicht lesen, Abfragen darauf schlagen fehl. Führen Sie diese GRANT-Zeilen aus:",
+        "DataExplorer": "Data Explorer",
+        "Explore": "Erkunden",
+        "ExploreWidget": "Explorer",
+        "ExploreIntro": "Erstellen Sie Explorationen aus den Dimensionen und Metriken dieser Website und speichern Sie sie als Berichte.",
+        "KpiCard": "KPI-Karte",
+        "KpiPreviousPeriod": "Vorheriger Zeitraum: %s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",

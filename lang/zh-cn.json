@@ -53,7 +53,13 @@
         "SetupConfigTitle": "2. 将用户添加到 config.ini.php",
         "SetupConfigHelp": "请使用相同的密码将此部分添加到 config/config.ini.php。只有当该用户连接到 Matomo 以外的服务器时，才需要添加 readonly_host、readonly_port、readonly_dbname 或 readonly_unix_socket。",
         "SetupPasswordPlaceholder": "change-me",
-        "SetupMissingGrants": "只读用户 %1$s 尚无法读取 %2$s 个允许的表，针对这些表的查询将失败。请运行以下 GRANT 行："
+        "SetupMissingGrants": "只读用户 %1$s 尚无法读取 %2$s 个允许的表，针对这些表的查询将失败。请运行以下 GRANT 行：",
+        "DataExplorer": "Data Explorer",
+        "Explore": "探索",
+        "ExploreWidget": "探索器",
+        "ExploreIntro": "使用此网站的维度和指标构建探索，然后将其保存为报告。",
+        "KpiCard": "KPI 卡片",
+        "KpiPreviousPeriod": "上一周期：%s"
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",

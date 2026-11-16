@@ -104,6 +104,23 @@ class ReportDefinition
         return $def;
     }
 
+    /**
+     * The definition of a stored report: the columns of the row win over the same keys of its JSON definition.
+     *
+     * @param array $report a hydrated row of ReportsDao
+     * @throws \InvalidArgumentException with a translated message
+     */
+    public static function fromReport(array $report): ReportDefinition
+    {
+        $raw = is_array($report['definition'] ?? null) ? $report['definition'] : [];
+
+        return self::fromArray(array_merge($raw, [
+            'name' => (string) ($report['name'] ?? ''),
+            'type' => (string) ($report['type'] ?? ''),
+            'report_type' => (string) ($report['report_type'] ?? ''),
+        ]));
+    }
+
     private function validateVisual(): void
     {
         $maxRows = Configuration::getMaxDimensions();
