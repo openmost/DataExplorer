@@ -1,0 +1,35 @@
+{
+  "name": "DataExplorer",
+  "description": "Explore your Matomo data like in GA4 Explorations, or with guarded raw SQL, then save, share and export it.",
+  "version": "5.0.0",
+  "theme": false,
+  "require": {
+    "matomo": ">=5.0.0,<6.0.0-b1"
+  },
+  "authors": [
+    {
+      "name": "Openmost",
+      "email": "ronan@openmost.com",
+      "homepage": "https://openmost.com"
+    }
+  ],
+  "support": {
+    "email": "ronan@openmost.com",
+    "issues": "https://github.com/openmost/DataExplorer/issues",
+    "source": "https://github.com/openmost/DataExplorer"
+  },
+  "homepage": "https://openmost.com/matomo/extensions/data-explorer",
+  "license": "GPL v3+",
+  "keywords": [
+    "sql",
+    "query",
+    "explorer",
+    "explorations",
+    "custom reports",
+    "bigquery",
+    "ga4",
+    "data explorer",
+    "export"
+  ],
+  "category": "database"
+}
