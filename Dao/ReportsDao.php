@@ -155,6 +155,16 @@ class ReportsDao
     }
 
     /**
+     * @return array[] every non deleted report, by `order` then id
+     */
+    public function getAll(): array
+    {
+        $rows = Db::fetchAll('SELECT * FROM ' . self::reportTable() . ' WHERE `deleted` = 0 ORDER BY `order` ASC, `idreport` ASC');
+
+        return array_map([$this, 'hydrate'], $rows);
+    }
+
+    /**
      * A report left with no site stays stored but unplaced.
      */
     public function removeSite(int $idSite): void

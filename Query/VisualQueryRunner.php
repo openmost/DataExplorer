@@ -28,6 +28,7 @@ use Piwik\Plugins\DataExplorer\Configuration;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 use Piwik\Plugins\DataExplorer\Sql\SessionLimits;
 use Piwik\Segment;
+use Piwik\Segment\SegmentExpression;
 use Piwik\Site;
 
 /**
@@ -38,10 +39,16 @@ use Piwik\Site;
  * (ranked in SQL by the first metric), child levels and the other metric scopes are restricted to the labels
  * already kept, and "Others" is computed in SQL over the rows that were not kept, so it is exact for every
  * aggregation, distinct counts included.
+ *
+ * The same collection runs live (explorer preview, with a time budget) and inside archiving (SavedReport), where
+ * labels stay raw dimension values formatted at display time and "Others" carries the core summary row label.
  */
 class VisualQueryRunner
 {
     public const MAX_PIVOT_VALUES = 10;
+
+    /** label of the NULL / empty value in archived tables, formatted at display time */
+    public const ARCHIVED_NOT_DEFINED = '__dataexplorer_not_defined__';
 
     private const AGGREGATION_OPS = ['sum' => 'sum', 'uniq' => 'sum', 'max' => 'max', 'min' => 'min'];
 
@@ -58,10 +65,16 @@ class VisualQueryRunner
     private $aggregator;
     /** @var \Piwik\Db\AdapterInterface */
     private $db;
-    /** @var float */
+    /** @var float|null null when the run has no time budget */
     private $deadline;
     /** @var int */
     private $seconds;
+    /** @var bool */
+    private $archiving = false;
+    /** @var int */
+    private $mainCap;
+    /** @var int */
+    private $subCap;
 
     /**
      * @param callable(): float|null $clock seconds as a float, microtime(true) by default
@@ -78,14 +91,53 @@ class VisualQueryRunner
     public function run(ReportDefinition $definition, int $idSite, string $period, string $date, string $segment): DataTable
     {
         $resolved = $this->builder->resolve($definition, $idSite);
-        $this->definition = $definition;
-        $this->aggregator = $this->aggregator($idSite, $period, $date, $this->combineSegments($definition->getSegment(), $segment));
-        $this->db = Db::getReader();
+        $aggregator = $this->aggregator($idSite, $period, $date, self::combineSegments($definition->getSegment(), $segment));
+        $depth = count($definition->getRows());
+
+        $this->archiving = false;
         $this->seconds = Configuration::getMaxExecutionTimeSeconds();
         $this->deadline = ($this->clock)() + $this->seconds;
 
+        return $this->execute($definition, $resolved, $aggregator, $idSite, Configuration::getMaxRowsInMainTable($depth), Configuration::getMaxRowsInSubTable($depth));
+    }
+
+    /**
+     * Runs a definition for an archive: the LogAggregator carries the site, period and segment of the archive
+     * (the stored segment already combined), core manages the archiving time so there is no time budget, the
+     * statement row cap still applies.
+     *
+     * @throws \InvalidArgumentException with a translated message when the definition cannot be run
+     */
+    public function runForArchive(ReportDefinition $definition, LogAggregator $aggregator, int $mainCap, int $subCap): DataTable
+    {
+        $sites = $aggregator->getSites();
+        $idSite = (int) reset($sites);
+        $resolved = $this->builder->resolve($definition, $idSite);
+
+        $this->archiving = true;
+        $this->deadline = null;
+
+        return $this->execute($definition, $resolved, $aggregator, $idSite, $mainCap, $subCap);
+    }
+
+    /**
+     * Stored segment AND requested segment, through core so an identical condition is not repeated.
+     */
+    public static function combineSegments(string $stored, string $requested): string
+    {
+        return (string) Segment::combine(trim($requested), SegmentExpression::AND_DELIMITER, trim($stored));
+    }
+
+    private function execute(ReportDefinition $definition, array $resolved, LogAggregator $aggregator, int $idSite, int $mainCap, int $subCap): DataTable
+    {
+        $this->definition = $definition;
+        $this->aggregator = $aggregator;
+        $this->mainCap = $mainCap;
+        $this->subCap = $subCap;
+        $this->db = Db::getReader();
+
         $metricIds = array_map(fn (MetricEntry $m) => $m->id, $resolved['metrics']);
-        $restore = SessionLimits::restoreStatement($this->db);
+        $restore = $this->deadline === null ? null : SessionLimits::restoreStatement($this->db);
         $failure = null;
 
         try {
@@ -105,13 +157,15 @@ class VisualQueryRunner
             $data = $this->collect($resolved);
         } catch (\Exception $e) {
             $failure = $e;
-            if (SessionLimits::isTimeout($this->db, $e)) {
+            if ($restore !== null && SessionLimits::isTimeout($this->db, $e)) {
                 throw $this->timeout($e);
             }
             throw $e;
         } finally {
             try {
-                $this->db->query($restore);
+                if ($restore !== null) {
+                    $this->db->query($restore);
+                }
             } catch (\Exception $restoreFailure) {
                 if ($failure === null) {
                     throw $restoreFailure;
@@ -122,7 +176,7 @@ class VisualQueryRunner
         $formatter = new Formatter();
         $pivotLabels = [];
         foreach ($data['pivotValues'] as $pivotKey => $value) {
-            $pivotLabels[$pivotKey] = $this->label($resolved['column'], $value, $idSite, $formatter);
+            $pivotLabels[$pivotKey] = $this->archiving ? $this->archivedLabel($value) : $this->label($resolved['column'], $value, $idSite, $formatter);
         }
 
         $context = $data + [
@@ -143,8 +197,8 @@ class VisualQueryRunner
     private function collect(array $resolved): array
     {
         $depth = count($resolved['rows']);
-        $mainCap = Configuration::getMaxRowsInMainTable($depth);
-        $subCap = Configuration::getMaxRowsInSubTable($depth);
+        $mainCap = $this->mainCap;
+        $subCap = $this->subCap;
         $primary = $resolved['scopes'][0];
         $hasPivot = $resolved['column'] !== null;
 
@@ -272,11 +326,13 @@ class VisualQueryRunner
         $spec['limit'] = min(max(1, (int) $spec['limit']), Configuration::getSqlRowLimit());
         $query = $this->builder->buildQuery($this->definition, $this->aggregator, $spec);
 
-        $remaining = (int) floor(($this->deadline - ($this->clock)()) * 1000);
-        if ($remaining < 1) {
-            throw $this->timeout();
+        if ($this->deadline !== null) {
+            $remaining = (int) floor(($this->deadline - ($this->clock)()) * 1000);
+            if ($remaining < 1) {
+                throw $this->timeout();
+            }
+            $this->db->query(SessionLimits::forCurrentServerMilliseconds($this->db, $remaining));
         }
-        $this->db->query(SessionLimits::forCurrentServerMilliseconds($this->db, $remaining));
 
         return $this->db->fetchAll($query['sql'], $query['bind']);
     }
@@ -317,11 +373,6 @@ class VisualQueryRunner
         return $aggregator;
     }
 
-    private function combineSegments(string $stored, string $requested): string
-    {
-        return implode(';', array_filter([trim($stored), trim($requested)], 'strlen'));
-    }
-
     private function buildTable(array $context, int $level, string $parentKey): DataTable
     {
         $table = new DataTable();
@@ -332,7 +383,8 @@ class VisualQueryRunner
             $node = $context['nodes'][$level][$key];
             $value = $node['values'][$level];
 
-            $columns = ['label' => $this->label($dimension, $value, $context['idSite'], $context['formatter'])];
+            $label = $this->archiving ? $this->archivedLabel($value) : $this->label($dimension, $value, $context['idSite'], $context['formatter']);
+            $columns = ['label' => $label];
             $columns += $this->cellColumns($node, $context);
 
             $row = new Row([Row::COLUMNS => $columns, Row::METADATA => ['value' => $value]]);
@@ -344,7 +396,8 @@ class VisualQueryRunner
 
         if (isset($context['others'][$level][$parentKey])) {
             $others = $context['others'][$level][$parentKey] + ['metrics' => [], 'pivot' => []];
-            $columns = ['label' => Piwik::translate('General_Others')] + $this->cellColumns($others, $context);
+            $label = $this->archiving ? DataTable::LABEL_SUMMARY_ROW : Piwik::translate('General_Others');
+            $columns = ['label' => $label] + $this->cellColumns($others, $context);
             $table->addSummaryRow(new Row([Row::COLUMNS => $columns]));
         }
 
@@ -401,6 +454,11 @@ class VisualQueryRunner
         $formatted = $dimension->formatValue($value, $idSite, $formatter);
 
         return $formatted === null || $formatted === '' ? (string) $value : (string) $formatted;
+    }
+
+    private function archivedLabel($value)
+    {
+        return $value === null ? self::ARCHIVED_NOT_DEFINED : $value;
     }
 
     private function dimensionObject(string $id, int $idSite): ?Dimension

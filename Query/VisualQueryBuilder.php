@@ -325,10 +325,15 @@ class VisualQueryBuilder
 
     /**
      * generateQuery() binds the date range and sites first and the segment last, the filter placeholders sit
-     * between them in the WHERE clause.
+     * between them in the WHERE clause. During segment archiving with the segment cache, the date range, sites and
+     * segment move into a temporary table and generateQuery() binds nothing.
      */
     private function insertFilterBind(LogAggregator $aggregator, array $generated, array $filterBind): array
     {
+        if (!$generated) {
+            return $filterBind;
+        }
+
         $general = $aggregator->getGeneralQueryBindParams();
         if (array_slice($generated, 0, count($general)) != $general) {
             throw new \RuntimeException('Unexpected bind order in the generated query.');

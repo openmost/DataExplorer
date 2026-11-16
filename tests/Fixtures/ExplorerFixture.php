@@ -25,6 +25,9 @@ use Piwik\Tests\Framework\Fixture;
  * | 5     | us      | desktop    | /home, /blog                   |      |
  * | 6     | fr      | desktop    | /pricing                       |      |
  *
+ * Site 1, 2024-03-05: visit 7, fr desktop, /pricing, converts goal 2 (multiple conversions allowed) three times.
+ * Site 1, 2024-03-06: visit 8, the visitor of visit 7 coming back, fr desktop, /home.
+ *
  * Site 2, 2024-03-02: one French desktop visit viewing 1,001 distinct URLs.
  * Site 2, 2024-03-03: one German desktop visit viewing /de/a three times and /de/b once.
  */
@@ -39,6 +42,8 @@ class ExplorerFixture extends Fixture
     public $idSite = 1;
     public $idSite2 = 2;
     public $idGoal = 1;
+    public $idGoalMultiple = 2;
+    public const MULTIPLE_CONVERSIONS = 3;
 
     private const PAGES = [
         'home' => 'Home',
@@ -61,6 +66,9 @@ class ExplorerFixture extends Fixture
         if (!self::goalExists($this->idSite, $this->idGoal)) {
             GoalsAPI::getInstance()->addGoal($this->idSite, 'Signup', 'manually', '', '');
         }
+        if (!self::goalExists($this->idSite, $this->idGoalMultiple)) {
+            GoalsAPI::getInstance()->addGoal($this->idSite, 'Download', 'manually', '', '', false, false, true);
+        }
 
         $this->trackVisit('1000000000000001', 'fr', self::DESKTOP_UA, '2024-03-01 10:00:00', ['home', 'pricing', 'home'], true);
         $this->trackVisit('1000000000000002', 'fr', self::SMARTPHONE_UA, '2024-03-01 14:00:00', ['home']);
@@ -68,6 +76,8 @@ class ExplorerFixture extends Fixture
         $this->trackVisit('1000000000000004', 'us', self::SMARTPHONE_UA, '2024-03-02 15:00:00', ['contact'], true);
         $this->trackVisit('1000000000000005', 'us', self::DESKTOP_UA, '2024-03-03 11:00:00', ['home', 'blog']);
         $this->trackVisit('1000000000000006', 'fr', self::DESKTOP_UA, '2024-03-03 16:00:00', ['pricing']);
+
+        $this->trackMultipleConversions();
 
         $this->trackManyUrlsOnSite2();
         $this->trackSmallVisitOnSite2();
@@ -96,6 +106,25 @@ class ExplorerFixture extends Fixture
             $tracker->setForceVisitDateTime($time->addPeriod(count($pages), 'minute')->getDatetime());
             self::checkResponse($tracker->doTrackGoal($this->idGoal, 10));
         }
+    }
+
+    private function trackMultipleConversions(): void
+    {
+        $tracker = self::getTracker($this->idSite, '2024-03-05 10:00:00', true, true);
+        $tracker->setVisitorId('1000000000000007');
+        $tracker->setForceNewVisit();
+        $tracker->setCountry('fr');
+        $tracker->setUserAgent(self::DESKTOP_UA);
+        $tracker->setUrl('https://example.com/pricing');
+        self::checkResponse($tracker->doTrackPageView(self::PAGES['pricing']));
+
+        $time = Date::factory('2024-03-05 10:00:00');
+        for ($i = 1; $i <= self::MULTIPLE_CONVERSIONS; $i++) {
+            $tracker->setForceVisitDateTime($time->addPeriod($i, 'minute')->getDatetime());
+            self::checkResponse($tracker->doTrackGoal($this->idGoalMultiple, 5));
+        }
+
+        $this->trackVisit('1000000000000007', 'fr', self::DESKTOP_UA, '2024-03-06 10:00:00', ['home']);
     }
 
     private function trackSmallVisitOnSite2(): void
