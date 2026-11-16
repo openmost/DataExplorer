@@ -288,6 +288,35 @@ class VisualQueryTest extends IntegrationTestCase
         $this->assertSame(1, $unitedStates->getRowFromId(DataTable::ID_SUMMARY_ROW)->getColumn('nb_visits'));
     }
 
+    public function test_subtableCap_appliesPerParent_whenOneParentDominates(): void
+    {
+        Config::getInstance()->DataExplorer = ['datatable_archiving_maximum_rows_subtable_dataexplorer_dimensions_2' => 5];
+        $definition = ReportDefinition::fromArray(['name' => 'preview', 'rows' => [self::COUNTRY, self::URL], 'metrics' => ['nb_actions']]);
+
+        $table = (new VisualQueryRunner())->run($definition, self::$fixture->idSite2, 'range', self::RANGE, '');
+
+        $france = $table->getRowFromLabel('France')->getSubtable();
+        $this->assertSame(6, $france->getRowsCount());
+        $this->assertSame(ExplorerFixture::SITE2_URL_COUNT - 5, $france->getRowFromId(DataTable::ID_SUMMARY_ROW)->getColumn('nb_actions'));
+
+        $germany = $table->getRowFromLabel('Germany')->getSubtable();
+        $this->assertSame(2, $germany->getRowsCount());
+        $this->assertFalse($germany->getRowFromId(DataTable::ID_SUMMARY_ROW));
+        $this->assertSame(3, $this->findBySuffix($this->column($germany, 'nb_actions'), '/de/a'));
+        $this->assertSame(1, $this->findBySuffix($this->column($germany, 'nb_actions'), '/de/b'));
+    }
+
+    public function test_secondScopeLabelsMissingFromTheFirstScope_landInOthers(): void
+    {
+        $actions = Common::prefixTable('log_link_visit_action');
+        Db::query("DELETE FROM $actions WHERE idsite = 1 AND idvisit = 3");
+
+        $table = $this->explore(['rows' => [self::COUNTRY], 'metrics' => ['nb_actions', 'nb_visits']]);
+
+        $this->assertSame(['France' => 5, 'United States' => 3, $this->others() => 0], $this->column($table, 'nb_actions'));
+        $this->assertSame(['France' => 3, 'United States' => 2, $this->others() => 1], $this->column($table, 'nb_visits'));
+    }
+
     public function test_fourRowDimensions_nestFourLevels(): void
     {
         Config::getInstance()->DataExplorer = ['dataexplorer_max_dimensions' => 4];

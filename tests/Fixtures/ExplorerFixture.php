@@ -26,6 +26,7 @@ use Piwik\Tests\Framework\Fixture;
  * | 6     | fr      | desktop    | /pricing                       |      |
  *
  * Site 2, 2024-03-02: one French desktop visit viewing 1,001 distinct URLs.
+ * Site 2, 2024-03-03: one German desktop visit viewing /de/a three times and /de/b once.
  */
 class ExplorerFixture extends Fixture
 {
@@ -69,6 +70,7 @@ class ExplorerFixture extends Fixture
         $this->trackVisit('1000000000000006', 'fr', self::DESKTOP_UA, '2024-03-03 16:00:00', ['pricing']);
 
         $this->trackManyUrlsOnSite2();
+        $this->trackSmallVisitOnSite2();
     }
 
     public function tearDown(): void
@@ -93,6 +95,22 @@ class ExplorerFixture extends Fixture
         if ($convert) {
             $tracker->setForceVisitDateTime($time->addPeriod(count($pages), 'minute')->getDatetime());
             self::checkResponse($tracker->doTrackGoal($this->idGoal, 10));
+        }
+    }
+
+    private function trackSmallVisitOnSite2(): void
+    {
+        $tracker = self::getTracker($this->idSite2, '2024-03-03 09:00:00', true, true);
+        $tracker->setVisitorId('2000000000000002');
+        $tracker->setForceNewVisit();
+        $tracker->setCountry('de');
+        $tracker->setUserAgent(self::DESKTOP_UA);
+
+        $time = Date::factory('2024-03-03 09:00:00');
+        foreach (['a', 'a', 'a', 'b'] as $i => $page) {
+            $tracker->setForceVisitDateTime($time->addPeriod($i, 'minute')->getDatetime());
+            $tracker->setUrl('https://example.org/de/' . $page);
+            self::checkResponse($tracker->doTrackPageView('German ' . $page));
         }
     }
 

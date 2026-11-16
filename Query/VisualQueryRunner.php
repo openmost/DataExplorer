@@ -156,9 +156,16 @@ class VisualQueryRunner
         for ($level = 0; $level < $depth && $parents; $level++) {
             $cap = $level === 0 ? $mainCap : $subCap;
             $include = $level === 0 ? null : [$level, $parents];
-            $limit = min(count($parents) * $cap + 1, Configuration::getSqlRowLimit());
+            $limit = min(count($parents) * ($cap + 1), Configuration::getSqlRowLimit());
+            if ($level === 0) {
+                $limit = min($cap + 1, Configuration::getSqlRowLimit());
+            }
 
-            $rows = $this->fetch(['scope' => $primary, 'labels' => $level + 1, 'include' => $include, 'limit' => $limit]);
+            $spec = ['scope' => $primary, 'labels' => $level + 1, 'include' => $include, 'limit' => $limit];
+            if ($level > 0) {
+                $spec['rankPerParent'] = $cap;
+            }
+            $rows = $this->fetch($spec);
             $overflow = count($rows) >= $limit;
 
             $kept = [];
@@ -204,8 +211,10 @@ class VisualQueryRunner
                 }
             }
 
-            if ($overflow) {
-                $this->collectOthers($resolved['scopes'], $level, $parents, $kept, $pivotIn, $others);
+            // the other scopes always get an "Others" query: their labels missing from the first scope land there
+            $othersScopes = $overflow ? $resolved['scopes'] : array_slice($resolved['scopes'], 1);
+            if ($othersScopes) {
+                $this->collectOthers($othersScopes, $level, $parents, $kept, $pivotIn, $others);
             }
 
             $parents = $kept;
@@ -227,6 +236,9 @@ class VisualQueryRunner
         foreach ($scopes as $scope) {
             foreach ($this->fetch(['scope' => $scope] + $base) as $row) {
                 $parsed = $this->parse($row);
+                if (!array_filter($parsed['metrics'])) {
+                    continue;
+                }
                 $parentKey = $this->key($parsed['values']);
                 $others[$level][$parentKey]['metrics'] = $parsed['metrics'] + ($others[$level][$parentKey]['metrics'] ?? []);
             }

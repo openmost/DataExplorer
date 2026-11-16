@@ -125,12 +125,14 @@ class VisualQueryBuilder
      * Selected aliases: label_0 to label_<labels - 1>, pivot when grouped by the pivot column, metric_<index> where
      * index is the position of the metric in the definition. Rows come ordered by the first metric of the scope.
      *
-     * @param array{scope?: ?string, labels?: int, pivot?: bool, pivotIn?: ?array, include?: ?array, exclude?: ?array, limit?: int} $spec
+     * @param array{scope?: ?string, labels?: int, pivot?: bool, pivotIn?: ?array, include?: ?array, exclude?: ?array, limit?: int, rankPerParent?: ?int} $spec
      *        - labels: number of row dimensions grouped, from the first one
      *        - pivotIn: pivot column values the query is restricted to
      *        - include / exclude: [int $depth, array $tuples] keeps / drops rows whose first $depth row values
      *          match one of the tuples (NULL matches NULL)
      *        - limit: maximum number of rows returned, 0 for none
+     *        - rankPerParent: keep at most this many rows per parent (the first labels - 1 values), ranked by the
+     *          first metric, plus one more row per parent that still has rows, so the caller knows it overflows
      * @return array{sql: string, bind: array}
      * @throws \InvalidArgumentException with a translated message
      */
@@ -212,13 +214,26 @@ class VisualQueryBuilder
             $where .= ' AND ' . $condition;
         }
 
+        $metricOrder = 'metric_' . array_key_first($metrics) . ' DESC';
+        $perParent = isset($spec['rankPerParent']) ? max(1, (int) $spec['rankPerParent']) : 0;
+        $parentDepth = $labels - 1;
+        $orderBy = $metricOrder;
+        if ($perParent && $parentDepth > 0) {
+            $parentOrder = array_map(fn (int $i) => 'label_' . $i, range(0, $parentDepth - 1));
+            $orderBy = implode(', ', $parentOrder) . ', ' . $metricOrder;
+        }
+
         $query = $aggregator->generateQuery(
             implode(', ', $select),
             $from,
             $where,
             implode(', ', $groupBy),
-            $groupBy ? 'metric_' . array_key_first($metrics) . ' DESC' : ''
+            $groupBy ? $orderBy : ''
         );
+
+        if ($perParent && $parentDepth > 0) {
+            $query['sql'] = $this->rankPerParent($query['sql'], $parentDepth, $perParent + 1, $metricOrder);
+        }
 
         // the LIMIT is appended to the outer query: given to generateQuery(), a segment that wraps the query in a
         // subselect would also LIMIT the inner, ungrouped log rows
@@ -228,6 +243,35 @@ class VisualQueryBuilder
         }
 
         return ['sql' => $query['sql'], 'bind' => $this->insertFilterBind($aggregator, $query['bind'], $bind)];
+    }
+
+    /**
+     * Numbers the rows of each parent in the order of the inner query (parents together, best first) and keeps the
+     * first $keep of each. Session variables instead of ROW_NUMBER() so it runs on every MySQL and MariaDB version
+     * Matomo supports, the way core RankingQuery does. The rank and the parent are updated in one expression so
+     * the evaluation order of the select list does not matter, and the LIMIT on the inner query keeps its ORDER BY
+     * (MariaDB drops the ORDER BY of an unlimited subquery).
+     */
+    private function rankPerParent(string $innerSql, int $parentDepth, int $keep, string $metricOrder): string
+    {
+        $same = [];
+        $assign = [];
+        $init = ['@dataexplorer_rank := 0'];
+        for ($i = 0; $i < $parentDepth; $i++) {
+            $same[] = '@dataexplorer_parent_' . $i . ' <=> label_' . $i;
+            $assign[] = '0 * ((@dataexplorer_parent_' . $i . ' := label_' . $i . ') IS NULL)';
+            $init[] = '@dataexplorer_parent_' . $i . ' := NULL';
+        }
+        $rank = 'IF(' . implode(' AND ', $same) . ', @dataexplorer_rank := @dataexplorer_rank + 1, '
+            . '@dataexplorer_rank := 1 + ' . implode(' + ', $assign) . ')';
+
+        return 'SELECT dataexplorer_ranked.* FROM ('
+            . ' SELECT dataexplorer_sorted.*, ' . $rank . ' AS dataexplorer_rank'
+            . ' FROM (' . $innerSql . ' LIMIT 18446744073709551615) AS dataexplorer_sorted,'
+            . ' (SELECT ' . implode(', ', $init) . ') AS dataexplorer_init'
+            . ' ) AS dataexplorer_ranked'
+            . ' WHERE dataexplorer_rank <= ' . $keep
+            . ' ORDER BY ' . $metricOrder;
     }
 
     /**
