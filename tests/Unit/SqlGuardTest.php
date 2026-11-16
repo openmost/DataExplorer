@@ -374,6 +374,81 @@ SQL;
         }
     }
 
+    /**
+     * @dataProvider getHiddenTableLists
+     */
+    public function test_refusesATableHiddenOutsideTheTableReferenceGrammar(string $sql, string $prefix, string $database, string $offendingAt, string $token): void
+    {
+        try {
+            SqlGuard::validate($sql, $prefix, $database);
+            $this->fail('Expected RejectedQueryException for: ' . $sql);
+        } catch (RejectedQueryException $e) {
+            $this->assertSame($token, $e->getOffendingToken(), $sql);
+            $this->assertSame(strpos($sql, $offendingAt), $e->getOffset(), $sql);
+        }
+    }
+
+    public function getHiddenTableLists(): array
+    {
+        $db = 'platform_matomo5';
+        $fragment = 'SELECT 1 FROM ((SELECT 1 a FROM matomo_site) z, platform_accounts.users)';
+        $cases = [
+            'empty prefix' => ['SELECT login FROM ((SELECT 1 a FROM site) z, `user`) LIMIT 1', '', 'platform_matomo5_tests', '((', '('],
+            'list then union' => ['SELECT LEFT(email,3) FROM ((SELECT 1 a FROM matomo_site) z, platform_accounts.users) UNION SELECT 1 FROM matomo_site platform_accounts', 'matomo_', $db, '((', '('],
+            'list then join' => ['SELECT LEFT(email,3) FROM ((SELECT 1 a FROM matomo_site) z, platform_accounts.users) JOIN matomo_site platform_accounts ON 1 LIMIT 1', 'matomo_', $db, '((', '('],
+            'list with a parenthesized table' => ['SELECT 1 FROM ((SELECT 1 a FROM matomo_site) z, (platform_accounts.users)) JOIN matomo_site platform_accounts ON 1', 'matomo_', $db, '((', '('],
+            'parenthesized table list' => ['SELECT 1 FROM (matomo_site, matomo_goal)', 'matomo_', $db, 'matomo_site,', '(matomo_site, matomo_goal)'],
+            'parenthesized table after a comma' => ['SELECT 1 FROM matomo_site, (matomo_goal) g', 'matomo_', $db, 'matomo_goal)', '(matomo_goal)'],
+            'double parenthesized derived table' => ['SELECT 1 FROM ((SELECT 1 a FROM matomo_site)) z', 'matomo_', $db, '((', '('],
+            'derived table column list' => ['SELECT * FROM (SELECT 1, 2) t(a, b), matomo_site', 'matomo_', $db, 't(a, b)', 't'],
+            'alias named like the matomo database' => ['SELECT 1 FROM matomo_site platform_matomo5', 'matomo_', $db, 'platform_matomo5', 'platform_matomo5'],
+            'alias named like a schema qualifier' => ['SELECT 1 FROM matomo_site s JOIN matomo_goal AS platform_accounts ON 1 WHERE platform_accounts.users.email IS NULL', 'matomo_', $db, 'platform_accounts ON', 'platform_accounts'],
+            'qualifier of an alias declared in a sibling subquery' => ['SELECT (SELECT 1 FROM matomo_site q), q.idsite FROM matomo_log_visit v', 'matomo_', $db, 'q.idsite', 'q'],
+            'qualifier of an alias declared in a nested subquery' => ['SELECT x.y FROM matomo_log_visit v WHERE EXISTS (SELECT 1 FROM matomo_site x)', 'matomo_', $db, 'x.y', 'x'],
+            'other database in a join target' => ['SELECT 1 FROM matomo_site s JOIN platform_accounts.users u ON 1', 'matomo_', $db, 'platform_accounts', 'platform_accounts.users'],
+        ];
+
+        $placements = [
+            'plain' => '{X}',
+            'parenthesized' => '({X})',
+            'in' => 'SELECT 1 FROM matomo_site WHERE 1 IN ({X})',
+            'derived' => 'SELECT * FROM matomo_site, ({X}) y',
+            'scalar' => 'SELECT ({X}) FROM matomo_site',
+            'union branch' => 'SELECT 1 FROM matomo_site UNION {X}',
+            'parenthesized union branch' => 'SELECT 1 FROM matomo_site UNION ({X})',
+            'exists' => 'SELECT 1 FROM matomo_site WHERE EXISTS ({X})',
+            'before a union' => '{X} UNION SELECT 1 FROM matomo_site',
+            'before order and limit' => '{X} ORDER BY 1 LIMIT 1',
+        ];
+        foreach ($placements as $name => $placement) {
+            $cases['fragment ' . $name] = [str_replace('{X}', $fragment, $placement), 'matomo_', $db, '((SELECT 1 a', '('];
+        }
+
+        return $cases;
+    }
+
+    /**
+     * @dataProvider getTableReferenceGrammar
+     */
+    public function test_acceptsTheTableReferenceGrammar(string $sql, array $tables): void
+    {
+        $this->assertSame($tables, SqlGuard::validate($sql, self::PREFIX, 'platform_matomo5')->getTables());
+    }
+
+    public function getTableReferenceGrammar(): array
+    {
+        return [
+            'aliased derived table in a comma join' => ['SELECT t.idvisit, s.name FROM (SELECT idvisit, idsite FROM matomo_log_visit) AS t, matomo_site s WHERE t.idsite = s.idsite', ['site', 'log_visit']],
+            'derived table joined with on' => ['SELECT s.name, t.n FROM matomo_site s JOIN (SELECT idsite, COUNT(*) n FROM matomo_log_visit GROUP BY idsite) t ON t.idsite = s.idsite', ['site', 'log_visit']],
+            'correlated subqueries qualifying outer aliases' => ['SELECT v.idvisit, (SELECT COUNT(*) FROM matomo_log_conversion c WHERE c.idvisit = v.idvisit) n FROM matomo_log_visit v WHERE EXISTS (SELECT 1 FROM matomo_goal g WHERE g.idsite = v.idsite AND g.idgoal IN (SELECT c2.idgoal FROM matomo_log_conversion c2 WHERE c2.idsite = v.idsite AND c2.idgoal = g.idgoal))', ['log_visit', 'log_conversion', 'goal']],
+            'index hints' => ['SELECT 1 FROM matomo_log_visit AS v USE INDEX (index_idsite_datetime) IGNORE KEY (idx_a, idx_b) JOIN matomo_site s FORCE INDEX (idx_c) ON s.idsite = v.idsite', ['log_visit', 'site']],
+            'partition' => ['SELECT 1 FROM matomo_site s, matomo_log_visit PARTITION (p0, p1) WHERE s.idsite = 1', ['site', 'log_visit']],
+            'using' => ['SELECT 1 FROM matomo_log_visit JOIN matomo_log_conversion USING (idvisit, idsite) LEFT JOIN matomo_site USING (idsite)', ['log_visit', 'log_conversion', 'site']],
+            'qualified matomo database tables' => ['SELECT 1 FROM platform_matomo5.matomo_log_visit v STRAIGHT_JOIN `platform_matomo5`.`matomo_site` AS s ON s.idsite = v.idsite', ['log_visit', 'site']],
+            'left function in a join condition' => ["SELECT 1 FROM matomo_log_visit v LEFT JOIN matomo_site s ON LEFT(s.name, 1) = 'a' RIGHT JOIN matomo_goal g ON g.idsite = s.idsite", ['log_visit', 'site', 'goal']],
+        ];
+    }
+
     public function test_listsEverySubqueryAndUnionBranchOnce(): void
     {
         $sql = 'SELECT idvisit FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_log_conversion)'

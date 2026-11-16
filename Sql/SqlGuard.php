@@ -79,6 +79,12 @@ final class SqlGuard
         'NOT IN', 'MEMBER OF',
     ];
 
+    /** First words of the keywords that join two table references. */
+    private const JOIN_WORDS = ['JOIN', 'INNER', 'CROSS', 'LEFT', 'RIGHT', 'NATURAL', 'STRAIGHT_JOIN', 'OUTER'];
+
+    /** First words of the clauses that end the table references of a SELECT. */
+    private const REGION_END_WORDS = ['WHERE', 'GROUP', 'HAVING', 'WINDOW', 'ORDER', 'LIMIT', 'UNION'];
+
     /** Non-reserved, non-function keywords that may precede a parenthesis without naming a stored function. */
     private const KEYWORDS_BEFORE_PARENTHESIS = ['ANY', 'SOME'];
 
@@ -136,6 +142,18 @@ final class SqlGuard
 
     /** @var array<int, int> "(" index => ")" index of every parenthesis */
     private $closing = [];
+
+    /** @var array<int, int> "(" index => ")" index of every parenthesized SELECT */
+    private $selectGroups = [];
+
+    /** @var array<int, array<string, true>> unit => lowercase tables and aliases its table references declare */
+    private $declared = [];
+
+    /** @var int[] indexes of the alias tokens of every table reference */
+    private $aliases = [];
+
+    /** @var array<string, true> lowercase names used as a schema in front of a table */
+    private $schemaQualifiers = [];
 
     /** @var string */
     private $prefix;
@@ -232,11 +250,13 @@ final class SqlGuard
         }
 
         $this->closing = $closing;
+        $this->selectGroups = $selectGroups;
         foreach ($units as $unit => $branches) {
             $this->checkBranchesMatchSegments($branches, $segments[$unit]);
+            $this->checkTableGrammar($unit, $segments[$unit]);
             $this->checkTableRegions($unit, $branches, $segments[$unit]);
         }
-        $this->checkQualifiers($units);
+        $this->checkQualifiers();
 
         $statements = [];
         foreach ($units as $unit => $branches) {
@@ -659,12 +679,11 @@ final class SqlGuard
         }
 
         $lower = strtolower($table);
-        $name = strpos($lower, $this->prefix) === 0 ? substr($lower, strlen($this->prefix)) : '';
-        if ($name === '' || !self::isAllowedTable($name)) {
+        if (!$this->isAllowedPrefixedTable($lower)) {
             throw self::table($table, $this->findInUnit($table));
         }
 
-        $tables[] = $name;
+        $tables[] = substr($lower, strlen($this->prefix));
     }
 
     /**
@@ -829,32 +848,292 @@ final class SqlGuard
     }
 
     /**
-     * Second net under the parser: a qualified name "q.x" or "q.x.y" anywhere must start with a table or alias
-     * declared by a parsed FROM / JOIN entry, a prefixed allowlisted table, or the Matomo database followed by an
-     * allowlisted table. A table the parser missed cannot be reached by its alias or its schema.
+     * Token-level grammar of the table references, independent of the parser, which reads some forms differently
+     * from MySQL. From FROM to the end of the region, at the unit's own depth, only these are accepted:
+     * - a table: an allowlisted prefixed name, optionally "<Matomo db>.", then [PARTITION (names)] [[AS] alias]
+     *   [USE|FORCE|IGNORE INDEX|KEY (names)]...;
+     * - a derived table: exactly one parenthesized SELECT (its own unit, walked on its own) then [[AS] alias];
+     * - between references: a comma (before any join) or JOIN-family keywords, a joined reference taking ON <condition>
+     *   or USING (names).
+     * Every other token, a parenthesis included, is refused where it stands. The tables and aliases seen are
+     * recorded as the unit's declarations for checkQualifiers().
      *
-     * @param array<int, SelectStatement[]> $units
+     * @param array<int, array{parenthesized: bool, FROM: int[], JOIN: int[]}> $segments
      */
-    private function checkQualifiers(array $units): void
+    private function checkTableGrammar(int $unit, array $segments): void
     {
-        $declared = [];
-        foreach ($units as $branches) {
-            foreach ($branches as $branch) {
-                $expressions = $branch->from ?: [];
-                foreach ($branch->join ?: [] as $join) {
-                    $expressions[] = $join->expr;
-                }
-                foreach ($expressions as $expression) {
-                    foreach ([$expression->table, $expression->alias] as $name) {
-                        if ((string) $name !== '') {
-                            $declared[strtolower((string) $name)] = true;
-                        }
-                    }
-                }
+        $this->declared[$unit] = $this->declared[$unit] ?? [];
+        $end = $unit === -1 ? count($this->tokens) : $this->closing[$unit];
+        foreach ($segments as $segment) {
+            if (!$segment['parenthesized'] && !empty($segment['FROM'])) {
+                $this->walkTableRegion($unit, $segment['FROM'][0], $end);
             }
         }
+    }
 
-        $count = count($this->tokens);
+    private function walkTableRegion(int $unit, int $from, int $end): void
+    {
+        $cursor = $from;
+        $joined = false;
+        $joinTarget = false;
+        while (true) {
+            $start = $this->regionToken($cursor, $end);
+            if ($start === null) {
+                throw $this->rejectAtRegionEnd($cursor, $end);
+            }
+            $cursor = $this->tableFactor($unit, $start, $end);
+
+            $next = $this->regionToken($cursor, $end);
+            if ($joinTarget && $next !== null && $this->isWord($next, 'ON')) {
+                $cursor = $this->skipCondition($next, $end);
+            } elseif ($joinTarget && $next !== null && $this->isWord($next, 'USING')) {
+                $cursor = $this->nameList($this->nextMeaningfulIndex($next), $next);
+            }
+
+            $next = $this->regionToken($cursor, $end);
+            if ($next === null) {
+                return;
+            }
+            $token = $this->tokens[$next];
+            if ($token->type === Token::TYPE_OPERATOR && $token->token === ',' && !$joined) {
+                $cursor = $next;
+                $joinTarget = false;
+                continue;
+            }
+            if (!$this->isJoinWord($next)) {
+                throw $this->rejectTokenAt($next);
+            }
+            while ($this->clauseOf($next) !== 'JOIN') {
+                $previous = $next;
+                $next = $this->regionToken($next, $end);
+                if ($next === null || !$this->isJoinWord($next)) {
+                    throw $next === null ? $this->rejectTokenAt($previous) : $this->rejectTokenAt($next);
+                }
+            }
+            $cursor = $next;
+            $joined = true;
+            $joinTarget = true;
+        }
+    }
+
+    /**
+     * @return int index of the last token of the table reference starting at $start
+     */
+    private function tableFactor(int $unit, int $start, int $end): int
+    {
+        $token = $this->tokens[$start];
+        if ($token->type === Token::TYPE_OPERATOR && $token->token === '(') {
+            if (!isset($this->selectGroups[$start])) {
+                throw self::syntax('(', $token->position);
+            }
+
+            return $this->alias($unit, $this->selectGroups[$start], $end);
+        }
+        if ($token->type === Token::TYPE_KEYWORD && strtoupper((string) $token->value) === 'DUAL') {
+            return $start;
+        }
+        if (!isset($this->nameTokens[$start]) || isset($this->qualifiedNames[$start])) {
+            throw $this->rejectTokenAt($start);
+        }
+
+        $table = $start;
+        $dot = $this->nextMeaningfulIndex($start);
+        if ($dot !== null && $this->tokens[$dot]->type === Token::TYPE_OPERATOR && $this->tokens[$dot]->token === '.') {
+            $schema = strtolower((string) $token->value);
+            if ($schema !== strtolower($this->databaseName)) {
+                throw self::table((string) $token->value, $token->position);
+            }
+            $this->schemaQualifiers[$schema] = true;
+            $table = (int) $this->nextMeaningfulIndex($dot);
+            $after = $this->nextMeaningfulIndex($table);
+            if ($after !== null && $this->tokens[$after]->type === Token::TYPE_OPERATOR && $this->tokens[$after]->token === '.') {
+                throw self::syntax('.', $this->tokens[$after]->position);
+            }
+        }
+        $name = strtolower((string) $this->tokens[$table]->value);
+        if (!$this->isAllowedPrefixedTable($name)) {
+            throw self::table((string) $this->tokens[$table]->value, $this->tokens[$table]->position);
+        }
+        $this->declared[$unit][$name] = true;
+        $cursor = $table;
+
+        $next = $this->regionToken($cursor, $end);
+        if ($next !== null && $this->isWord($next, 'PARTITION')) {
+            $cursor = $this->nameList($this->nextMeaningfulIndex($next), $next);
+        }
+        $cursor = $this->alias($unit, $cursor, $end);
+        while (($next = $this->regionToken($cursor, $end)) !== null
+            && ($this->isWord($next, 'USE') || $this->isWord($next, 'FORCE') || $this->isWord($next, 'IGNORE'))) {
+            $kind = $this->nextMeaningfulIndex($next);
+            if ($kind === null || !($this->isWord($kind, 'INDEX') || $this->isWord($kind, 'KEY'))) {
+                throw $this->rejectTokenAt($kind ?? $next);
+            }
+            $cursor = $this->nameList($this->nextMeaningfulIndex($kind), $kind);
+        }
+
+        return $cursor;
+    }
+
+    /**
+     * An optional "[AS] alias" after the token at $cursor.
+     *
+     * @return int index of the last token consumed
+     */
+    private function alias(int $unit, int $cursor, int $end): int
+    {
+        $next = $this->regionToken($cursor, $end);
+        if ($next === null) {
+            return $cursor;
+        }
+        $hasAs = $this->isWord($next, 'AS');
+        if ($hasAs) {
+            $cursor = $next;
+            $next = $this->regionToken($next, $end);
+        }
+        if ($next === null || !isset($this->nameTokens[$next]) || isset($this->qualifiedNames[$next])) {
+            if ($hasAs) {
+                throw $next === null ? $this->rejectTokenAt($cursor) : $this->rejectTokenAt($next);
+            }
+
+            return $cursor;
+        }
+        $this->aliases[] = $next;
+        $this->declared[$unit][strtolower((string) $this->tokens[$next]->value)] = true;
+
+        return $next;
+    }
+
+    /**
+     * "( name [, name]... )" or "()" at $open, as after USING, PARTITION or an index hint.
+     *
+     * @return int index of the ")"
+     */
+    private function nameList(?int $open, int $after): int
+    {
+        if ($open === null || $this->tokens[$open]->type !== Token::TYPE_OPERATOR || $this->tokens[$open]->token !== '(') {
+            throw $this->rejectTokenAt($open ?? $after);
+        }
+        $close = $this->closing[$open];
+        $expectName = true;
+        for ($i = $this->nextMeaningfulIndex($open); $i !== null && $i < $close; $i = $this->nextMeaningfulIndex($i)) {
+            $token = $this->tokens[$i];
+            $isComma = $token->type === Token::TYPE_OPERATOR && $token->token === ',';
+            $isName = isset($this->nameTokens[$i]) && !isset($this->qualifiedNames[$i]);
+            if ($expectName ? !$isName : !$isComma) {
+                throw $this->rejectTokenAt($i);
+            }
+            $expectName = !$expectName;
+        }
+        if ($expectName && $this->nextMeaningfulIndex($open) !== $close) {
+            throw self::syntax(')', $this->tokens[$close]->position);
+        }
+
+        return $close;
+    }
+
+    /**
+     * The condition after ON runs to the next JOIN-family keyword, comma or end of the region at the unit's depth.
+     *
+     * @return int index of the last token of the condition
+     */
+    private function skipCondition(int $on, int $end): int
+    {
+        $cursor = $on;
+        while (($next = $this->regionToken($cursor, $end)) !== null) {
+            $token = $this->tokens[$next];
+            if ($token->type === Token::TYPE_OPERATOR && $token->token === ',' || $this->isJoinWord($next)) {
+                break;
+            }
+            if ($this->isWord($next, 'ON') || $this->isWord($next, 'USING')) {
+                throw $this->rejectTokenAt($next);
+            }
+            $cursor = $token->type === Token::TYPE_OPERATOR && $token->token === '(' ? $this->closing[$next] : $next;
+        }
+        if ($cursor === $on) {
+            throw $this->rejectTokenAt($on);
+        }
+
+        return $cursor;
+    }
+
+    /**
+     * Index of the next meaningful token of the table region, null at its end: the end of the unit, a delimiter or a
+     * clause keyword at the unit's own depth.
+     */
+    private function regionToken(int $i, int $end): ?int
+    {
+        $next = $this->nextMeaningfulIndex($i);
+        if ($next === null || $next >= $end || $this->tokens[$next]->type === Token::TYPE_DELIMITER) {
+            return null;
+        }
+
+        return in_array($this->firstWordOf($next), self::REGION_END_WORDS, true) ? null : $next;
+    }
+
+    private function rejectAtRegionEnd(int $cursor, int $end): RejectedQueryException
+    {
+        $next = $this->nextMeaningfulIndex($cursor);
+
+        return $this->rejectTokenAt($next !== null && $next <= $end && $next < count($this->tokens) ? $next : $cursor);
+    }
+
+    private function rejectTokenAt(int $i): RejectedQueryException
+    {
+        $token = $this->tokens[$i];
+        if (isset($this->nameTokens[$i]) && $token->type !== Token::TYPE_KEYWORD) {
+            return self::table((string) $token->value, $token->position);
+        }
+
+        return self::syntax((string) $token->token, $token->position);
+    }
+
+    private function isJoinWord(int $i): bool
+    {
+        $word = $this->firstWordOf($i);
+        if (!in_array($word, self::JOIN_WORDS, true)) {
+            return false;
+        }
+
+        // LEFT( and RIGHT( are the string functions.
+        return !(($word === 'LEFT' || $word === 'RIGHT') && $this->isFollowedByParenthesis($i));
+    }
+
+    private function isWord(int $i, string $word): bool
+    {
+        $token = $this->tokens[$i];
+
+        return $token->type === Token::TYPE_KEYWORD && !isset($this->qualifiedNames[$i])
+            && strtoupper((string) $token->token) === $word;
+    }
+
+    /**
+     * @return string first word of an unqualified keyword token, upper case, '' for any other token
+     */
+    private function firstWordOf(int $i): string
+    {
+        $token = $this->tokens[$i];
+        if ($token->type !== Token::TYPE_KEYWORD || isset($this->qualifiedNames[$i])) {
+            return '';
+        }
+
+        return (string) strtok(strtoupper(trim((string) $token->token)), " \t\r\n");
+    }
+
+    private function isAllowedPrefixedTable(string $name): bool
+    {
+        // substr() rather than strpos(): PHP 7 refuses an empty needle, and the prefix may be empty.
+        return substr($name, 0, strlen($this->prefix)) === $this->prefix && self::isAllowedTable(substr($name, strlen($this->prefix)));
+    }
+
+    /**
+     * Second net under the parser: a qualified name "q.x" resolves only against the tables and aliases declared in its
+     * own unit or an enclosing one (correlated subqueries), a prefixed allowlisted table, or the Matomo database
+     * followed by an allowlisted table; "q.x.y" only as "<Matomo db>.<allowlisted table>.<column>". An alias may not
+     * be named like the Matomo database or like any name the query uses as a schema, so it cannot pass for one.
+     */
+    private function checkQualifiers(): void
+    {
+        $chains = [];
         foreach ($this->tokens as $i => $token) {
             if (!isset($this->nameTokens[$i]) || isset($this->qualifiedNames[$i])) {
                 continue;
@@ -865,26 +1144,63 @@ final class SqlGuard
                 && $this->tokens[$dot]->token === '.' && ($j = $this->nextMeaningfulIndex($dot)) !== null) {
                 $chain[] = $j;
             }
-            if (count($chain) === 1) {
-                continue;
+            if (count($chain) > 1) {
+                $chains[] = $chain;
+                if (count($chain) > 2) {
+                    $this->schemaQualifiers[strtolower((string) $token->value)] = true;
+                }
             }
+        }
 
+        $database = strtolower($this->databaseName);
+        foreach ($this->aliases as $alias) {
+            $name = strtolower((string) $this->tokens[$alias]->value);
+            if ($name === $database || isset($this->schemaQualifiers[$name])) {
+                throw self::table((string) $this->tokens[$alias]->value, $this->tokens[$alias]->position);
+            }
+        }
+
+        foreach ($chains as $chain) {
             $names = array_map(function ($index) {
                 return strtolower((string) $this->tokens[$index]->value);
             }, $chain);
-            $isDatabase = $names[0] === strtolower($this->databaseName);
-            $isAllowedTable = function (string $name): bool {
-                return strpos($name, $this->prefix) === 0 && self::isAllowedTable(substr($name, strlen($this->prefix)));
-            };
+            $isDatabase = $names[0] === $database;
 
             if (count($chain) === 2) {
-                $accepted = isset($declared[$names[0]]) || $isAllowedTable($names[0]) || ($isDatabase && $isAllowedTable($names[1]));
+                $accepted = $this->isDeclaredInScope($names[0], $this->unitOf($chain[0]))
+                    || $this->isAllowedPrefixedTable($names[0]) || ($isDatabase && $this->isAllowedPrefixedTable($names[1]));
             } else {
-                $accepted = count($chain) === 3 && $isDatabase && $isAllowedTable($names[1]);
+                $accepted = count($chain) === 3 && $isDatabase && $this->isAllowedPrefixedTable($names[1]);
             }
             if (!$accepted) {
-                throw self::table((string) $this->tokens[$i]->value, $token->position);
+                throw self::table((string) $this->tokens[$chain[0]]->value, $this->tokens[$chain[0]]->position);
             }
+        }
+    }
+
+    /**
+     * "(" index of the innermost parenthesized SELECT holding the token, -1 for the top level.
+     */
+    private function unitOf(int $i): int
+    {
+        $group = $this->enclosing[$i];
+        while ($group !== -1 && !isset($this->selectGroups[$group])) {
+            $group = $this->groupParent[$group];
+        }
+
+        return $group;
+    }
+
+    private function isDeclaredInScope(string $name, int $unit): bool
+    {
+        while (true) {
+            if (isset($this->declared[$unit][$name])) {
+                return true;
+            }
+            if ($unit === -1) {
+                return false;
+            }
+            $unit = $this->unitOf($unit);
         }
     }
 
