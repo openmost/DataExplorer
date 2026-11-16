@@ -27,15 +27,28 @@ final class ParsedQuery
     /** @var string[] */
     private $tables;
 
+    /** @var string */
+    private $executableSql;
+
     /**
      * @param SelectStatement[] $statements
      * @param string[] $tables
      */
-    public function __construct(SelectStatement $statement, array $statements, array $tables)
+    public function __construct(SelectStatement $statement, array $statements, array $tables, string $executableSql)
     {
         $this->statement = $statement;
         $this->statements = $statements;
         $this->tables = $tables;
+        $this->executableSql = $executableSql;
+    }
+
+    /**
+     * The only text to execute or wrap: the validated tokens without comments (a trailing "-- x" would swallow
+     * a wrapper), without the trailing delimiter, ending with a newline. Placeholders are kept for binding.
+     */
+    public function getExecutableSql(): string
+    {
+        return $this->executableSql;
     }
 
     /**
@@ -52,7 +65,8 @@ final class ParsedQuery
      * (derived table, scalar, IN, EXISTS, in any clause) and the UNION branches of those subqueries.
      * Each one carries its own `from` (Expression[]), `join` (JoinKeyword[], table in `->expr`, condition in `->on`)
      * and `where` (Condition[]). A derived table appears in `from` or `join` with `subquery === 'SELECT'` and its
-     * own SELECT is listed separately here. The `union` property of an entry must not be walked again: its
+     * own SELECT is listed separately here. Inside a statement, the text of each nested subquery is replaced by
+     * "(SELECT 1)" (it was parsed on its own); read the subquery itself from this list. The `union` property of an entry must not be walked again: its
      * branches are already in this list.
      *
      * @return SelectStatement[]

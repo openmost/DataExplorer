@@ -68,6 +68,20 @@ class ConfigurationTest extends TestCase
         $this->assertSame(12, Configuration::getInvalidationMonths());
     }
 
+    public function test_rawSqlInputLimits(): void
+    {
+        $this->assertSame(65536, Configuration::getSqlMaxLength());
+        $this->assertSame(50, Configuration::getSqlMaxSubqueries());
+
+        Config::getInstance()->DataExplorer = ['dataexplorer_sql_max_length' => '1000', 'dataexplorer_sql_max_subqueries' => 0];
+        $this->assertSame(1000, Configuration::getSqlMaxLength());
+        $this->assertSame(0, Configuration::getSqlMaxSubqueries());
+
+        Config::getInstance()->DataExplorer = ['dataexplorer_sql_max_length' => 0, 'dataexplorer_sql_max_subqueries' => -1];
+        $this->assertSame(65536, Configuration::getSqlMaxLength());
+        $this->assertSame(50, Configuration::getSqlMaxSubqueries());
+    }
+
     public function test_invalidOverrideFallsBackToDefault(): void
     {
         Config::getInstance()->DataExplorer = ['raw_sql_row_limit' => -4];

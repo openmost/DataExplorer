@@ -19,10 +19,23 @@ class RejectedQueryException extends \Exception
     /** @var string */
     private $offendingToken;
 
-    public function __construct(string $translatedMessage, string $offendingToken)
+    /** @var int|null */
+    private $offset;
+
+    public function __construct(string $translatedMessage, string $offendingToken, ?int $offset = null)
     {
         parent::__construct($translatedMessage);
         $this->offendingToken = $offendingToken;
+        $this->offset = $offset;
+    }
+
+    /**
+     * 0-based character offset (Unicode code points, not bytes) of the offending token in the submitted SQL,
+     * null when the refusal concerns the whole query (length, number of subqueries, encoding).
+     */
+    public function getOffset(): ?int
+    {
+        return $this->offset;
     }
 
     /**

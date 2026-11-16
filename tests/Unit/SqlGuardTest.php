@@ -27,6 +27,21 @@ class SqlGuardTest extends TestCase
     private const PREFIX = 'matomo_';
     private const DB = 'matomo5';
 
+    private $originalSection;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->originalSection = Config::getInstance()->DataExplorer;
+        Config::getInstance()->DataExplorer = [];
+    }
+
+    protected function tearDown(): void
+    {
+        Config::getInstance()->DataExplorer = $this->originalSection;
+        parent::tearDown();
+    }
+
     public function test_acceptsAGroupedSelect(): void
     {
         $query = SqlGuard::validate('SELECT idsite, COUNT(*) FROM matomo_log_visit GROUP BY idsite', self::PREFIX, self::DB);
@@ -164,6 +179,115 @@ SQL;
         $this->assertFalse(SqlGuard::isAllowedTable('plugin_setting'));
     }
 
+    public function test_refusesAQueryLongerThanTheConfiguredLength(): void
+    {
+        Config::getInstance()->DataExplorer = ['dataexplorer_sql_max_length' => 40];
+        SqlGuard::validate('SELECT idvisit FROM matomo_log_visit', self::PREFIX, self::DB);
+
+        try {
+            SqlGuard::validate('SELECT idvisit FROM matomo_log_visit WHERE 1', self::PREFIX, self::DB);
+            $this->fail('Expected RejectedQueryException');
+        } catch (RejectedQueryException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_SqlRejectedTooLong', ['40']), $e->getMessage());
+        }
+    }
+
+    public function test_refusesMoreSubqueriesThanConfigured(): void
+    {
+        Config::getInstance()->DataExplorer = ['dataexplorer_sql_max_subqueries' => 2];
+        $sql = 'SELECT idvisit FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_log_conversion)'
+            . ' UNION SELECT idvisit FROM matomo_log_visit';
+        $this->assertCount(3, SqlGuard::validate($sql, self::PREFIX, self::DB)->getStatements());
+
+        try {
+            SqlGuard::validate($sql . ' UNION SELECT 1', self::PREFIX, self::DB);
+            $this->fail('Expected RejectedQueryException');
+        } catch (RejectedQueryException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_SqlRejectedTooManySubqueries', ['2']), $e->getMessage());
+        }
+    }
+
+    public function test_deeplyNestedSubqueriesAreRefusedQuickly(): void
+    {
+        $sql = 'SELECT idvisit FROM matomo_log_visit WHERE idvisit IN ';
+        $sql .= str_repeat('(SELECT idvisit FROM matomo_log_visit WHERE idvisit IN ', 300) . '(1)' . str_repeat(')', 300);
+
+        $start = microtime(true);
+        try {
+            SqlGuard::validate($sql, self::PREFIX, self::DB);
+            $this->fail('Expected RejectedQueryException');
+        } catch (RejectedQueryException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_SqlRejectedTooManySubqueries', ['50']), $e->getMessage());
+        }
+        $this->assertLessThan(1.0, microtime(true) - $start);
+    }
+
+    public function test_aMaximumLengthQueryValidatesQuickly(): void
+    {
+        $sql = 'SELECT idvisit FROM matomo_log_visit WHERE idvisit IN (0';
+        while (strlen($sql) < 65000) {
+            $sql .= ', ' . strlen($sql) . " + 1 AND 'abc' <> 'd'";
+        }
+        $sql = substr($sql, 0, strrpos($sql, ',')) . ') AND idsite = {idsite}';
+        $this->assertLessThanOrEqual(65536, strlen($sql));
+
+        $start = microtime(true);
+        $this->assertSame(['log_visit'], SqlGuard::validate($sql, self::PREFIX, self::DB)->getTables());
+        $this->assertLessThan(1.0, microtime(true) - $start);
+    }
+
+    public function test_executableSqlHasNoCommentNorDelimiter(): void
+    {
+        $query = SqlGuard::validate("SELECT idvisit /* a */ FROM matomo_log_visit # b\nWHERE idsite = {idsite} -- x", self::PREFIX, self::DB);
+        $wrapped = 'SELECT * FROM (' . $query->getExecutableSql() . ') t LIMIT 1';
+
+        $this->assertStringEndsWith(') t LIMIT 1', $wrapped);
+        $this->assertStringEndsWith("\n", $query->getExecutableSql());
+        $this->assertStringNotContainsString('/*', $query->getExecutableSql());
+        $this->assertStringNotContainsString('#', $query->getExecutableSql());
+        $this->assertStringNotContainsString('--', $query->getExecutableSql());
+        $this->assertStringContainsString('idsite = {idsite}', $query->getExecutableSql());
+        $this->assertSame("SELECT idvisit FROM matomo_log_visit\n", SqlGuard::validate('SELECT idvisit FROM matomo_log_visit -- x', self::PREFIX, self::DB)->getExecutableSql());
+        $this->assertSame("SELECT idvisit FROM matomo_log_visit\n", SqlGuard::validate("SELECT idvisit FROM matomo_log_visit;\n", self::PREFIX, self::DB)->getExecutableSql());
+    }
+
+    /**
+     * @dataProvider getEmptyPrefixDecimalPoints
+     */
+    public function test_emptyPrefixRefusesTheDecimalPointBeforeFrom(string $sql): void
+    {
+        $this->expectException(RejectedQueryException::class);
+        SqlGuard::validate($sql, '', self::DB);
+    }
+
+    public function getEmptyPrefixDecimalPoints(): array
+    {
+        return [
+            ['SELECT 1.FROM `user`'],
+            ['SELECT login, password, 1.FROM `user`'],
+            ['SELECT 1.FROM `option`'],
+            ['SELECT 1.FROM user_token_auth'],
+        ];
+    }
+
+    /**
+     * @dataProvider getEmptyPrefixSubqueries
+     */
+    public function test_emptyPrefixStillChecksSubqueryTables(string $sql): void
+    {
+        $this->expectException(RejectedQueryException::class);
+        SqlGuard::validate($sql, '', self::DB);
+    }
+
+    public function getEmptyPrefixSubqueries(): array
+    {
+        return [
+            'select list' => ['SELECT idvisit, (SELECT login FROM `user` LIMIT 1) FROM log_visit'],
+            'where' => ['SELECT idvisit FROM log_visit WHERE idsite IN (SELECT idsite FROM access)'],
+            'having' => ['SELECT idsite, COUNT(*) c FROM log_visit GROUP BY idsite HAVING c > (SELECT COUNT(*) FROM plugin_setting)'],
+        ];
+    }
+
     public function test_acceptsTheSiteAndPeriodPlaceholders(): void
     {
         $sql = 'SELECT idvisit FROM matomo_log_visit v WHERE v.idsite = {idsite}'
@@ -198,6 +322,54 @@ SQL;
         } catch (RejectedQueryException $e) {
             $this->assertSame('LOAD_FILE', $e->getOffendingToken());
             $this->assertSame(Piwik::translate('DataExplorer_SqlRejectedToken', ['LOAD_FILE']), $e->getMessage());
+        }
+    }
+
+    /**
+     * @dataProvider getOffsets
+     */
+    public function test_aRejectionGivesTheOffsetOfTheOffendingToken(string $sql, ?int $offset, string $token): void
+    {
+        try {
+            SqlGuard::validate($sql, self::PREFIX, self::DB);
+            $this->fail('Expected RejectedQueryException');
+        } catch (RejectedQueryException $e) {
+            $this->assertSame($offset, $e->getOffset());
+            $this->assertSame($token, $e->getOffendingToken());
+        }
+    }
+
+    public function getOffsets(): array
+    {
+        return [
+            'forbidden table' => ['SELECT idvisit FROM matomo_user', 20, 'matomo_user'],
+            'forbidden table in a subquery' => ['SELECT idvisit FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_access)', 75, 'matomo_access'],
+            'table from another database' => ['SELECT idvisit FROM otherdb.matomo_log_visit', 20, 'otherdb.matomo_log_visit'],
+            'forbidden function' => ['SELECT idvisit, SLEEP(1) FROM matomo_log_visit', 16, 'SLEEP'],
+            'second statement' => ['SELECT 1 FROM matomo_log_visit; DROP TABLE x', 32, 'DROP'],
+            'multibyte characters count once' => ["SELECT 'été' AS x, LOAD_FILE('/x')", 19, 'LOAD_FILE'],
+            'length cap' => [str_repeat(' ', 65537) . 'SELECT 1', null, ''],
+        ];
+    }
+
+    public function test_aParserErrorCarriesItsMessageAndOffset(): void
+    {
+        try {
+            SqlGuard::validate('SELECT FROM WHERE', self::PREFIX, self::DB);
+            $this->fail('Expected RejectedQueryException');
+        } catch (RejectedQueryException $e) {
+            $this->assertSame(7, $e->getOffset());
+            $this->assertSame('FROM', $e->getOffendingToken());
+            $this->assertSame(Piwik::translate('DataExplorer_SqlRejectedParser', ['FROM', 'An expression was expected.']), $e->getMessage());
+            $english = json_decode((string) file_get_contents(__DIR__ . '/../../lang/en.json'), true);
+            $this->assertStringContainsString('%2$s', $english['DataExplorer']['SqlRejectedParser']);
+        }
+
+        try {
+            SqlGuard::validate("SELECT idvisit FROM matomo_log_visit WHERE idsite = 'abc", self::PREFIX, self::DB);
+            $this->fail('Expected RejectedQueryException');
+        } catch (RejectedQueryException $e) {
+            $this->assertSame(52, $e->getOffset());
         }
     }
 
@@ -264,6 +436,17 @@ SQL;
             'unknown table in subquery' => ['SELECT * FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_foo)', 'matomo_foo'],
             'archive table with a malformed date' => ['SELECT * FROM matomo_archive_numeric_2024_1', 'matomo_archive_numeric_2024_1'],
             'archive table of another kind' => ['SELECT * FROM matomo_archive_invalidations', 'matomo_archive_invalidations'],
+            'decimal point before from' => ['SELECT idvisit, 1.FROM matomo_log_visit WHERE idsite = 2', '1'],
+            'decimal point before from on another database' => ['SELECT 1.FROM otherdb.secret', '1'],
+            'decimal point before from in union' => ['SELECT 1.FROM matomo_log_visit WHERE idsite=1 UNION SELECT 1.FROM otherdb.t', '1'],
+            'decimal point before from in subquery' => ['SELECT idvisit FROM matomo_log_visit WHERE idsite = {idsite} AND idvisit IN (SELECT 1.FROM matomo_log_visit)', '1'],
+            'string before dot' => ["SELECT 'a'.FROM matomo_log_visit", '.'],
+            'number and space before dot' => ['SELECT 1 .FROM matomo_log_visit', '.'],
+            'decimal before dot' => ['SELECT 1.5.FROM matomo_log_visit', '.'],
+            'hexadecimal before dot' => ['SELECT 0x1.FROM matomo_log_visit', '.'],
+            'exponent before dot' => ['SELECT 1e1.FROM matomo_log_visit', '.'],
+            'identifier starting with a digit' => ['SELECT 1abc FROM matomo_log_visit', '1abc'],
+            'non ascii identifier' => ['SELECT idvisit FROM matomo_log_visit v WHERE v.idsite = 1 AND é = 1', 'é'],
             'unprefixed table' => ['SELECT * FROM log_visit', 'log_visit'],
             'uppercase excluded table' => ['SELECT * FROM MATOMO_USER', 'MATOMO_USER'],
             'for update' => ['SELECT * FROM matomo_log_visit FOR UPDATE', 'FOR'],

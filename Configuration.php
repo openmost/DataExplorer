@@ -22,6 +22,8 @@ class Configuration
     public const KEY_MAX_ROWS_SUBTABLE_DIMENSIONS = 'datatable_archiving_maximum_rows_subtable_dataexplorer_dimensions_';
     public const KEY_SQL_ROW_LIMIT = 'dataexplorer_sql_row_limit';
     public const KEY_MAX_DIMENSIONS = 'dataexplorer_max_dimensions';
+    public const KEY_SQL_MAX_LENGTH = 'dataexplorer_sql_max_length';
+    public const KEY_SQL_MAX_SUBQUERIES = 'dataexplorer_sql_max_subqueries';
 
     public const DEFAULT_MAX_DIMENSIONS = 3;
     public const MAX_DIMENSIONS_CEILING = 9;
@@ -34,6 +36,8 @@ class Configuration
     public const DEFAULT_MAX_EXECUTION_TIME_SECONDS = 30;
     public const DEFAULT_RAW_SQL_CACHE_TTL = 300;
     public const DEFAULT_INVALIDATION_MONTHS = 6;
+    public const DEFAULT_SQL_MAX_LENGTH = 65536;
+    public const DEFAULT_SQL_MAX_SUBQUERIES = 50;
 
     /**
      * Maximum number of row dimensions of an exploration, 1 to 9.
@@ -121,6 +125,22 @@ class Configuration
     {
         // 0 is valid and disables the cache
         return self::getInt('raw_sql_cache_ttl', self::DEFAULT_RAW_SQL_CACHE_TTL, 0);
+    }
+
+    /**
+     * Longest raw SQL query accepted, in bytes: the guard is checked again at each display of a saved report.
+     */
+    public static function getSqlMaxLength(): int
+    {
+        return self::getInt(self::KEY_SQL_MAX_LENGTH, self::DEFAULT_SQL_MAX_LENGTH, 1);
+    }
+
+    /**
+     * Most SELECTs a raw SQL query may hold besides the first one (subqueries and UNION branches).
+     */
+    public static function getSqlMaxSubqueries(): int
+    {
+        return self::getInt(self::KEY_SQL_MAX_SUBQUERIES, self::DEFAULT_SQL_MAX_SUBQUERIES, 0);
     }
 
     public static function getInvalidationMonths(): int

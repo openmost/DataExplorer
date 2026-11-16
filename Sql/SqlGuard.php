@@ -17,9 +17,11 @@ use PhpMyAdmin\SqlParser\Contexts\ContextMySql80000;
 use PhpMyAdmin\SqlParser\Lexer;
 use PhpMyAdmin\SqlParser\Parser;
 use PhpMyAdmin\SqlParser\Statements\SelectStatement;
+use PhpMyAdmin\SqlParser\TokensList;
 use PhpMyAdmin\SqlParser\Token;
 use Piwik\Config;
 use Piwik\Piwik;
+use Piwik\Plugins\DataExplorer\Configuration;
 
 /**
  * Allowlist validator of raw SQL: a query passes only when every token is of a known harmless kind and the
@@ -117,6 +119,21 @@ final class SqlGuard
     /** @var array<int, true> indexes of the tokens forming a placeholder */
     private $placeholderTokens = [];
 
+    /** @var array<int, true> indexes of the tokens that are names, so a "." may follow them */
+    private $nameTokens = [];
+
+    /** @var array<int, true> indexes of the names right after a ".", never keywords for MySQL */
+    private $qualifiedNames = [];
+
+    /** @var array<int, int> token index => "(" index of its innermost enclosing group, -1 at top level */
+    private $enclosing = [];
+
+    /** @var array<int, int> "(" index => "(" index of the enclosing group, -1 at top level */
+    private $groupParent = [];
+
+    /** @var Token[] tokens of the unit being parsed, to locate what its statements refer to */
+    private $unitTokens = [];
+
     /** @var string */
     private $prefix;
 
@@ -156,45 +173,135 @@ final class SqlGuard
 
     private function run(string $sql): ParsedQuery
     {
+        // Before any lexing: validation runs again at each display of a saved report and parsing cost grows with nesting.
+        $maxLength = Configuration::getSqlMaxLength();
+        if (strlen($sql) > $maxLength) {
+            throw self::reject('DataExplorer_SqlRejectedTooLong', (string) $maxLength, '');
+        }
         $this->checkCharacters($sql);
 
         $lexer = new Lexer($sql, false);
         $this->tokens = array_values(array_filter($lexer->list->tokens, function ($token) {
             return $token instanceof Token;
         }));
+
+        $maxSubqueries = Configuration::getSqlMaxSubqueries();
+        $selects = 0;
+        foreach ($this->tokens as $token) {
+            if ($this->isKeyword($token, 'SELECT') && ++$selects > $maxSubqueries + 1) {
+                throw self::reject('DataExplorer_SqlRejectedTooManySubqueries', (string) $maxSubqueries, 'SELECT');
+            }
+        }
+
         $bracePositions = $this->findPlaceholders();
 
         foreach ($lexer->errors as $error) {
             // The lexer does not know the placeholder braces, they are its only accepted errors.
             if (!isset($bracePositions[(int) $error->pos]) || (string) $error->ch !== $bracePositions[(int) $error->pos]) {
-                throw self::syntax($this->tokenAtPosition($lexer->list->tokens, (int) $error->pos, (string) $error->ch));
+                $token = $this->tokenAtPosition($lexer->list->tokens, (int) $error->pos);
+                throw self::parserError(
+                    $error,
+                    $token !== null ? (string) $token->token : (string) $error->ch,
+                    $token !== null ? $token->position : (int) $error->pos
+                );
             }
         }
 
         $this->checkTokens();
         $closing = $this->matchParentheses();
 
-        $statements = [];
-        $tables = [];
-        $main = $this->parseUnit($sql, $statements, $tables);
-        $produced = [-1 => 1 + count($main->union)];
-
+        $selectGroups = [];
         foreach ($closing as $open => $close) {
             $first = $this->nextMeaningful($open);
-            if ($first === null || !$this->isKeyword($first, 'SELECT')) {
-                continue;
+            if ($first !== null && $this->isKeyword($first, 'SELECT')) {
+                $selectGroups[$open] = $close;
             }
-            $inner = '';
-            for ($i = $open + 1; $i < $close; $i++) {
-                $inner .= $this->tokens[$i]->token;
-            }
-            $sub = $this->parseUnit($inner, $statements, $tables);
-            $produced[$open] = 1 + count($sub->union);
         }
 
-        $this->checkEverySelectWasParsed($closing, $produced);
+        $statements = [];
+        $tables = [];
+        $units = [-1 => $this->parseUnit($this->unitTokens(0, count($this->tokens), $selectGroups), $statements, $tables)];
+        foreach ($selectGroups as $open => $close) {
+            $tokens = $this->unitTokens($open + 1, $close, $selectGroups);
+            $tokens[] = new Token(null, Token::TYPE_DELIMITER);
+            $units[$open] = $this->parseUnit($tokens, $statements, $tables);
+        }
 
-        return new ParsedQuery($main, array_values($statements), array_values(array_unique($tables)));
+        $this->checkEveryClauseWasParsed($units);
+
+        return new ParsedQuery($units[-1][0], array_values($statements), array_values(array_unique($tables)), $this->buildExecutableSql());
+    }
+
+    /**
+     * The tokens of one unit, each nested subquery replaced by "(SELECT 1)": it is opaque text for the parser and is
+     * parsed as its own unit, so every token is parsed about once instead of once per nesting level. A parenthesized
+     * UNION branch stays, the parser has to see it to build the UNION.
+     *
+     * @param array<int, int> $selectGroups "(" index => ")" index of each parenthesized SELECT
+     * @return Token[]
+     */
+    private function unitTokens(int $from, int $to, array $selectGroups): array
+    {
+        $tokens = [];
+        for ($i = $from; $i < $to; $i++) {
+            if (isset($selectGroups[$i]) && !$this->isUnionBranch($i)) {
+                foreach (self::stubTokens() as $stub) {
+                    $stub = clone $stub;
+                    $stub->position = $this->tokens[$i]->position;
+                    $tokens[] = $stub;
+                }
+                $i = $selectGroups[$i];
+                continue;
+            }
+            $tokens[] = $this->tokens[$i];
+        }
+
+        return $tokens;
+    }
+
+    private function isUnionBranch(int $open): bool
+    {
+        $previous = $this->previousMeaningfulIndex($open);
+        if ($previous === null) {
+            return true;
+        }
+        $word = (string) preg_replace('/\s+/', ' ', strtoupper((string) $this->tokens[$previous]->token));
+        if ($word === 'ALL' || $word === 'DISTINCT') {
+            $before = $this->previousMeaningfulIndex($previous);
+            $word = $before === null ? '' : strtoupper((string) $this->tokens[$before]->token);
+        }
+
+        return in_array($word, ['UNION', 'UNION ALL', 'UNION DISTINCT'], true);
+    }
+
+    /**
+     * @return Token[]
+     */
+    private static function stubTokens(): array
+    {
+        static $tokens = null;
+        if ($tokens === null) {
+            $tokens = (new Lexer('(SELECT 1)', false))->list->tokens;
+            $tokens = array_values(array_filter($tokens, function ($token) {
+                return $token instanceof Token && $token->token !== null;
+            }));
+        }
+
+        return $tokens;
+    }
+
+    private function buildExecutableSql(): string
+    {
+        $sql = '';
+        foreach ($this->tokens as $token) {
+            if ($token->type === Token::TYPE_DELIMITER) {
+                continue;
+            }
+            // A space keeps the tokens on both sides of a removed comment apart.
+            $sql .= $token->type === Token::TYPE_COMMENT ? ' ' : $token->token;
+        }
+
+        return trim($sql) . "\n";
     }
 
     /**
@@ -203,13 +310,13 @@ final class SqlGuard
     private function checkCharacters(string $sql): void
     {
         if (!mb_check_encoding($sql, 'UTF-8')) {
-            throw self::syntax('');
+            throw self::syntax('', null);
         }
         $length = strlen($sql);
         for ($i = 0; $i < $length; $i++) {
             $byte = ord($sql[$i]);
             if (($byte < 32 && $byte !== 9 && $byte !== 10 && $byte !== 13) || $byte === 127) {
-                throw self::syntax($sql[$i]);
+                throw self::syntax($sql[$i], mb_strlen(substr($sql, 0, $i)));
             }
         }
     }
@@ -241,7 +348,7 @@ final class SqlGuard
                 continue;
             }
             if ($delimiterSeen && $token->type !== Token::TYPE_WHITESPACE && !$this->isEnd($token)) {
-                throw self::notSelect($token->token);
+                throw self::notSelect($token->token, $token->position);
             }
 
             switch ($token->type) {
@@ -257,6 +364,9 @@ final class SqlGuard
                         $this->checkIdentifier($i, (string) $token->value, true, false);
                     } else {
                         $this->checkKeyword($i);
+                        if (!($token->flags & (Token::FLAG_KEYWORD_RESERVED | Token::FLAG_KEYWORD_COMPOSED))) {
+                            $this->nameTokens[$i] = true;
+                        }
                     }
                     break;
                 case Token::TYPE_NONE:
@@ -264,18 +374,21 @@ final class SqlGuard
                     break;
                 case Token::TYPE_SYMBOL:
                     if ($token->flags !== Token::FLAG_SYMBOL_BACKTICK) {
-                        throw self::token($token->token);
+                        throw self::token($token->token, $token->position);
                     }
-                    $this->checkIdentifier($i, (string) $token->value, true, true);
+                    $this->checkIdentifier($i, (string) $token->value, $this->isQualified($i), true);
                     break;
                 case Token::TYPE_STRING:
                     if ($token->flags !== Token::FLAG_STRING_SINGLE_QUOTES || strpos((string) $token->token, '\\') !== false) {
-                        throw self::token($token->token);
+                        throw self::token($token->token, $token->position);
                     }
                     break;
                 case Token::TYPE_OPERATOR:
                     if ($token->token === ':=') {
-                        throw self::token($token->token);
+                        throw self::token($token->token, $token->position);
+                    }
+                    if ($token->token === '.') {
+                        $this->checkDot($i);
                     }
                     break;
                 case Token::TYPE_DELIMITER:
@@ -283,17 +396,40 @@ final class SqlGuard
                         break;
                     }
                     if ($token->token !== ';') {
-                        throw self::token($token->token);
+                        throw self::token($token->token, $token->position);
                     }
                     $delimiterSeen = true;
                     break;
                 default:
-                    throw self::token((string) $token->token);
+                    throw self::token((string) $token->token, $token->position);
             }
         }
 
         if ($this->nextMeaningful(-1) === null) {
-            throw self::notSelect('');
+            throw self::notSelect('', null);
+        }
+    }
+
+    /**
+     * MySQL reads "1.FROM t" as the number "1." then a FROM clause, the lexer as the name "FROM" qualified by "1":
+     * a dot is accepted only between two names.
+     */
+    private function checkDot(int $i): void
+    {
+        $previous = $this->previousMeaningfulIndex($i);
+        if ($previous === null || !isset($this->nameTokens[$previous])) {
+            throw self::token('.', $this->tokens[$i]->position);
+        }
+
+        $next = $this->nextMeaningful($i);
+        $isName = $next !== null && (
+            $next->type === Token::TYPE_NONE
+            || $next->type === Token::TYPE_KEYWORD
+            || ($next->type === Token::TYPE_SYMBOL && $next->flags === Token::FLAG_SYMBOL_BACKTICK)
+            || ($next->type === Token::TYPE_OPERATOR && $next->token === '*')
+        );
+        if (!$isName) {
+            throw self::token('.', $this->tokens[$i]->position);
         }
     }
 
@@ -312,7 +448,7 @@ final class SqlGuard
             && !in_array($text[2], ['!', '+'], true)
             && strtoupper(substr($text, 2, 2)) !== 'M!';
         if (!$isPlainComment) {
-            throw self::token($text);
+            throw self::token($text, $token->position);
         }
     }
 
@@ -324,23 +460,23 @@ final class SqlGuard
         if ($token->flags & Token::FLAG_KEYWORD_COMPOSED) {
             $keyword = (string) preg_replace('/\s+/', ' ', $keyword);
             if (!in_array($keyword, self::ALLOWED_COMPOSED, true)) {
-                throw self::token($token->token);
+                throw self::token($token->token, $token->position);
             }
 
             return;
         }
 
         if (in_array($keyword, self::DENIED_WORDS, true)) {
-            throw self::token($token->token);
+            throw self::token($token->token, $token->position);
         }
         if (($token->flags & Token::FLAG_KEYWORD_RESERVED) && !in_array($keyword, self::ALLOWED_RESERVED, true)) {
-            throw self::token($token->token);
+            throw self::token($token->token, $token->position);
         }
 
         $isCallable = ($token->flags & (Token::FLAG_KEYWORD_RESERVED | Token::FLAG_KEYWORD_FUNCTION | Token::FLAG_KEYWORD_DATA_TYPE))
             || in_array($keyword, self::KEYWORDS_BEFORE_PARENTHESIS, true);
         if (!$isCallable && $this->isFollowedByParenthesis($i)) {
-            throw self::token($token->token);
+            throw self::token($token->token, $token->position);
         }
     }
 
@@ -352,23 +488,28 @@ final class SqlGuard
         $raw = (string) $this->tokens[$i]->token;
         $lower = strtolower($name);
 
-        if (!$quoted && !preg_match('/^[A-Za-z0-9_$\x{80}-\x{10FFFF}]+$/u', $name)) {
-            throw self::syntax($raw);
+        // MySQL reads a leading digit as a number when it can ("1.", "1e1"), so such names are never accepted.
+        if (!$quoted && !preg_match('/^[A-Za-z_$][A-Za-z0-9_$]*$/', $name)) {
+            throw self::syntax($raw, $this->tokens[$i]->position);
+        }
+        $this->nameTokens[$i] = true;
+        if ($this->isQualified($i)) {
+            $this->qualifiedNames[$i] = true;
         }
 
         if (in_array($lower, self::FORBIDDEN_SCHEMAS, true)) {
-            throw self::table($raw);
+            throw self::table($raw, $this->tokens[$i]->position);
         }
         // Net under the parser: a prefixed name anywhere, even where no table was reported, must be an allowed table.
         if ($this->prefix !== '' && $name !== $this->databaseName && strpos($lower, $this->prefix) === 0 && !self::isAllowedTable(substr($lower, strlen($this->prefix)))) {
-            throw self::table($name);
+            throw self::table($name, $this->tokens[$i]->position);
         }
         if (!$quoted && !$qualified && in_array(strtoupper($name), self::DENIED_WORDS, true)) {
-            throw self::token($raw);
+            throw self::token($raw, $this->tokens[$i]->position);
         }
         // Built-in functions are keywords: an identifier before "(" names a stored or loadable function.
         if ($this->isFollowedByParenthesis($i)) {
-            throw self::token($raw);
+            throw self::token($raw, $this->tokens[$i]->position);
         }
     }
 
@@ -380,20 +521,22 @@ final class SqlGuard
         $stack = [];
         $closing = [];
         foreach ($this->tokens as $i => $token) {
+            $this->enclosing[$i] = empty($stack) ? -1 : end($stack);
             if ($token->type !== Token::TYPE_OPERATOR) {
                 continue;
             }
             if ($token->token === '(') {
+                $this->groupParent[$i] = $this->enclosing[$i];
                 $stack[] = $i;
             } elseif ($token->token === ')') {
                 if (empty($stack)) {
-                    throw self::syntax(')');
+                    throw self::syntax(')', $token->position);
                 }
                 $closing[array_pop($stack)] = $i;
             }
         }
         if (!empty($stack)) {
-            throw self::syntax('(');
+            throw self::syntax('(', $this->tokens[end($stack)]->position);
         }
         ksort($closing);
 
@@ -404,31 +547,34 @@ final class SqlGuard
      * Parses one SELECT, with its UNION branches, and validates its clauses. A subquery is a separate unit:
      * the parser keeps it as opaque text inside the outer statement.
      *
+     * @param Token[] $tokens the unit, ending with the end-of-list token
      * @param SelectStatement[] $statements collected statements, keyed to drop a UNION branch seen twice
      * @param string[] $tables collected unprefixed table names
+     * @return SelectStatement[] the SELECT and its UNION branches
      */
-    private function parseUnit(string $sql, array &$statements, array &$tables): SelectStatement
+    private function parseUnit(array $tokens, array &$statements, array &$tables): array
     {
-        $parser = new Parser($sql, false);
+        $this->unitTokens = $tokens;
+        $parser = new Parser(new TokensList($tokens, count($tokens)), false);
         if (!empty($parser->errors)) {
             $error = $parser->errors[0];
             $token = $error->token ?? null;
-            throw self::syntax($token instanceof Token ? (string) $token->token : '');
+            throw self::parserError($error, $token instanceof Token ? (string) $token->token : '', $token instanceof Token ? $token->position : null);
         }
         if (count($parser->statements) !== 1) {
-            throw self::notSelect(isset($parser->statements[1]) ? $this->firstTokenOf($parser->statements[1]) : '');
+            throw self::notSelect('', $this->statementOffset($parser->statements[1] ?? null));
         }
 
         $main = $parser->statements[0];
         if (!($main instanceof SelectStatement) || get_class($main) !== SelectStatement::class) {
-            throw self::notSelect($this->firstTokenOf($main));
+            throw self::notSelect($this->firstTokenOf($main), $this->statementOffset($main));
         }
 
         $branches = [$main];
         foreach ($main->union as $union) {
             $branch = $union[1] ?? null;
             if (!($branch instanceof SelectStatement) || get_class($branch) !== SelectStatement::class || !empty($branch->union)) {
-                throw self::notSelect('UNION');
+                throw self::notSelect('UNION', $this->findInUnit('UNION'));
             }
             $branches[] = $branch;
         }
@@ -438,7 +584,7 @@ final class SqlGuard
             $statements[$this->keyOf($select)] = $statements[$this->keyOf($select)] ?? $select;
         }
 
-        return $main;
+        return $branches;
     }
 
     /**
@@ -447,16 +593,17 @@ final class SqlGuard
     private function checkSelect(SelectStatement $select, array &$tables): void
     {
         if ($select->into !== null) {
-            throw self::token('INTO');
+            throw self::token('INTO', $this->findInUnit('INTO'));
         }
         if ($select->procedure !== null) {
-            throw self::token('PROCEDURE');
+            throw self::token('PROCEDURE', $this->findInUnit('PROCEDURE'));
         }
         if ($select->end_options !== null && !$select->end_options->isEmpty()) {
-            throw self::token($select->end_options->build($select->end_options));
+            $options = $select->end_options->build($select->end_options);
+            throw self::token($options, $this->findInUnit((string) strtok($options, ' ')));
         }
         if ($select->options !== null && $select->options->has('MAX_STATEMENT_TIME')) {
-            throw self::token('MAX_STATEMENT_TIME');
+            throw self::token('MAX_STATEMENT_TIME', $this->findInUnit('MAX_STATEMENT_TIME'));
         }
 
         foreach ($select->from ?: [] as $expression) {
@@ -464,7 +611,7 @@ final class SqlGuard
         }
         foreach ($select->join ?: [] as $join) {
             if (!($join->expr instanceof Expression)) {
-                throw self::syntax('JOIN');
+                throw self::syntax('JOIN', $this->findInUnit('JOIN'));
             }
             $this->checkTableExpression($join->expr, $tables);
         }
@@ -477,7 +624,7 @@ final class SqlGuard
     {
         if ($expression->subquery !== null) {
             if (strtoupper((string) $expression->subquery) !== 'SELECT') {
-                throw self::token((string) $expression->expr);
+                throw self::token((string) $expression->expr, $this->findInUnit($this->firstWord((string) $expression->expr)));
             }
 
             return;
@@ -489,51 +636,95 @@ final class SqlGuard
             if (strtoupper(trim((string) $expression->expr)) === 'DUAL') {
                 return;
             }
-            throw self::token((string) $expression->expr);
+            throw self::token((string) $expression->expr, $this->findInUnit($this->firstWord((string) $expression->expr)));
         }
 
         if ($database !== '' && $database !== $this->databaseName) {
-            throw self::table($database . '.' . $table);
+            throw self::table($database . '.' . $table, $this->findInUnit($database));
         }
 
         $lower = strtolower($table);
         $name = strpos($lower, $this->prefix) === 0 ? substr($lower, strlen($this->prefix)) : '';
         if ($name === '' || !self::isAllowedTable($name)) {
-            throw self::table($table);
+            throw self::table($table, $this->findInUnit($table));
         }
 
         $tables[] = $name;
     }
 
     /**
-     * Refuses the query if the parser silently dropped a SELECT whose tables were then never checked: every SELECT keyword
-     * belongs to the top-level query or to a parenthesized subquery, and each of them parsed at least as many
-     * statements as it holds SELECT keywords.
+     * Refuses the query if the parser silently dropped a clause whose tables were then never checked, or read as a
+     * name what MySQL reads as a clause. Each SELECT, FROM and JOIN keyword belongs to the top-level query or to its
+     * innermost parenthesized subquery, and that unit must have parsed at least as many SELECTs, FROM clauses
+     * and joins. A FROM inside the parentheses of a function call (EXTRACT, TRIM, SUBSTRING) is not a clause.
      *
-     * @param array<int, int> $closing
-     * @param array<int, int> $produced statements parsed per unit, -1 for the top-level query
+     * @param array<int, SelectStatement[]> $units parsed SELECTs per unit, keyed by "(" index, -1 for the top level
      */
-    private function checkEverySelectWasParsed(array $closing, array $produced): void
+    private function checkEveryClauseWasParsed(array $units): void
     {
-        $owned = [];
-        foreach ($this->tokens as $i => $token) {
-            if (!$this->isKeyword($token, 'SELECT')) {
-                continue;
-            }
-            $owner = -1;
-            foreach ($closing as $open => $close) {
-                if ($open < $i && $i < $close && isset($produced[$open]) && $open > $owner) {
-                    $owner = $open;
+        $produced = [];
+        foreach ($units as $open => $selects) {
+            $produced[$open] = ['SELECT' => count($selects), 'FROM' => 0, 'JOIN' => 0];
+            foreach ($selects as $select) {
+                $produced[$open]['FROM'] += empty($select->from) ? 0 : 1;
+                $produced[$open]['JOIN'] += count($select->join ?: []);
+                if ($select->options !== null && $select->options->has('STRAIGHT_JOIN')) {
+                    $produced[$open]['JOIN']++;
                 }
             }
-            $owned[$owner] = ($owned[$owner] ?? 0) + 1;
         }
 
-        foreach ($owned as $owner => $count) {
-            if (($produced[$owner] ?? 0) < $count) {
-                throw self::syntax('SELECT');
+        $owned = [];
+        foreach ($this->tokens as $i => $token) {
+            $clause = $this->clauseOf($i);
+            if ($clause === null) {
+                continue;
+            }
+
+            $group = $this->enclosing[$i];
+            if ($clause === 'FROM' && $group !== -1 && !isset($units[$group]) && $this->isFunctionCall($group)) {
+                continue;
+            }
+            while ($group !== -1 && !isset($units[$group])) {
+                $group = $this->groupParent[$group];
+            }
+
+            $owned[$group][$clause] = ($owned[$group][$clause] ?? 0) + 1;
+            if ($owned[$group][$clause] > $produced[$group][$clause]) {
+                throw self::syntax((string) $token->token, $token->position);
             }
         }
+    }
+
+    /**
+     * @return string|null "SELECT", "FROM" or "JOIN" when the token starts such a clause for MySQL
+     */
+    private function clauseOf(int $i): ?string
+    {
+        $token = $this->tokens[$i];
+        if (isset($this->qualifiedNames[$i]) || isset($this->placeholderTokens[$i])
+            || ($token->type !== Token::TYPE_KEYWORD && $token->type !== Token::TYPE_NONE)) {
+            return null;
+        }
+
+        $word = (string) preg_replace('/\s+/', ' ', strtoupper((string) $token->token));
+        if ($word === 'SELECT' || $word === 'FROM') {
+            return $word;
+        }
+        if ($word === 'JOIN' || $word === 'STRAIGHT_JOIN' || substr($word, -5) === ' JOIN') {
+            return 'JOIN';
+        }
+
+        return null;
+    }
+
+    private function isFunctionCall(int $open): bool
+    {
+        $previous = $this->previousMeaningfulIndex($open);
+        $token = $previous === null ? null : $this->tokens[$previous];
+
+        return $token !== null && $token->type === Token::TYPE_KEYWORD && ($token->flags & Token::FLAG_KEYWORD_FUNCTION)
+            && !isset($this->qualifiedNames[$previous]);
     }
 
     private function keyOf(SelectStatement $select): string
@@ -542,6 +733,44 @@ final class SqlGuard
         $copy->union = [];
 
         return $copy->build();
+    }
+
+    /**
+     * Position of the first token of the current unit spelling $word (keyword, name or quoted name), any case.
+     */
+    private function findInUnit(string $word): ?int
+    {
+        $word = strtolower(trim($word, '`'));
+        foreach ($this->unitTokens as $token) {
+            if ($token->token !== null && $token->type !== Token::TYPE_STRING && $token->type !== Token::TYPE_COMMENT
+                && (strtolower((string) $token->token) === $word || strtolower((string) $token->value) === $word)) {
+                return $token->position;
+            }
+        }
+
+        return null;
+    }
+
+    private function firstWord(string $expression): string
+    {
+        return preg_match('/[A-Za-z0-9_$]+/', $expression, $match) ? $match[0] : $expression;
+    }
+
+    private function statementOffset($statement): ?int
+    {
+        if (!is_object($statement) || !isset($statement->first) || !isset($this->unitTokens[$statement->first])) {
+            return null;
+        }
+        $first = $this->unitTokens[$statement->first];
+        if ($first->type === Token::TYPE_WHITESPACE || $first->type === Token::TYPE_DELIMITER) {
+            foreach (array_slice($this->unitTokens, $statement->first) as $token) {
+                if ($token->type !== Token::TYPE_WHITESPACE && $token->type !== Token::TYPE_DELIMITER && $token->type !== Token::TYPE_COMMENT) {
+                    return $token->position;
+                }
+            }
+        }
+
+        return $first->position;
     }
 
     private function firstTokenOf($statement): string
@@ -553,9 +782,9 @@ final class SqlGuard
 
     private function isQualified(int $i): bool
     {
-        $previous = $this->previousMeaningful($i);
+        $previous = $this->previousMeaningfulIndex($i);
 
-        return $previous !== null && $previous->type === Token::TYPE_OPERATOR && $previous->token === '.';
+        return $previous !== null && $this->tokens[$previous]->type === Token::TYPE_OPERATOR && $this->tokens[$previous]->token === '.';
     }
 
     private function isFollowedByParenthesis(int $i): bool
@@ -581,12 +810,12 @@ final class SqlGuard
         return null;
     }
 
-    private function previousMeaningful(int $i): ?Token
+    private function previousMeaningfulIndex(int $i): ?int
     {
         for ($j = $i - 1; $j >= 0; $j--) {
-            $token = $this->tokens[$j];
-            if ($token->type !== Token::TYPE_WHITESPACE && $token->type !== Token::TYPE_COMMENT) {
-                return $token;
+            $type = $this->tokens[$j]->type;
+            if ($type !== Token::TYPE_WHITESPACE && $type !== Token::TYPE_COMMENT) {
+                return $j;
             }
         }
 
@@ -606,7 +835,11 @@ final class SqlGuard
     /**
      * @param Token[] $tokens
      */
-    private function tokenAtPosition(array $tokens, int $position, string $fallback): string
+    /**
+     * @param Token[] $tokens
+     * @return Token|null the token holding the error position: the lexer reports an unterminated string at its end
+     */
+    private function tokenAtPosition(array $tokens, int $position): ?Token
     {
         $found = null;
         foreach ($tokens as $token) {
@@ -615,35 +848,61 @@ final class SqlGuard
             }
         }
 
-        return $found !== null ? (string) $found->token : $fallback;
+        return $found;
     }
 
-    private static function token(string $offending): RejectedQueryException
+    private static function token(string $offending, ?int $offset): RejectedQueryException
     {
-        return self::reject('DataExplorer_SqlRejectedToken', $offending);
+        return self::rejectToken('DataExplorer_SqlRejectedToken', $offending, $offset);
     }
 
-    private static function table(string $offending): RejectedQueryException
+    private static function table(string $offending, ?int $offset): RejectedQueryException
     {
-        return self::reject('DataExplorer_SqlRejectedTable', $offending);
+        return self::rejectToken('DataExplorer_SqlRejectedTable', $offending, $offset);
     }
 
-    private static function syntax(string $offending): RejectedQueryException
+    private static function syntax(string $offending, ?int $offset): RejectedQueryException
     {
-        return self::reject('DataExplorer_SqlRejectedSyntax', $offending);
+        return self::rejectToken('DataExplorer_SqlRejectedSyntax', $offending, $offset);
     }
 
-    private static function notSelect(string $offending): RejectedQueryException
+    private static function notSelect(string $offending, ?int $offset): RejectedQueryException
     {
-        return self::reject('DataExplorer_SqlRejectedStatement', $offending);
+        return self::rejectToken('DataExplorer_SqlRejectedStatement', $offending, $offset);
     }
 
-    private static function reject(string $key, string $offending): RejectedQueryException
+    /**
+     * A lexer or parser error, with the parser's own (English) explanation.
+     */
+    private static function parserError(\Exception $error, string $offending, ?int $offset): RejectedQueryException
+    {
+        $offending = self::shorten($offending);
+
+        return new RejectedQueryException(
+            Piwik::translate('DataExplorer_SqlRejectedParser', [$offending, $error->getMessage()]),
+            $offending,
+            $offset
+        );
+    }
+
+    private static function rejectToken(string $key, string $offending, ?int $offset): RejectedQueryException
+    {
+        $offending = self::shorten($offending);
+
+        return self::reject($key, $offending, $offending, $offset);
+    }
+
+    private static function shorten(string $offending): string
     {
         if (mb_strlen($offending) > self::MAX_TOKEN_LENGTH_IN_MESSAGE) {
-            $offending = mb_substr($offending, 0, self::MAX_TOKEN_LENGTH_IN_MESSAGE) . '...';
+            return mb_substr($offending, 0, self::MAX_TOKEN_LENGTH_IN_MESSAGE) . '...';
         }
 
-        return new RejectedQueryException(Piwik::translate($key, [$offending]), $offending);
+        return $offending;
+    }
+
+    private static function reject(string $key, string $parameter, string $offending, ?int $offset = null): RejectedQueryException
+    {
+        return new RejectedQueryException(Piwik::translate($key, [$parameter]), $offending, $offset);
     }
 }
