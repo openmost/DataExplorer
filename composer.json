@@ -1,0 +1,24 @@
+{
+    "name": "openmost/data-explorer",
+    "description": "Explore Matomo data, visually or with read-only SQL.",
+    "type": "matomo-plugin",
+    "license": "GPL-3.0-or-later",
+    "require": {
+        "phpmyadmin/sql-parser": "^5.10"
+    },
+    "config": {
+        "platform": {
+            "php": "7.2.5"
+        },
+        "optimize-autoloader": true
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "@prune-vendor"
+        ],
+        "post-update-cmd": [
+            "@prune-vendor"
+        ],
+        "prune-vendor": "rm -rf vendor/bin vendor/phpmyadmin/sql-parser/bin vendor/phpmyadmin/sql-parser/tests vendor/phpmyadmin/sql-parser/locale"
+    }
+}
