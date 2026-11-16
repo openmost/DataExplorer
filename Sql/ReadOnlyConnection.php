@@ -61,19 +61,32 @@ final class ReadOnlyConnection
      */
     public static function assertReadOnly(?AdapterInterface $db = null): void
     {
+        self::grantedTables($db);
+    }
+
+    /**
+     * Tables the read-only user may SELECT, as granted, once assertReadOnly() holds.
+     *
+     * @return string[]
+     * @throws NotConfiguredException|NotReadOnlyException
+     */
+    public static function grantedTables(?AdapterInterface $db = null): array
+    {
         $config = self::config();
         $db = $db ?? self::get();
         self::$checked = self::$checked ?: new \SplObjectStorage();
         $results = self::$checked->contains($db) ? self::$checked[$db] : [];
-        $key = strtolower($config['dbname']) . '|' . strtolower($config['tables_prefix']);
+        $key = $config['dbname'] . '|' . $config['tables_prefix'];
 
         if (!isset($results[$key])) {
             $grants = array_map(function ($row) {
                 return (string) reset($row);
             }, $db->fetchAll('SHOW GRANTS FOR CURRENT_USER()'));
+            // Unreadable means case sensitive: the stricter comparison.
+            $lowerCaseNames = $db->fetchOne('SELECT @@lower_case_table_names');
+            $caseInsensitive = is_numeric($lowerCaseNames) && (int) $lowerCaseNames !== 0;
             try {
-                self::checkGrants($grants, $config['dbname'], $config['tables_prefix']);
-                $results[$key] = true;
+                $results[$key] = self::checkGrants($grants, $config['dbname'], $config['tables_prefix'], $caseInsensitive);
             } catch (NotReadOnlyException $e) {
                 $results[$key] = $e;
             }
@@ -83,18 +96,26 @@ final class ReadOnlyConnection
         if ($results[$key] instanceof NotReadOnlyException) {
             throw $results[$key];
         }
+
+        return $results[$key];
     }
 
     /**
      * @param string[] $grants lines of SHOW GRANTS
      * @param string $database the Matomo database, the only one a SELECT may be granted on
      * @param string $prefix Matomo table prefix
+     * @param bool $caseInsensitive the server's lower_case_table_names is not 0, so "Matomo" names "matomo"
+     * @return string[] the tables granted SELECT, lowercase when names are case insensitive
      * @throws NotReadOnlyException
      */
-    public static function checkGrants(array $grants, string $database, string $prefix): void
+    public static function checkGrants(array $grants, string $database, string $prefix, bool $caseInsensitive = false): array
     {
         $pattern = '/^GRANT\s+(.+?)\s+ON\s+(' . self::NAME . '|\*)\.(' . self::NAME . '|\*)\s+TO\s+' . self::GRANTEE . '(.*)$/s';
+        $fold = function (string $name) use ($caseInsensitive): string {
+            return $caseInsensitive ? strtolower($name) : $name;
+        };
 
+        $tables = [];
         foreach ($grants as $grant) {
             $grant = trim($grant);
             $unquoted = (string) preg_replace('/' . self::QUOTED . '/', "''", $grant);
@@ -117,16 +138,22 @@ final class ReadOnlyConnection
                 throw new NotReadOnlyException($grant, true);
             }
 
-            $table = strtolower(self::unquote($table));
-            $prefix = strtolower($prefix);
+            // Matomo creates its tables in lowercase: on a case-sensitive server another case is another table.
+            $table = $fold(self::unquote($table));
+            $prefix = $fold($prefix);
+            $name = substr($table, strlen($prefix));
             if (
-                strtolower(self::unquote($schema)) !== strtolower($database)
+                $fold(self::unquote($schema)) !== $fold($database)
                 || substr($table, 0, strlen($prefix)) !== $prefix
-                || !SqlGuard::isAllowedTable(substr($table, strlen($prefix)))
+                || $name !== strtolower($name)
+                || !SqlGuard::isAllowedTable($name)
             ) {
                 throw new NotReadOnlyException($grant, false);
             }
+            $tables[] = $table;
         }
+
+        return array_values(array_unique($tables));
     }
 
     /**

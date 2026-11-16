@@ -49,11 +49,11 @@
         "SetupCreateUserTitle": "1. Den schreibgeschützten MySQL-Benutzer anlegen",
         "SetupCreateUserHelp": "Führen Sie diese Anweisungen als MySQL-Administrator aus, mit einem eigenen sicheren Passwort statt des Platzhalters.",
         "SetupAnyHostHelp": "Die Datenbank läuft auf einem anderen Server: Ersetzen Sie % durch die Adresse des Matomo-Servers, damit sich der Benutzer nur von dort verbinden kann.",
-        "SetupArchiveTablesHelp": "Matomo legt jeden Monat neue Archivtabellen an. Öffnen Sie diese Seite regelmäßig erneut und führen Sie die GRANT-Zeilen der neuen Tabellen aus.",
         "SetupNoTables": "In der Matomo-Datenbank wurde keine erlaubte Tabelle gefunden.",
         "SetupConfigTitle": "2. Den Benutzer in config.ini.php eintragen",
         "SetupConfigHelp": "Fügen Sie diesen Abschnitt mit demselben Passwort in config/config.ini.php ein. Fügen Sie readonly_host, readonly_port, readonly_dbname oder readonly_unix_socket nur hinzu, wenn sich der Benutzer mit einem anderen Server als Matomo verbindet.",
-        "SetupPasswordPlaceholder": "change-me"
+        "SetupPasswordPlaceholder": "change-me",
+        "SetupMissingGrants": "Der schreibgeschützte Benutzer %1$s kann %2$s erlaubte Tabellen noch nicht lesen, Abfragen darauf schlagen fehl. Führen Sie diese GRANT-Zeilen aus:"
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",

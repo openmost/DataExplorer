@@ -3,12 +3,15 @@
 {% set title %}{{ 'DataExplorer_SetupTitle'|translate }}{% endset %}
 
 {% block content %}
-<div vue-entry="CoreHome.ContentBlock" content-title="{{ title|e('html_attr') }}">
+<div vue-entry="CoreHome.ContentBlock" content-title="{{ 'DataExplorer_SetupTitle'|translate|e('html_attr') }}">
     <p>{{ 'DataExplorer_SetupIntro'|translate }}</p>
     {% if status.state == 'ready' %}
         <div class="alert alert-success">{{ status.message }}</div>
     {% elseif status.state == 'not_configured' %}
         <div class="alert alert-info">{{ status.message }}</div>
+    {% elseif status.state == 'missing_grants' %}
+        <div class="alert alert-warning">{{ status.message }}</div>
+        <pre>{{ missingGrantLines|join("\n") }}</pre>
     {% else %}
         <div class="alert alert-danger">{{ status.message }}</div>
     {% endif %}
@@ -24,7 +27,6 @@
     {% else %}
         <div class="alert alert-warning">{{ 'DataExplorer_SetupNoTables'|translate }}</div>
     {% endif %}
-    <p>{{ 'DataExplorer_SetupArchiveTablesHelp'|translate }}</p>
 </div>
 
 <div vue-entry="CoreHome.ContentBlock" content-title="{{ 'DataExplorer_SetupConfigTitle'|translate|e('html_attr') }}">

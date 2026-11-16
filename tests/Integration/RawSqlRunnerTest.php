@@ -16,6 +16,7 @@ use Piwik\Common;
 use Piwik\Config;
 use Piwik\DataTable;
 use Piwik\Db;
+use Piwik\Db\Adapter\Pdo\Mysql;
 use Piwik\NoAccessException;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\API;
@@ -245,11 +246,106 @@ class RawSqlRunnerTest extends IntegrationTestCase
         (new RawSqlRunner())->run($sql, 2, 'day', '2026-03-01');
 
         $this->assertCount(1, $events);
-        $this->assertSame(['login', 'queryHash', 'idSite', 'durationMs', 'rowCount'], array_keys($events[0]));
+        $this->assertSame(['login', 'queryHash', 'idSite', 'status', 'durationMs', 'rowCount'], array_keys($events[0]));
+        $this->assertSame('ok', $events[0]['status']);
         $this->assertSame(md5($sql), $events[0]['queryHash']);
         $this->assertSame(1, $events[0]['rowCount']);
         $this->assertSame(2, $events[0]['idSite']);
         $this->assertStringNotContainsString('Site 2', json_encode($events[0]));
+    }
+
+    public function test_failedExecution_isAudited(): void
+    {
+        $events = $this->listenToAudit();
+        $sql = 'SELECT no_such_column FROM ' . Common::prefixTable('site');
+
+        try {
+            (new RawSqlRunner())->run($sql, 1, 'day', '2026-03-01');
+            $this->fail('expected a failure');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('no_such_column', $e->getMessage());
+        }
+
+        $this->assertCount(1, $events->list);
+        $this->assertSame('error', $events->list[0]['status']);
+        $this->assertNull($events->list[0]['rowCount']);
+        $this->assertSame(md5($sql), $events->list[0]['queryHash']);
+    }
+
+    public function test_timedOutExecution_isAudited(): void
+    {
+        $events = $this->listenToAudit();
+        $db = $this->getMockBuilder(Mysql::class)->disableOriginalConstructor()->onlyMethods(['query', 'fetchOne', 'fetchAll'])->getMock();
+        $db->method('fetchOne')->willReturnCallback(function ($sql) {
+            return $sql === 'SELECT VERSION()' ? '8.0.36' : '0';
+        });
+        $db->method('fetchAll')->willReturnCallback(function ($sql) {
+            if (strpos($sql, 'SHOW GRANTS') === 0) {
+                return [['Grants' => 'GRANT USAGE ON *.* TO `ro`@`localhost`']];
+            }
+            throw new \Exception('SQLSTATE[HY000]: General error: 3024 Query execution was interrupted, maximum statement execution time exceeded');
+        });
+
+        try {
+            (new RawSqlRunner(function () use ($db) {
+                return $db;
+            }))->run('SELECT idsite FROM ' . Common::prefixTable('site'), 1, 'day', '2026-03-01');
+            $this->fail('expected a timeout');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_ErrorRawSqlTimeout', [30]), $e->getMessage());
+        }
+
+        $this->assertCount(1, $events->list);
+        $this->assertSame('timeout', $events->list[0]['status']);
+        $this->assertNull($events->list[0]['rowCount']);
+    }
+
+    public function test_duplicateColumnNames_work(): void
+    {
+        $site = Common::prefixTable('site');
+        $sql = "SELECT a.idsite, b.idsite, a.name FROM {$site} a JOIN {$site} b ON b.idsite = a.idsite WHERE a.idsite = {idsite}";
+
+        $this->assertCount(1, (new RawSqlRunner())->run($sql, 2, 'day', '2026-03-01')->getRows());
+        $sql = "SELECT * FROM {$site} a JOIN {$site} b USING (idsite) WHERE a.idsite = {idsite}";
+        $this->assertCount(1, (new RawSqlRunner())->run($sql, 2, 'day', '2026-03-01')->getRows());
+    }
+
+    /**
+     * @dataProvider cappedQueries
+     */
+    public function test_rowCap_keepsTheTopRowsOfTheOrder(string $tail, array $expected): void
+    {
+        Config::getInstance()->DataExplorer = Config::getInstance()->DataExplorer + ['raw_sql_row_limit' => 2];
+        $site = Common::prefixTable('site');
+
+        $rows = $this->rows((new RawSqlRunner())->run(str_replace('{site}', $site, $tail), 1, 'day', '2026-03-01'));
+
+        $this->assertSame($expected, array_column($rows, 'idsite'));
+    }
+
+    public function cappedQueries(): array
+    {
+        return [
+            'order without limit' => ['SELECT idsite FROM {site} ORDER BY idsite DESC', [3, 2]],
+            'own limit above the cap' => ['SELECT idsite FROM {site} ORDER BY idsite DESC LIMIT 20000', [3, 2]],
+            'own limit below the cap' => ['SELECT idsite FROM {site} ORDER BY idsite DESC LIMIT 1', [3]],
+            'offset and count' => ['SELECT idsite FROM {site} ORDER BY idsite DESC LIMIT 1, 5', [2, 1]],
+            'count and offset' => ['SELECT idsite FROM {site} ORDER BY idsite DESC LIMIT 5 OFFSET 1', [2, 1]],
+            'union' => ['SELECT idsite FROM {site} UNION ALL SELECT idsite FROM {site} ORDER BY 1 DESC', [3, 3]],
+            'limit in a derived table only' => ['SELECT d.idsite FROM (SELECT idsite FROM {site} ORDER BY idsite LIMIT 3) d ORDER BY d.idsite DESC', [3, 2]],
+        ];
+    }
+
+    public function test_coreConnectionSession_isUntouched(): void
+    {
+        $modes = [Db::get()->fetchOne('SELECT @@SESSION.sql_mode'), Db::getReader()->fetchOne('SELECT @@SESSION.sql_mode')];
+        $readOnly = [Db::get()->fetchOne('SELECT @@SESSION.transaction_read_only'), Db::getReader()->fetchOne('SELECT @@SESSION.transaction_read_only')];
+
+        API::getInstance()->runSql(1, 'day', '2026-03-01', 'SELECT idsite FROM ' . Common::prefixTable('site'));
+
+        $this->assertSame($modes, [Db::get()->fetchOne('SELECT @@SESSION.sql_mode'), Db::getReader()->fetchOne('SELECT @@SESSION.sql_mode')]);
+        $this->assertSame($readOnly, [Db::get()->fetchOne('SELECT @@SESSION.transaction_read_only'), Db::getReader()->fetchOne('SELECT @@SESSION.transaction_read_only')]);
+        $this->assertNotSame(RawSqlRunner::SQL_MODE, $modes[0]);
     }
 
     public function test_rejectedQuery_neverReachesTheDatabase(): void
@@ -275,7 +371,7 @@ class RawSqlRunnerTest extends IntegrationTestCase
         $this->assertSame(['valid' => true, 'errors' => [], 'warnings' => []], API::getInstance()->validateSql("SELECT idsite FROM {$site} WHERE idsite = {idsite}"));
 
         $sql = "SELECT '\u{1F600}', a FROM " . Common::prefixTable('access');
-        $result = API::getInstance()->validateSql($sql, 1);
+        $result = API::getInstance()->validateSql($sql);
         $this->assertFalse($result['valid']);
         $this->assertCount(1, $result['errors']);
         $error = $result['errors'][0];
@@ -316,6 +412,17 @@ class RawSqlRunnerTest extends IntegrationTestCase
 
         $this->expectException(NoAccessException::class);
         API::getInstance()->validateSql('SELECT 1');
+    }
+
+    private function listenToAudit(): \stdClass
+    {
+        $events = new \stdClass();
+        $events->list = [];
+        Piwik::addAction('DataExplorer.rawSqlExecuted', function ($info) use ($events) {
+            $events->list[] = $info;
+        });
+
+        return $events;
     }
 
     private function configure(string $username): void

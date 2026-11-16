@@ -49,11 +49,11 @@
         "SetupCreateUserTitle": "1. إنشاء مستخدم MySQL للقراءة فقط",
         "SetupCreateUserHelp": "نفّذ هذه التعليمات بصفتك مسؤول MySQL، مع كلمة مرور قوية من اختيارك بدل القيمة المؤقتة.",
         "SetupAnyHostHelp": "تعمل قاعدة البيانات على خادم آخر: استبدل % بعنوان خادم Matomo حتى لا يتمكن المستخدم من الاتصال إلا منه.",
-        "SetupArchiveTablesHelp": "ينشئ Matomo جداول أرشيف جديدة كل شهر. افتح هذه الصفحة من حين لآخر ونفّذ أسطر GRANT للجداول الجديدة.",
         "SetupNoTables": "لم يتم العثور على أي جدول مسموح به في قاعدة بيانات Matomo.",
         "SetupConfigTitle": "2. إضافة المستخدم إلى config.ini.php",
         "SetupConfigHelp": "أضف هذا القسم إلى config/config.ini.php بكلمة المرور نفسها. لا تضف readonly_host أو readonly_port أو readonly_dbname أو readonly_unix_socket إلا إذا كان المستخدم يتصل بخادم غير خادم Matomo.",
-        "SetupPasswordPlaceholder": "change-me"
+        "SetupPasswordPlaceholder": "change-me",
+        "SetupMissingGrants": "لا يستطيع المستخدم للقراءة فقط %1$s بعدُ قراءة %2$s من الجداول المسموح بها، وستفشل الاستعلامات عليها. نفّذ أسطر GRANT التالية:"
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

@@ -37,9 +37,6 @@ final class SqlGuard
         'log_page_view_time', 'site', 'site_url', 'goal', 'custom_dimensions', 'segment',
     ];
 
-    /** Monthly archive tables, e.g. archive_numeric_2024_01. */
-    private const ALLOWED_ARCHIVE_KINDS = ['numeric', 'blob'];
-
     private const FORBIDDEN_SCHEMAS = ['information_schema', 'mysql', 'performance_schema', 'sys'];
 
     /**
@@ -89,18 +86,13 @@ final class SqlGuard
     private const KEYWORDS_BEFORE_PARENTHESIS = ['ANY', 'SOME'];
 
     /**
-     * Unprefixed names of the readable tables, the monthly archive tables as "archive_numeric_*" and
-     * "archive_blob_*". Use isAllowedTable() to filter the tables that exist.
+     * Unprefixed names of the readable tables. Use isAllowedTable() to filter the tables that exist.
      *
      * @return string[]
      */
     public static function allowedTables(): array
     {
-        $archives = array_map(function ($kind) {
-            return 'archive_' . $kind . '_*';
-        }, self::ALLOWED_ARCHIVE_KINDS);
-
-        return array_merge(array_slice(self::ALLOWED_TABLES, 0, 6), $archives, array_slice(self::ALLOWED_TABLES, 6));
+        return self::ALLOWED_TABLES;
     }
 
     /**
@@ -108,10 +100,7 @@ final class SqlGuard
      */
     public static function isAllowedTable(string $name): bool
     {
-        $name = strtolower($name);
-
-        return in_array($name, self::ALLOWED_TABLES, true)
-            || (bool) preg_match('/^archive_(' . implode('|', self::ALLOWED_ARCHIVE_KINDS) . ')_\d{4}_\d{2}$/', $name);
+        return in_array(strtolower($name), self::ALLOWED_TABLES, true);
     }
 
     /** Placeholders a saved query uses for the current site and period, bound by the runner. */

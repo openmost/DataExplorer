@@ -119,10 +119,9 @@ class API extends \Piwik\Plugin\API
      * JavaScript strings do. A null offset means the whole query.
      *
      * @param string $sql
-     * @param int $idSite the site the editor is open on
      * @return array{valid: bool, errors: array, warnings: array}
      */
-    public function validateSql(string $sql, int $idSite = 0): array
+    public function validateSql(string $sql): array
     {
         (new ReportPermissions())->checkCanRunRawSql();
 

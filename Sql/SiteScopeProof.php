@@ -80,10 +80,6 @@ final class SiteScopeProof
      */
     public static function siteColumn(string $table): ?string
     {
-        if (preg_match('/^archive_(numeric|blob)_\d{4}_\d{2}$/', $table)) {
-            return 'idsite';
-        }
-
         return self::SITE_COLUMNS[$table] ?? null;
     }
 

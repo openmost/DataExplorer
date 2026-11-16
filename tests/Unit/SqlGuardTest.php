@@ -157,7 +157,7 @@ SQL;
     {
         $tables = [
             'log_visit', 'log_link_visit_action', 'log_conversion', 'log_conversion_item', 'log_action',
-            'log_page_view_time', 'archive_numeric_2024_01', 'archive_blob_2026_12', 'site', 'site_url', 'goal',
+            'log_page_view_time', 'site', 'site_url', 'goal',
             'custom_dimensions', 'segment',
         ];
 
@@ -166,16 +166,15 @@ SQL;
         }, $tables));
     }
 
-    public function test_allowedTablesListsTheFixedNamesAndTheArchivePatterns(): void
+    public function test_allowedTablesListsTheFixedNamesOnly(): void
     {
         $this->assertSame([
             'log_visit', 'log_link_visit_action', 'log_conversion', 'log_conversion_item', 'log_action',
-            'log_page_view_time', 'archive_numeric_*', 'archive_blob_*', 'site', 'site_url', 'goal',
-            'custom_dimensions', 'segment',
+            'log_page_view_time', 'site', 'site_url', 'goal', 'custom_dimensions', 'segment',
         ], SqlGuard::allowedTables());
-        $this->assertTrue(SqlGuard::isAllowedTable('archive_blob_2025_03'));
         $this->assertTrue(SqlGuard::isAllowedTable('LOG_VISIT'));
-        $this->assertFalse(SqlGuard::isAllowedTable('archive_blob_2025_3'));
+        $this->assertFalse(SqlGuard::isAllowedTable('archive_numeric_2025_03'));
+        $this->assertFalse(SqlGuard::isAllowedTable('archive_blob_2025_03'));
         $this->assertFalse(SqlGuard::isAllowedTable('plugin_setting'));
     }
 
@@ -621,6 +620,8 @@ SQL;
             'scheduled reports' => ['SELECT * FROM matomo_report', 'matomo_report'],
             'unknown future table' => ['SELECT * FROM matomo_foo', 'matomo_foo'],
             'unknown table in subquery' => ['SELECT * FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_foo)', 'matomo_foo'],
+            'numeric archive table' => ['SELECT * FROM matomo_archive_numeric_2024_01', 'matomo_archive_numeric_2024_01'],
+            'blob archive table in a subquery' => ['SELECT * FROM matomo_log_visit WHERE idsite IN (SELECT idsite FROM matomo_archive_blob_2024_01)', 'matomo_archive_blob_2024_01'],
             'archive table with a malformed date' => ['SELECT * FROM matomo_archive_numeric_2024_1', 'matomo_archive_numeric_2024_1'],
             'archive table of another kind' => ['SELECT * FROM matomo_archive_invalidations', 'matomo_archive_invalidations'],
             'decimal point before from' => ['SELECT idvisit, 1.FROM matomo_log_visit WHERE idsite = 2', '1'],

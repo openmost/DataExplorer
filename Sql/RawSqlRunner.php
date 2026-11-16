@@ -64,7 +64,7 @@ final class RawSqlRunner
         }
 
         $parsed = SqlGuard::validate($sql, $config['tables_prefix'], $config['dbname']);
-        [$bounded, $placeholders] = self::bindPlaceholders($parsed);
+        [$executable, $placeholders] = self::prepare($parsed, Configuration::getRawSqlRowLimit());
         $values = ['{idsite}' => $idSite] + self::dateBounds($idSite, $period, $date);
         $bind = array_map(function ($placeholder) use ($values) {
             return $values[$placeholder];
@@ -80,16 +80,23 @@ final class RawSqlRunner
             }
         }
 
-        $wrapped = 'SELECT * FROM (' . $bounded . ') ' . self::WRAPPER_ALIAS . ' LIMIT ' . Configuration::getRawSqlRowLimit();
-
         $db = ($this->connect)();
         ReadOnlyConnection::assertReadOnly($db);
 
         $started = microtime(true);
-        $rows = $this->execute($db, $wrapped, $bind);
-        $durationMs = (int) round((microtime(true) - $started) * 1000);
-
-        $this->audit(md5($sql), $idSite, $durationMs, count($rows));
+        $status = 'error';
+        $rows = null;
+        try {
+            $rows = $this->execute($db, $executable, $bind);
+            $status = 'ok';
+        } catch (\InvalidArgumentException $e) {
+            if ($e->getPrevious() instanceof \Exception && SessionLimits::isTimeout($db, $e->getPrevious())) {
+                $status = 'timeout';
+            }
+            throw $e;
+        } finally {
+            $this->audit(md5($sql), $idSite, $status, (int) round((microtime(true) - $started) * 1000), $rows === null ? null : count($rows));
+        }
 
         if ($useCache && $ttl > 0) {
             $cache->save($cacheId, $rows, $ttl);
@@ -99,15 +106,19 @@ final class RawSqlRunner
     }
 
     /**
-     * The executable SQL with each placeholder replaced by "?", rebuilt from the guard's tokens so a placeholder
-     * written inside a string or a comment is never bound.
+     * The SQL to run, rebuilt from the guard's tokens: each placeholder becomes "?" (one written inside a string or
+     * a comment is never bound), and the rows are capped at $cap. Without a LIMIT of its own the query gets
+     * " LIMIT <cap>" appended, a top-level LIMIT with literal numbers is lowered to the cap. Only another LIMIT
+     * form is wrapped in a derived table, which would lose the order on MariaDB and refuse duplicate column names.
      *
      * @return array{0: string, 1: string[]} the SQL and the placeholder of each "?" in order
      */
-    public static function bindPlaceholders(ParsedQuery $parsed): array
+    public static function prepare(ParsedQuery $parsed, int $cap): array
     {
         $tokens = $parsed->getTokens();
         $count = count($tokens);
+        [$limit, $rowCount] = self::topLevelLimit($tokens);
+
         $sql = '';
         $original = '';
         $placeholders = [];
@@ -131,7 +142,7 @@ final class RawSqlRunner
                     continue;
                 }
             }
-            $sql .= $token->token;
+            $sql .= $i === $rowCount ? (string) min((int) $token->token, $cap) : $token->token;
             $original .= $token->token;
         }
 
@@ -140,7 +151,80 @@ final class RawSqlRunner
             throw new \LogicException('The placeholders of the query could not be bound.');
         }
 
-        return [trim($sql) . "\n", $placeholders];
+        $sql = trim($sql) . "\n";
+        if ($limit === null) {
+            return [$sql . 'LIMIT ' . $cap, $placeholders];
+        }
+        if ($rowCount === null) {
+            return ['SELECT * FROM (' . $sql . ') ' . self::WRAPPER_ALIAS . ' LIMIT ' . $cap, $placeholders];
+        }
+
+        return [$sql, $placeholders];
+    }
+
+    /**
+     * The LIMIT that bounds the whole query: at depth 0, after the last top-level UNION.
+     *
+     * @param Token[] $tokens
+     * @return array{0: ?int, 1: ?int} index of that LIMIT keyword, index of its row count when it is a literal integer
+     */
+    private static function topLevelLimit(array $tokens): array
+    {
+        $depth = 0;
+        $limit = null;
+        foreach ($tokens as $i => $token) {
+            if ($token->type === Token::TYPE_OPERATOR && $token->token === '(') {
+                $depth++;
+            } elseif ($token->type === Token::TYPE_OPERATOR && $token->token === ')') {
+                $depth--;
+            } elseif ($depth === 0 && $token->type === Token::TYPE_KEYWORD) {
+                $keyword = strtoupper((string) $token->keyword);
+                if (strpos($keyword, 'UNION') === 0) {
+                    $limit = null;
+                } elseif ($keyword === 'LIMIT') {
+                    $limit = $i;
+                }
+            }
+        }
+        if ($limit === null) {
+            return [null, null];
+        }
+
+        $next = self::meaningful($tokens, $limit + 1);
+        $first = $next[0] ?? null;
+        $second = $next[1] ?? null;
+        if ($first === null || !self::isInteger($tokens[$first])) {
+            return [$limit, null];
+        }
+        if ($second !== null && $tokens[$second]->type === Token::TYPE_OPERATOR && $tokens[$second]->token === ',') {
+            $third = $next[2] ?? null;
+
+            return [$limit, $third !== null && self::isInteger($tokens[$third]) ? $third : null];
+        }
+
+        return [$limit, $first];
+    }
+
+    /**
+     * @param Token[] $tokens
+     * @return int[] indexes of the next three tokens that are not whitespace or comments
+     */
+    private static function meaningful(array $tokens, int $from): array
+    {
+        $found = [];
+        $count = count($tokens);
+        for ($i = $from; $i < $count && count($found) < 3; $i++) {
+            if (!in_array($tokens[$i]->type, [Token::TYPE_WHITESPACE, Token::TYPE_COMMENT], true)) {
+                $found[] = $i;
+            }
+        }
+
+        return $found;
+    }
+
+    private static function isInteger(Token $token): bool
+    {
+        return $token->type === Token::TYPE_NUMBER && ctype_digit((string) $token->token);
     }
 
     /**
@@ -180,34 +264,46 @@ final class RawSqlRunner
             }
             throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorRawSqlFailed', [$e->getMessage()]), 0, $e);
         } finally {
-            try {
-                if ($inTransaction) {
+            $cleanupFailure = null;
+            if ($inTransaction) {
+                try {
                     $db->query('ROLLBACK');
+                } catch (\Exception $rollbackFailure) {
+                    $cleanupFailure = $rollbackFailure;
                 }
+            }
+            try {
                 $db->query($restore);
             } catch (\Exception $restoreFailure) {
-                if ($failure === null) {
-                    throw $restoreFailure;
-                }
+                $cleanupFailure = $cleanupFailure ?: $restoreFailure;
+            }
+            if ($cleanupFailure !== null && $failure === null) {
+                throw $cleanupFailure;
             }
         }
     }
 
-    private function audit(string $queryHash, int $idSite, int $durationMs, int $rowCount): void
+    /**
+     * @param string $status ok, error or timeout
+     * @param int|null $rowCount null when the query failed
+     */
+    private function audit(string $queryHash, int $idSite, string $status, int $durationMs, ?int $rowCount): void
     {
         $login = Piwik::getCurrentUserLogin();
-        Log::info('DataExplorer: raw SQL query %s run by %s on site %d, %d ms, %d rows.', $queryHash, $login, $idSite, $durationMs, $rowCount);
+        Log::info('DataExplorer: raw SQL query %s run by %s on site %d, %s, %d ms, %s rows.', $queryHash, $login, $idSite, $status, $durationMs, $rowCount === null ? '-' : (string) $rowCount);
 
         /**
-         * Triggered after each raw SQL query run on the database (not when served from the cache). Carries no
-         * query text, bound value or row, only who ran which query (md5 of its text), for how long, with how many rows.
+         * Triggered after each raw SQL query run on the database, failed or not (not when served from the cache).
+         * Carries no query text, bound value or row, only who ran which query (md5 of its text), how it ended, for
+         * how long, with how many rows.
          *
-         * @param array $info login, queryHash, idSite, durationMs, rowCount
+         * @param array $info login, queryHash, idSite, status (ok, error or timeout), durationMs, rowCount (null unless ok)
          */
         Piwik::postEvent('DataExplorer.rawSqlExecuted', [[
             'login' => $login,
             'queryHash' => $queryHash,
             'idSite' => $idSite,
+            'status' => $status,
             'durationMs' => $durationMs,
             'rowCount' => $rowCount,
         ]]);

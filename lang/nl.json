@@ -49,11 +49,11 @@
         "SetupCreateUserTitle": "1. Maak de alleen-lezen MySQL-gebruiker aan",
         "SetupCreateUserHelp": "Voer deze statements uit als MySQL-beheerder, met een eigen sterk wachtwoord in plaats van de tijdelijke waarde.",
         "SetupAnyHostHelp": "De database draait op een andere server: vervang % door het adres van de Matomo-server, zodat de gebruiker alleen vandaar kan verbinden.",
-        "SetupArchiveTablesHelp": "Matomo maakt elke maand nieuwe archieftabellen aan. Open deze pagina af en toe opnieuw en voer de GRANT-regels van de nieuwe tabellen uit.",
         "SetupNoTables": "Er is geen toegestane tabel gevonden in de Matomo-database.",
         "SetupConfigTitle": "2. Voeg de gebruiker toe aan config.ini.php",
         "SetupConfigHelp": "Voeg deze sectie toe aan config/config.ini.php met hetzelfde wachtwoord. Voeg readonly_host, readonly_port, readonly_dbname of readonly_unix_socket alleen toe als de gebruiker met een andere server dan Matomo verbindt.",
-        "SetupPasswordPlaceholder": "change-me"
+        "SetupPasswordPlaceholder": "change-me",
+        "SetupMissingGrants": "De alleen-lezen gebruiker %1$s kan %2$s toegestane tabellen nog niet lezen, query's daarop mislukken. Voer deze GRANT-regels uit:"
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",

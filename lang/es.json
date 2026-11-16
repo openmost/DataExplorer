@@ -49,11 +49,11 @@
         "SetupCreateUserTitle": "1. Crear el usuario MySQL de solo lectura",
         "SetupCreateUserHelp": "Ejecute estas sentencias como administrador de MySQL, con una contraseña segura propia en lugar del marcador.",
         "SetupAnyHostHelp": "La base de datos está en otro servidor: sustituya % por la dirección del servidor de Matomo para que el usuario solo pueda conectarse desde allí.",
-        "SetupArchiveTablesHelp": "Matomo crea nuevas tablas de archivo cada mes. Vuelva a abrir esta página de vez en cuando y ejecute las líneas GRANT de las nuevas tablas.",
         "SetupNoTables": "No se ha encontrado ninguna tabla permitida en la base de datos de Matomo.",
         "SetupConfigTitle": "2. Añadir el usuario a config.ini.php",
         "SetupConfigHelp": "Añada esta sección a config/config.ini.php con la misma contraseña. Añada readonly_host, readonly_port, readonly_dbname o readonly_unix_socket solo si el usuario se conecta a otro servidor distinto del de Matomo.",
-        "SetupPasswordPlaceholder": "change-me"
+        "SetupPasswordPlaceholder": "change-me",
+        "SetupMissingGrants": "El usuario de solo lectura %1$s aún no puede leer %2$s tablas permitidas, las consultas sobre ellas fallarán. Ejecute estas líneas GRANT:"
     },
     "OpenmostCommunication": {
         "Dismiss": "Descartar",

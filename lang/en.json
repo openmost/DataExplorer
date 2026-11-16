@@ -49,11 +49,11 @@
         "SetupCreateUserTitle": "1. Create the read-only MySQL user",
         "SetupCreateUserHelp": "Run these statements as a MySQL administrator, with a strong password of your own instead of the placeholder.",
         "SetupAnyHostHelp": "The database runs on another server: replace % with the address of the Matomo server so the user can only connect from there.",
-        "SetupArchiveTablesHelp": "Matomo creates new archive tables each month. Open this page again from time to time and run the GRANT lines of the new tables.",
         "SetupNoTables": "No allowed table was found in the Matomo database.",
         "SetupConfigTitle": "2. Add the user to config.ini.php",
         "SetupConfigHelp": "Add this section to config/config.ini.php with the same password. Add readonly_host, readonly_port, readonly_dbname or readonly_unix_socket only when the user connects to another server than Matomo.",
-        "SetupPasswordPlaceholder": "change-me"
+        "SetupPasswordPlaceholder": "change-me",
+        "SetupMissingGrants": "The read-only user %1$s cannot read %2$s allowed tables yet, queries on them will fail. Run these GRANT lines:"
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

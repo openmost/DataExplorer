@@ -49,11 +49,11 @@
         "SetupCreateUserTitle": "1. 読み取り専用の MySQL ユーザーを作成する",
         "SetupCreateUserHelp": "MySQL 管理者としてこれらのステートメントを実行してください。プレースホルダーの代わりに独自の強力なパスワードを使用してください。",
         "SetupAnyHostHelp": "データベースは別のサーバーで動作しています: % を Matomo サーバーのアドレスに置き換え、ユーザーがそこからのみ接続できるようにしてください。",
-        "SetupArchiveTablesHelp": "Matomo は毎月新しいアーカイブテーブルを作成します。このページを定期的に開き、新しいテーブルの GRANT 行を実行してください。",
         "SetupNoTables": "Matomo データベースに許可されたテーブルが見つかりません。",
         "SetupConfigTitle": "2. config.ini.php にユーザーを追加する",
         "SetupConfigHelp": "同じパスワードでこのセクションを config/config.ini.php に追加してください。readonly_host、readonly_port、readonly_dbname、readonly_unix_socket は、ユーザーが Matomo とは別のサーバーに接続する場合にのみ追加してください。",
-        "SetupPasswordPlaceholder": "change-me"
+        "SetupPasswordPlaceholder": "change-me",
+        "SetupMissingGrants": "読み取り専用ユーザー %1$s は、許可されたテーブルのうち %2$s 個をまだ読み取れません。これらのテーブルへのクエリは失敗します。次の GRANT 行を実行してください:"
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",

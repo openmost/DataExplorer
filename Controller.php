@@ -29,6 +29,7 @@ class Controller extends \Piwik\Plugin\ControllerAdmin
             'status' => $setup->status(),
             'sqlSnippet' => $setup->sqlSnippet(),
             'iniBlock' => $setup->iniBlock(),
+            'missingGrantLines' => $setup->missingGrantLines(),
             'isAnyHost' => $setup->isAnyHost(),
             'hasTables' => $setup->tables() !== [],
         ]);

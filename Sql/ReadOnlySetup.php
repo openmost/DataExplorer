@@ -25,10 +25,12 @@ final class ReadOnlySetup
 {
     public const DEFAULT_USERNAME = 'matomo_readonly';
 
-    private const LOCAL_HOSTS = ['', 'localhost', '127.0.0.1', '::1'];
+    /** Hosts a MySQL account names as they are: a TCP connection to 127.0.0.1 or ::1 is not 'localhost'. */
+    private const LOOPBACK_HOSTS = ['127.0.0.1', '::1'];
 
     /**
-     * @return array{state: string, message: string} state is ready, not_configured, not_read_only, too_wide or connection_failed
+     * @return array{state: string, message: string} state is ready, missing_grants, not_configured, not_read_only,
+     *                                               too_wide or connection_failed
      */
     public function status(): array
     {
@@ -38,11 +40,15 @@ final class ReadOnlySetup
         }
 
         try {
-            ReadOnlyConnection::assertReadOnly();
+            $missing = $this->missingTables();
         } catch (NotReadOnlyException $e) {
             return ['state' => $e->isTooWide() ? 'too_wide' : 'not_read_only', 'message' => $e->getMessage()];
         } catch (\Exception $e) {
             return ['state' => 'connection_failed', 'message' => Piwik::translate('DataExplorer_SetupConnectionFailed', [$e->getMessage()])];
+        }
+
+        if ($missing !== []) {
+            return ['state' => 'missing_grants', 'message' => Piwik::translate('DataExplorer_SetupMissingGrants', [$config['username'], count($missing)])];
         }
 
         return ['state' => 'ready', 'message' => Piwik::translate('DataExplorer_SetupReady', [$config['username']])];
@@ -74,15 +80,56 @@ final class ReadOnlySetup
      */
     public function sqlSnippet(): string
     {
-        $account = $this->quote($this->username()) . '@' . $this->quote($this->host());
-        $database = $this->database();
+        $lines = ['CREATE USER ' . $this->account() . ' IDENTIFIED BY ' . $this->quote($this->passwordPlaceholder()) . ';'];
 
-        $lines = ['CREATE USER ' . $account . ' IDENTIFIED BY ' . $this->quote($this->passwordPlaceholder()) . ';'];
-        foreach ($this->tables() as $table) {
-            $lines[] = 'GRANT SELECT ON ' . $this->identifier($database) . '.' . $this->identifier($table) . ' TO ' . $account . ';';
+        return implode("\n", array_merge($lines, $this->grantLines($this->tables())));
+    }
+
+    /**
+     * GRANT lines of the allowed tables the configured read-only user cannot read yet, empty when it is not
+     * configured or not usable.
+     *
+     * @return string[]
+     */
+    public function missingGrantLines(): array
+    {
+        try {
+            return $this->grantLines($this->missingTables());
+        } catch (\Exception $e) {
+            return [];
         }
+    }
 
-        return implode("\n", $lines);
+    /**
+     * @return string[]
+     * @throws NotConfiguredException|NotReadOnlyException|\Exception when the connection fails
+     */
+    private function missingTables(): array
+    {
+        $granted = array_map('strtolower', ReadOnlyConnection::grantedTables());
+
+        return array_values(array_filter($this->tables(), function ($table) use ($granted) {
+            return !in_array(strtolower($table), $granted, true);
+        }));
+    }
+
+    /**
+     * @param string[] $tables
+     * @return string[]
+     */
+    private function grantLines(array $tables): array
+    {
+        $account = $this->account();
+        $database = $this->identifier($this->database());
+
+        return array_map(function ($table) use ($account, $database) {
+            return 'GRANT SELECT ON ' . $database . '.' . $this->identifier($table) . ' TO ' . $account . ';';
+        }, $tables);
+    }
+
+    private function account(): string
+    {
+        return $this->quote($this->username()) . '@' . $this->quote($this->host());
     }
 
     public function iniBlock(): string
@@ -107,7 +154,11 @@ final class ReadOnlySetup
         $host = $config !== null ? $config['host'] : (string) ($database['host'] ?? '');
         $socket = $config !== null ? $config['unix_socket'] : (string) ($database['unix_socket'] ?? '');
 
-        return $socket !== '' || in_array(strtolower($host), self::LOCAL_HOSTS, true) ? 'localhost' : '%';
+        if ($socket !== '' || $host === '' || strtolower($host) === 'localhost') {
+            return 'localhost';
+        }
+
+        return in_array($host, self::LOOPBACK_HOSTS, true) ? $host : '%';
     }
 
     private function username(): string

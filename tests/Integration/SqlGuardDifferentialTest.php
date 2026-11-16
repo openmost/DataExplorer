@@ -48,7 +48,8 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
     private const SYNTAX_ERROR = 1064;
 
     /** Tables copied in the prefixed schema besides the allowlisted ones. */
-    private const FORBIDDEN_COPIES = ['user', 'option', 'access', 'session', 'site_setting', 'archive_invalidations', 'log_profiling'];
+    private const FORBIDDEN_COPIES = ['user', 'option', 'access', 'session', 'site_setting', 'archive_invalidations', 'archive_numeric_2024_01',
+        'log_profiling'];
 
     private const MIN_GENERATED = 5000;
     private const MIN_ACCEPTED = 1000;
@@ -149,7 +150,8 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
     {
         foreach ([$this->testDatabase => Common::prefixTable(''), self::PREFIXED_SCHEMA => self::PREFIXED_PREFIX] as $database => $prefix) {
             $this->useMode($database, $prefix);
-            $this->assertSame('parsed', $this->probe('SELECT 1 FROM ' . $prefix . 'site s JOIN ' . $prefix . 'archive_numeric_2024_01 a ON 1'));
+            $this->assertSame('parsed', $this->probe('SELECT 1 FROM ' . $prefix . 'site s JOIN ' . $prefix . 'goal g ON 1'));
+            $this->assertSame('denied', $this->probe('SELECT 1 FROM ' . $prefix . 'site s JOIN ' . $prefix . 'archive_numeric_2024_01 a ON 1'));
             $this->assertSame('parsed', $this->probe('SELECT no_such_column FROM ' . $prefix . 'site'));
             $this->assertSame('parsed', $this->probe('SELECT 1 FROM ' . $prefix . 'site PARTITION (p0)'));
             $this->assertSame('unparsed', $this->probe('SELECT 1 FROM FROM'));
@@ -497,6 +499,8 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
             "{$p}site {A}, LATERAL (SELECT a FROM {$out}.t) x{A}",
             "{$p}site_setting {A}",
             "{$p}archive_invalidations",
+            "{$p}archive_numeric_2024_01 {A}",
+            "(SELECT idsite FROM `{$p}archive_numeric_2024_01` WHERE idsite = {idsite}) {A}",
             "`{$p}log_profiling` AS {A}",
             "(SELECT idsite FROM (SELECT a AS idsite FROM {$out}.t) d1) {A}",
             "(SELECT (SELECT COUNT(*) FROM `{$p}user`) AS idsite FROM {$p}site) {A}",
@@ -570,7 +574,6 @@ class SqlGuardDifferentialTest extends IntegrationTestCase
             "(SELECT idsite FROM (SELECT idsite FROM {$p}site) d1) {A}",
             "(SELECT (SELECT COUNT(*) FROM {$p}goal) AS idsite FROM {$p}site) {A}",
             "{$p}site PARTITION (p0) AS {A} USE INDEX (PRIMARY)",
-            "{$p}archive_numeric_2024_01 {A}",
         ];
     }
 

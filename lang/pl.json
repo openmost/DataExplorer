@@ -49,11 +49,11 @@
         "SetupCreateUserTitle": "1. Utwórz użytkownika MySQL tylko do odczytu",
         "SetupCreateUserHelp": "Wykonaj te polecenia jako administrator MySQL, z własnym silnym hasłem zamiast przykładowego.",
         "SetupAnyHostHelp": "Baza danych działa na innym serwerze: zastąp % adresem serwera Matomo, aby użytkownik mógł łączyć się tylko z niego.",
-        "SetupArchiveTablesHelp": "Matomo co miesiąc tworzy nowe tabele archiwów. Otwieraj tę stronę co jakiś czas i wykonuj wiersze GRANT nowych tabel.",
         "SetupNoTables": "W bazie danych Matomo nie znaleziono żadnej dozwolonej tabeli.",
         "SetupConfigTitle": "2. Dodaj użytkownika do config.ini.php",
         "SetupConfigHelp": "Dodaj tę sekcję do config/config.ini.php z tym samym hasłem. Dodaj readonly_host, readonly_port, readonly_dbname lub readonly_unix_socket tylko wtedy, gdy użytkownik łączy się z innym serwerem niż Matomo.",
-        "SetupPasswordPlaceholder": "change-me"
+        "SetupPasswordPlaceholder": "change-me",
+        "SetupMissingGrants": "Użytkownik tylko do odczytu %1$s nie może jeszcze czytać %2$s dozwolonych tabel, zapytania do nich się nie powiodą. Wykonaj te wiersze GRANT:"
     },
     "OpenmostCommunication": {
         "Dismiss": "Odrzuć",

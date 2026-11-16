@@ -49,11 +49,11 @@
         "SetupCreateUserTitle": "1. 创建只读 MySQL 用户",
         "SetupCreateUserHelp": "请以 MySQL 管理员身份运行这些语句，并用您自己的强密码替换占位符。",
         "SetupAnyHostHelp": "数据库运行在另一台服务器上：请将 % 替换为 Matomo 服务器的地址，使该用户只能从那里连接。",
-        "SetupArchiveTablesHelp": "Matomo 每个月都会创建新的归档表。请不时重新打开此页面，并运行新表的 GRANT 行。",
         "SetupNoTables": "在 Matomo 数据库中未找到任何允许的表。",
         "SetupConfigTitle": "2. 将用户添加到 config.ini.php",
         "SetupConfigHelp": "请使用相同的密码将此部分添加到 config/config.ini.php。只有当该用户连接到 Matomo 以外的服务器时，才需要添加 readonly_host、readonly_port、readonly_dbname 或 readonly_unix_socket。",
-        "SetupPasswordPlaceholder": "change-me"
+        "SetupPasswordPlaceholder": "change-me",
+        "SetupMissingGrants": "只读用户 %1$s 尚无法读取 %2$s 个允许的表，针对这些表的查询将失败。请运行以下 GRANT 行："
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",
