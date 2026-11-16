@@ -167,7 +167,16 @@
         "ExportCsv": "匯出 CSV",
         "SqlNoRows": "查詢沒有傳回任何列。",
         "SqlRowCount": "傳回的列數：%s",
-        "SqlPlaceholder": "SELECT ..."
+        "SqlPlaceholder": "SELECT ...",
+        "Scope_visit": "造訪",
+        "Scope_action": "動作",
+        "Scope_conversion": "轉換",
+        "CellType": "儲存格類型",
+        "CellType_plain": "一般",
+        "CellType_bar": "儲存格內長條",
+        "CellType_heatmap": "熱圖",
+        "PanelAddedCount": "已加入此探索：%s",
+        "ItemRefused": "無法加入 %1$s：%2$s"
     },
     "OpenmostCommunication": {
         "Dismiss": "關閉",

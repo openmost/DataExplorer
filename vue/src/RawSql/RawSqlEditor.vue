@@ -7,8 +7,9 @@
 
 <template>
   <div class="dataExplorerSql">
+    <ActivityIndicator :loading="statusLoading" />
     <ContentBlock
-      v-if="!isReady"
+      v-if="!statusLoading && !isReady"
       :content-title="translate('DataExplorer_SqlTab')"
     >
       <Notification
@@ -24,7 +25,7 @@
     </ContentBlock>
 
     <div
-      v-else
+      v-else-if="isReady"
       class="dataExplorerSql__layout"
     >
       <SchemaBrowser
@@ -159,8 +160,8 @@ import {
   computed,
   defineComponent,
   onBeforeUnmount,
+  nextTick,
   onMounted,
-  PropType,
   ref,
   watch,
 } from 'vue';
@@ -173,6 +174,7 @@ import {
 } from 'CoreHome';
 import SchemaBrowser from './SchemaBrowser.vue';
 import { toDiagnostics } from './sqlDiagnostics';
+import { runKeymap } from './runKeymap';
 import { createCodeTheme } from '../codeTheme';
 import { toCsv } from '../Explorer/resultTable';
 import type { Diagnostic, EditorView } from './codeMirrorModules';
@@ -221,10 +223,6 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    status: {
-      type: Object as PropType<SqlStatus|null>,
-      default: null,
-    },
     setupUrl: {
       type: String,
       default: '',
@@ -254,7 +252,11 @@ export default defineComponent({
     let runSequence = 0;
     let unmounted = false;
 
-    const isReady = computed(() => !!props.status && props.status.state === 'ready');
+    // asked when the tab opens: the status connects to the read-only database user
+    const status = ref<SqlStatus|null>(null);
+    const statusLoading = ref(true);
+
+    const isReady = computed(() => !!status.value && status.value.state === 'ready');
 
     const canRun = computed(() => editorReady.value
       && validity.value === 'valid'
@@ -403,13 +405,7 @@ export default defineComponent({
             // the editor clips its overflow: tooltips go to the body
             cm.tooltips({ parent: document.body }),
             cm.placeholder(translate('DataExplorer_SqlPlaceholder')),
-            cm.keymap.of([{
-              key: 'Mod-Enter',
-              run: () => {
-                run();
-                return true;
-              },
-            }]),
+            runKeymap(cm, run),
             cm.EditorView.lineWrapping,
             // CodeMirror owns the class attribute of its root element
             cm.EditorView.editorAttributes.of({ class: 'dataExplorerSql__codemirror' }),
@@ -453,7 +449,19 @@ export default defineComponent({
       Promise.all([loadCodeMirror(), schemaRequest]).then(([cm]) => createEditor(cm));
     }
 
-    onMounted(start);
+    onMounted(() => {
+      AjaxHelper.fetch<SqlStatus>(
+        { method: 'DataExplorer.getSqlStatus' },
+        { createErrorNotification: false },
+      ).then((result) => {
+        status.value = result;
+      }).catch((e: Error) => {
+        status.value = { state: 'error', message: e.message };
+      }).finally(() => {
+        statusLoading.value = false;
+        nextTick(start);
+      });
+    });
 
     // a saved query opened in the explorer replaces the text
     watch(() => props.modelValue, (value) => {
@@ -487,6 +495,8 @@ export default defineComponent({
       rows,
       columns,
       isReady,
+      status,
+      statusLoading,
       canRun,
       runTitle,
       run,

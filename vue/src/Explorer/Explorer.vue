@@ -108,6 +108,8 @@
           :metric-options="metricViews"
           :segment-options="segmentViews"
           @set-visualization="state.visualization = $event"
+          :cell-type="state.cellType"
+          @set-cell-type="state.cellType = $event"
           @add="addToZone"
           @remove="removeFromZone"
           @update-filter="updateFilter"
@@ -116,6 +118,7 @@
         <Canvas
           :title="canvasTitle"
           :visualization="state.visualization"
+          :cell-type="state.cellType"
           :loading="loading"
           :error="runError"
           :hint="hint"
@@ -144,7 +147,6 @@
         :id-site="idSite"
         :period="period"
         :date="date"
-        :status="sqlStatus"
         :setup-url="setupUrl"
         :can-save="true"
         @save="openSave('sql')"
@@ -194,6 +196,7 @@ import VariablesPanel from './VariablesPanel.vue';
 import RawSqlEditor from '../RawSql/RawSqlEditor.vue';
 import SaveDialog from '../SaveDialog/SaveDialog.vue';
 import {
+  clampToLimits,
   decode,
   defaultState,
   encode,
@@ -205,6 +208,7 @@ import {
   reportTypeOf,
   toDefinition,
 } from './explorationState';
+import { distinctNames } from './catalogNames';
 import {
   chartSlice,
   evolutionSeries,
@@ -229,7 +233,6 @@ import type {
   PickerGroup,
   PickerItem,
   SavedReport,
-  SqlStatus,
   VariableKind,
   VariableView,
   VisualDefinition,
@@ -278,10 +281,6 @@ export default defineComponent({
       type: Array as PropType<WritableSite[]>,
       default: () => [],
     },
-    sqlStatus: {
-      type: Object as PropType<SqlStatus|null>,
-      default: null,
-    },
     setupUrl: {
       type: String,
       default: '',
@@ -311,7 +310,7 @@ export default defineComponent({
     const kpiResult = ref<KpiResult|null>(null);
 
     const notice = ref('');
-    const noticeContext = ref<'success'|'error'>('success');
+    const noticeContext = ref<'success'|'warning'>('success');
 
     const saveOpen = ref(false);
     const saveType = ref<'visual'|'sql'>('visual');
@@ -361,18 +360,34 @@ export default defineComponent({
       return map;
     });
 
-    function pickerGroups(groups: { category: string, items: PickerItem[] }[]): PickerGroup[] {
+    const scopeLabel = (scope: string) => translate(`DataExplorer_Scope_${scope}`);
+
+    // the catalogue can hold several items with the same name, the scope tells them apart
+    const dimensionLabels = computed(
+      () => distinctNames(Object.values(dimensionsById.value), scopeLabel),
+    );
+
+    const metricLabels = computed(
+      () => distinctNames(Object.values(metricsById.value), scopeLabel),
+    );
+
+    function pickerGroups(
+      groups: { category: string, items: PickerItem[] }[],
+      labels: Record<string, string>,
+    ): PickerGroup[] {
       return groups.map((group) => ({
         category: group.category,
-        items: group.items.map(({ id, name }) => ({ id, name })),
+        items: group.items.map(({ id, name }) => ({ id, name: labels[id] || name })),
       }));
     }
 
     const dimensionGroups = computed(
-      () => pickerGroups(catalog.value ? catalog.value.dimensions : []),
+      () => pickerGroups(catalog.value ? catalog.value.dimensions : [], dimensionLabels.value),
     );
 
-    const metricGroups = computed(() => pickerGroups(catalog.value ? catalog.value.metrics : []));
+    const metricGroups = computed(
+      () => pickerGroups(catalog.value ? catalog.value.metrics : [], metricLabels.value),
+    );
 
     const segmentGroups = computed<PickerGroup[]>(() => {
       const items = (catalog.value ? catalog.value.segments : [])
@@ -388,11 +403,11 @@ export default defineComponent({
     ]);
 
     function dimensionName(id: string): string {
-      return dimensionsById.value[id] ? dimensionsById.value[id].name : id;
+      return dimensionLabels.value[id] || id;
     }
 
     function metricName(id: string): string {
-      return metricsById.value[id] ? metricsById.value[id].name : id;
+      return metricLabels.value[id] || id;
     }
 
     function metricReason(id: string): string {
@@ -664,7 +679,7 @@ export default defineComponent({
     }
 
     function applyState(next: ExplorationState) {
-      Object.assign(state, next);
+      Object.assign(state, catalog.value ? clampToLimits(next, catalog.value.limits) : next);
       lastEncoded = encode(state);
     }
 
@@ -682,13 +697,17 @@ export default defineComponent({
       activeTab.value = 'explore';
     }
 
+    const openableReports = computed(() => reports.value.filter(
+      (report) => report.type === 'visual' || props.isSuperUser,
+    ));
+
     function readHash() {
       const hash = MatomoUrl.parsed.value;
       const idReport = parseInt(String(hash[REPORT_HASH_PARAM] || ''), 10);
       const encoded = typeof hash[HASH_PARAM] === 'string' ? hash[HASH_PARAM] as string : '';
 
       if (idReport > 0) {
-        const report = reports.value.find((item) => item.idreport === idReport);
+        const report = openableReports.value.find((item) => item.idreport === idReport);
         if (report && (!editing.value || editing.value.idreport !== idReport)) {
           openReport(report, !!encoded);
         }
@@ -711,10 +730,6 @@ export default defineComponent({
         reports.value = [];
       });
     }
-
-    const openableReports = computed(() => reports.value.filter(
-      (report) => report.type === 'visual' || props.isSuperUser,
-    ));
 
     function onPickReport(event: Event) {
       const id = parseInt((event.target as HTMLSelectElement).value, 10);
@@ -772,10 +787,32 @@ export default defineComponent({
       }
     }
 
+    // incompatible items are refused the same way whether they are dropped, double clicked or
+    // picked in a zone menu
+    function refusal(zone: Zone, id: string): string {
+      if (zone === 'segment') {
+        return '';
+      }
+      return zone === 'values' ? metricReason(id) : dimensionReason(id);
+    }
+
     function addToZone(zone: Zone, id: string) {
       const limits = catalog.value ? catalog.value.limits : null;
       if (!limits) {
         return;
+      }
+      const reason = refusal(zone, id);
+      if (reason) {
+        noticeContext.value = 'warning';
+        notice.value = translate(
+          'DataExplorer_ItemRefused',
+          zone === 'values' ? metricName(id) : dimensionName(id),
+          reason,
+        );
+        return;
+      }
+      if (noticeContext.value === 'warning') {
+        notice.value = '';
       }
       if (zone === 'rows') {
         if (!state.rows.includes(id) && state.rows.length < limits.maxDimensions) {

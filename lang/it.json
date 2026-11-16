@@ -167,7 +167,16 @@
         "ExportCsv": "Esporta CSV",
         "SqlNoRows": "La query non ha restituito righe.",
         "SqlRowCount": "Righe restituite: %s",
-        "SqlPlaceholder": "SELECT ..."
+        "SqlPlaceholder": "SELECT ...",
+        "Scope_visit": "visita",
+        "Scope_action": "azione",
+        "Scope_conversion": "conversione",
+        "CellType": "Tipo di cella",
+        "CellType_plain": "Semplice",
+        "CellType_bar": "Barra nella cella",
+        "CellType_heatmap": "Mappa di calore",
+        "PanelAddedCount": "Aggiunti a questa esplorazione: %s",
+        "ItemRefused": "Impossibile aggiungere %1$s: %2$s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Ignora",

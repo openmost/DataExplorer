@@ -171,6 +171,18 @@ class API extends \Piwik\Plugin\API
     }
 
     /**
+     * State of the read-only connection raw SQL runs with (super user only), read when the SQL tab opens.
+     *
+     * @return array{state: string, message: string} state is ready when raw SQL can run
+     */
+    public function getSqlStatus(): array
+    {
+        (new ReportPermissions())->checkCanRunRawSql();
+
+        return (new ReadOnlySetup())->status();
+    }
+
+    /**
      * Data of a saved report on a site where it is placed, for any user with view access on that site.
      * Visual reports are read from their archives (segment applied), raw SQL reports run live with a short cache
      * (segment ignored). Evolution and KPI card raw SQL reports run once per sub-period of a multiple period,

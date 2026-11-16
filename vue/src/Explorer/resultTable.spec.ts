@@ -6,7 +6,9 @@
  */
 
 import {
+  cellBucket,
   chartSlice,
+  columnMaxima,
   evolutionSeries,
   flattenRows,
   resultColumns,
@@ -98,5 +100,30 @@ describe('resultTable', () => {
   it('writes CSV safe for spreadsheets', () => {
     expect(toCsv(['a', 'b'], [['x,y', 'say "hi"'], ['=SUM(A1)', -3], [null, '@x']]))
       .toBe('a,b\r\n"x,y","say ""hi"""\r\n\'=SUM(A1),-3\r\n,\'@x');
+  });
+
+  it('buckets cell values into ten steps of the column maximum', () => {
+    expect(cellBucket(0, 50)).toBe(0);
+    expect(cellBucket(-3, 50)).toBe(0);
+    expect(cellBucket(1, 50)).toBe(1);
+    expect(cellBucket(5, 50)).toBe(1);
+    expect(cellBucket(5.1, 50)).toBe(2);
+    expect(cellBucket(25, 50)).toBe(5);
+    expect(cellBucket(50, 50)).toBe(10);
+    expect(cellBucket(80, 50)).toBe(10);
+    expect(cellBucket(3, 0)).toBe(0);
+  });
+
+  it('reads the maximum of each column', () => {
+    const rows = [
+      { labels: ['a'], values: { nb_visits: 3, nb_actions: 9 } },
+      { labels: ['b'], values: { nb_visits: 7, nb_actions: 2 } },
+    ];
+    const columns = [
+      { key: 'nb_visits', metric: 'nb_visits', pivot: null },
+      { key: 'nb_actions', metric: 'nb_actions', pivot: null },
+    ];
+
+    expect(columnMaxima(rows, columns)).toEqual({ nb_visits: 7, nb_actions: 9 });
   });
 });

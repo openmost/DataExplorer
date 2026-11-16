@@ -167,7 +167,16 @@
         "ExportCsv": "Export CSV",
         "SqlNoRows": "The query returned no row.",
         "SqlRowCount": "Rows returned: %s",
-        "SqlPlaceholder": "SELECT ..."
+        "SqlPlaceholder": "SELECT ...",
+        "Scope_visit": "visit",
+        "Scope_action": "action",
+        "Scope_conversion": "conversion",
+        "CellType": "Cell type",
+        "CellType_plain": "Plain",
+        "CellType_bar": "Bar in cell",
+        "CellType_heatmap": "Heat map",
+        "PanelAddedCount": "Added to this exploration: %s",
+        "ItemRefused": "%1$s cannot be added: %2$s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

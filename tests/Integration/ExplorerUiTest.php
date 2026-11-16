@@ -94,6 +94,18 @@ class ExplorerUiTest extends IntegrationTestCase
         API::getInstance()->getSqlSchema();
     }
 
+    public function test_getSqlStatus_isTheReadOnlySetupStatus_forSuperUsersOnly(): void
+    {
+        FakeAccess::clearAccess(true);
+        $status = API::getInstance()->getSqlStatus();
+        $this->assertSame('not_configured', $status['state']);
+        $this->assertNotSame('', $status['message']);
+
+        FakeAccess::clearAccess(false, [1], [1], 'admin');
+        $this->expectException(NoAccessException::class);
+        API::getInstance()->getSqlStatus();
+    }
+
     public function test_explorerWidget_viewUser_mountsTheExplorerWithoutRawSql(): void
     {
         FakeAccess::clearAccess(false, [], [1], 'viewer');
@@ -102,7 +114,6 @@ class ExplorerUiTest extends IntegrationTestCase
 
         $this->assertFalse($props['is-super-user']);
         $this->assertFalse($props['can-save']);
-        $this->assertNull($props['sql-status']);
         $this->assertSame([], $props['writable-sites']);
     }
 
@@ -116,15 +127,14 @@ class ExplorerUiTest extends IntegrationTestCase
         $this->assertSame([['id' => 1, 'name' => 'Site <one> & "co"']], $props['writable-sites']);
     }
 
-    public function test_explorerWidget_superUser_getsTheRawSqlStatusAndTheSetupLink(): void
+    public function test_explorerWidget_superUser_getsTheSetupLink_withoutConnectingForTheSqlStatus(): void
     {
         FakeAccess::clearAccess(true);
 
         $props = $this->explorerProps();
 
         $this->assertTrue($props['is-super-user']);
-        $this->assertSame('not_configured', $props['sql-status']['state']);
-        $this->assertNotSame('', $props['sql-status']['message']);
+        $this->assertArrayNotHasKey('sql-status', $props);
         $this->assertStringContainsString('module=DataExplorer', $props['setup-url']);
         $this->assertStringContainsString('action=setup', $props['setup-url']);
         $this->assertCount(2, $props['writable-sites']);

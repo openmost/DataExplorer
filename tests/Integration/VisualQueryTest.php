@@ -434,9 +434,23 @@ class VisualQueryTest extends IntegrationTestCase
         $map = API::getInstance()->runVisual(1, 'day', '2024-03-03', $definition);
 
         $tables = $map->getDataTables();
-        $this->assertCount(VisualQueryRunner::EVOLUTION_POINTS, $tables);
+        $this->assertCount(Configuration::getRawSqlMaxPoints(), $tables);
         $this->assertSame(2, end($tables)->getFirstRow()->getColumn('nb_visits'));
         $this->assertSame(0, reset($tables)->getFirstRow()->getColumn('nb_visits'));
+    }
+
+    public function test_api_runVisual_evolutionPoints_followTheRawSqlPointCap(): void
+    {
+        $original = Config::getInstance()->DataExplorer;
+        Config::getInstance()->DataExplorer = ['raw_sql_max_points' => 5];
+
+        try {
+            $definition = json_encode(['report_type' => 'evolution', 'metrics' => ['nb_visits']]);
+            $this->assertCount(5, API::getInstance()->runVisual(1, 'day', '2024-03-03', $definition)->getDataTables());
+            $this->assertCount(5, API::getInstance()->runVisual(1, 'day', '2024-01-01,2024-03-03', $definition)->getDataTables());
+        } finally {
+            Config::getInstance()->DataExplorer = $original;
+        }
     }
 
     public function test_api_runVisual_evolutionOfAMultiplePeriod_keepsTheMostRecentPoints(): void
@@ -446,7 +460,7 @@ class VisualQueryTest extends IntegrationTestCase
         $map = API::getInstance()->runVisual(1, 'day', '2023-01-01,2024-03-03', $definition);
 
         $tables = $map->getDataTables();
-        $this->assertCount(VisualQueryRunner::EVOLUTION_MAX_POINTS, $tables);
+        $this->assertCount(Configuration::getRawSqlMaxPoints(), $tables);
         $this->assertSame(2, end($tables)->getFirstRow()->getColumn('nb_visits'));
     }
 

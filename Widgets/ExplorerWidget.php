@@ -15,7 +15,6 @@ use Piwik\Access;
 use Piwik\Common;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
-use Piwik\Plugins\DataExplorer\Sql\ReadOnlySetup;
 use Piwik\Site;
 use Piwik\Url;
 use Piwik\Widget\Widget;
@@ -56,8 +55,6 @@ class ExplorerWidget extends Widget
                 'is-super-user' => $isSuperUser,
                 'can-save' => Piwik::isUserHasWriteAccess($idSite),
                 'writable-sites' => $writableSites,
-                // the raw SQL tab is a super user tool, its status needs a connection to the read-only user
-                'sql-status' => $isSuperUser ? (new ReadOnlySetup())->status() : null,
                 'setup-url' => $isSuperUser ? 'index.php?' . Url::getQueryStringFromParameters([
                     'module' => 'DataExplorer',
                     'action' => 'setup',

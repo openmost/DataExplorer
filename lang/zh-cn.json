@@ -167,7 +167,16 @@
         "ExportCsv": "导出 CSV",
         "SqlNoRows": "查询没有返回任何行。",
         "SqlRowCount": "返回的行数：%s",
-        "SqlPlaceholder": "SELECT ..."
+        "SqlPlaceholder": "SELECT ...",
+        "Scope_visit": "访问",
+        "Scope_action": "操作",
+        "Scope_conversion": "转化",
+        "CellType": "单元格类型",
+        "CellType_plain": "普通",
+        "CellType_bar": "单元格内条形",
+        "CellType_heatmap": "热图",
+        "PanelAddedCount": "已添加到此探索：%s",
+        "ItemRefused": "无法添加 %1$s：%2$s"
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",

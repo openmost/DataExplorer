@@ -167,7 +167,16 @@
         "ExportCsv": "Als CSV exportieren",
         "SqlNoRows": "Die Abfrage hat keine Zeile geliefert.",
         "SqlRowCount": "Gelieferte Zeilen: %s",
-        "SqlPlaceholder": "SELECT ..."
+        "SqlPlaceholder": "SELECT ...",
+        "Scope_visit": "Besuch",
+        "Scope_action": "Aktion",
+        "Scope_conversion": "Conversion",
+        "CellType": "Zellentyp",
+        "CellType_plain": "Einfach",
+        "CellType_bar": "Balken in der Zelle",
+        "CellType_heatmap": "Heatmap",
+        "PanelAddedCount": "Zu dieser Exploration hinzugefügt: %s",
+        "ItemRefused": "%1$s kann nicht hinzugefügt werden: %2$s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",

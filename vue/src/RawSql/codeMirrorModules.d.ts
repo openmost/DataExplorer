@@ -67,6 +67,10 @@ export declare class EditorView {
 
 export declare const basicSetup: Extension;
 
+export declare const Prec: {
+  highest(extension: Extension): Extension;
+};
+
 export interface KeyBinding {
   key: string;
   run: (view: EditorView) => boolean;

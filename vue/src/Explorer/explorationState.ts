@@ -6,6 +6,8 @@
  */
 
 import type {
+  CatalogLimits,
+  CellType,
   ExplorationState,
   Filter,
   FilterOperator,
@@ -18,6 +20,8 @@ export const HASH_PARAM = 'exploration';
 export const REPORT_HASH_PARAM = 'idReport';
 
 export const VISUALIZATIONS: Visualization[] = ['table', 'bar', 'pie', 'line', 'kpicard'];
+
+export const CELL_TYPES: CellType[] = ['plain', 'bar', 'heatmap'];
 
 export const FILTER_OPERATORS: FilterOperator[] = [
   'equals',
@@ -42,6 +46,7 @@ export function defaultState(): ExplorationState {
     filters: [],
     visualization: 'table',
     segment: '',
+    cellType: 'plain',
   };
 }
 
@@ -170,8 +175,23 @@ export function normalize(raw: unknown): ExplorationState {
     ? value.visualization as Visualization
     : 'table';
   state.segment = typeof value.segment === 'string' ? value.segment : '';
+  state.cellType = CELL_TYPES.includes(value.cellType as CellType)
+    ? value.cellType as CellType
+    : 'plain';
 
   return withVariables(state);
+}
+
+/**
+ * A shared link may hold more row dimensions or metrics than this instance accepts: the extra ones
+ * are dropped, the variables lists keep them.
+ */
+export function clampToLimits(state: ExplorationState, limits: CatalogLimits): ExplorationState {
+  return {
+    ...state,
+    rows: state.rows.slice(0, limits.maxDimensions),
+    values: state.values.slice(0, limits.maxMetrics),
+  };
 }
 
 /**

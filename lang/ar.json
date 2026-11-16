@@ -167,7 +167,16 @@
         "ExportCsv": "تصدير CSV",
         "SqlNoRows": "لم يُعد الاستعلام أي صف.",
         "SqlRowCount": "الصفوف المُعادة: %s",
-        "SqlPlaceholder": "SELECT ..."
+        "SqlPlaceholder": "SELECT ...",
+        "Scope_visit": "زيارة",
+        "Scope_action": "إجراء",
+        "Scope_conversion": "تحويل",
+        "CellType": "نوع الخلية",
+        "CellType_plain": "عادي",
+        "CellType_bar": "شريط داخل الخلية",
+        "CellType_heatmap": "خريطة حرارية",
+        "PanelAddedCount": "المضاف إلى هذا الاستكشاف: %s",
+        "ItemRefused": "لا يمكن إضافة %1$s: %2$s"
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

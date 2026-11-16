@@ -167,7 +167,16 @@
         "ExportCsv": "Eksportuj CSV",
         "SqlNoRows": "Zapytanie nie zwróciło żadnego wiersza.",
         "SqlRowCount": "Zwrócone wiersze: %s",
-        "SqlPlaceholder": "SELECT ..."
+        "SqlPlaceholder": "SELECT ...",
+        "Scope_visit": "wizyta",
+        "Scope_action": "akcja",
+        "Scope_conversion": "konwersja",
+        "CellType": "Typ komórki",
+        "CellType_plain": "Zwykły",
+        "CellType_bar": "Pasek w komórce",
+        "CellType_heatmap": "Mapa cieplna",
+        "PanelAddedCount": "Dodane do tej eksploracji: %s",
+        "ItemRefused": "Nie można dodać %1$s: %2$s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Odrzuć",

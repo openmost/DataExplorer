@@ -65,6 +65,8 @@ export type Visualization = 'table' | 'line' | 'bar' | 'pie' | 'kpicard';
 
 export type ReportType = 'table' | 'evolution' | 'kpicard';
 
+export type CellType = 'plain' | 'bar' | 'heatmap';
+
 export type FilterOperator = 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'regex' | 'gt' | 'lt';
 
 export interface Filter {
@@ -87,6 +89,8 @@ export interface ExplorationState {
   visualization: Visualization;
   // definition of the applied segment, '' for none (one segment in v1)
   segment: string;
+  // how the table draws its metric cells
+  cellType: CellType;
 }
 
 export interface VisualDefinition {

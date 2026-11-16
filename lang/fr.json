@@ -167,7 +167,16 @@
         "ExportCsv": "Exporter en CSV",
         "SqlNoRows": "La requête n'a renvoyé aucune ligne.",
         "SqlRowCount": "Lignes renvoyées : %s",
-        "SqlPlaceholder": "SELECT ..."
+        "SqlPlaceholder": "SELECT ...",
+        "Scope_visit": "visite",
+        "Scope_action": "action",
+        "Scope_conversion": "conversion",
+        "CellType": "Type de cellule",
+        "CellType_plain": "Simple",
+        "CellType_bar": "Barre dans la cellule",
+        "CellType_heatmap": "Carte de chaleur",
+        "PanelAddedCount": "Ajoutés à cette exploration : %s",
+        "ItemRefused": "%1$s ne peut pas être ajouté : %2$s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Masquer",

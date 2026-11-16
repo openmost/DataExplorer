@@ -10,7 +10,7 @@
 // of the Matomo 5 build cannot parse the CodeMirror declarations.
 
 export { basicSetup, EditorView } from 'codemirror';
-export { EditorState } from '@codemirror/state';
+export { EditorState, Prec } from '@codemirror/state';
 export { keymap, placeholder, tooltips } from '@codemirror/view';
 export { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 export { MySQL, sql } from '@codemirror/lang-sql';

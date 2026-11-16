@@ -6,6 +6,7 @@
  */
 
 import {
+  clampToLimits,
   decode,
   defaultState,
   encode,
@@ -28,6 +29,7 @@ function exploration(): ExplorationState {
     filters: [{ dimension: 'Actions.PageTitle', operator: 'contains', value: 'Élan "100%" & <b>' }],
     visualization: 'bar',
     segment: 'browserCode==FF',
+    cellType: 'heatmap',
   };
 }
 
@@ -72,6 +74,7 @@ describe('explorationState', () => {
       filters: [{ dimension: 'UserCountry.Country', operator: 'equals', value: '3' }],
       visualization: 'table',
       segment: '',
+      cellType: 'plain',
     });
   });
 
@@ -136,5 +139,24 @@ describe('explorationState', () => {
 
     expect(fromDefinition({ metrics: ['nb_visits'] }, 'evolution').visualization).toBe('line');
     expect(fromDefinition({ metrics: ['nb_visits'] }, 'kpicard').visualization).toBe('kpicard');
+  });
+
+  it('keeps a decoded exploration within the limits of the catalogue', () => {
+    const state = {
+      ...defaultState(),
+      rows: ['a', 'b', 'c', 'd'],
+      values: ['m1', 'm2', 'm3'],
+      cellType: 'bar' as const,
+    };
+
+    const clamped = clampToLimits(state, { maxDimensions: 2, maxMetrics: 2, maxColumns: 1 });
+    expect(clamped.rows).toEqual(['a', 'b']);
+    expect(clamped.values).toEqual(['m1', 'm2']);
+    expect(clamped.variables.dimensions).toEqual([]);
+    expect(clamped.cellType).toBe('bar');
+  });
+
+  it('defaults an unknown cell type to plain', () => {
+    expect(decode(encode({ ...defaultState(), cellType: 'sparkles' as 'plain' })).cellType).toBe('plain');
   });
 });

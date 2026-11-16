@@ -22,21 +22,13 @@
           :class="`dataExplorerVariables__add-${section.kind}`"
           :aria-label="section.addLabel"
           :title="section.addLabel"
-          :aria-expanded="openPicker === section.kind ? 'true' : 'false'"
-          @click="openPicker = section.kind"
+          aria-haspopup="dialog"
+          :aria-expanded="isOpen(section.kind) ? 'true' : 'false'"
+          @click="open(section.kind, $event)"
         >
           <span class="icon-add" aria-hidden="true"></span>
         </button>
       </div>
-      <CataloguePicker
-        v-if="openPicker === section.kind"
-        :label="section.addLabel"
-        :groups="section.groups"
-        :added="section.added"
-        @add="$emit('addVariable', section.kind, $event)"
-        @remove="$emit('removeVariable', section.kind, $event)"
-        @close="closePicker(section.kind, $event)"
-      />
       <ul
         class="dataExplorerVariables__list"
         :aria-labelledby="`dataExplorerVariables-${section.kind}`"
@@ -75,6 +67,13 @@
         >{{ section.emptyText }}</li>
       </ul>
     </section>
+    <CataloguePanel
+      :title="activeSection ? activeSection.addLabel : ''"
+      :groups="activeSection ? activeSection.groups : []"
+      :added="activeSection ? activeSection.added : []"
+      @add="activeSection && $emit('addVariable', activeSection.kind, $event)"
+      @remove="activeSection && $emit('removeVariable', activeSection.kind, $event)"
+    />
   </div>
 </template>
 
@@ -82,12 +81,11 @@
 import {
   computed,
   defineComponent,
-  nextTick,
   PropType,
-  ref,
 } from 'vue';
 import { translate } from 'CoreHome';
-import CataloguePicker from './CataloguePicker.vue';
+import CataloguePanel from './CataloguePanel.vue';
+import { catalogueState, openCatalogue } from './catalogueStore';
 import { endDrag, startDrag } from './dragState';
 import type { PickerGroup, VariableKind, VariableView } from '../types';
 
@@ -99,7 +97,7 @@ import type { PickerGroup, VariableKind, VariableView } from '../types';
 export default defineComponent({
   name: 'VariablesPanel',
   components: {
-    CataloguePicker,
+    CataloguePanel,
   },
   props: {
     dimensions: {
@@ -129,8 +127,6 @@ export default defineComponent({
   },
   emits: ['addVariable', 'removeVariable', 'use'],
   setup(props) {
-    const openPicker = ref<VariableKind|null>(null);
-
     const sections = computed(() => [
       {
         kind: 'dimension' as VariableKind,
@@ -164,18 +160,16 @@ export default defineComponent({
       },
     ]);
 
-    function closePicker(kind: VariableKind, restoreFocus: boolean) {
-      openPicker.value = null;
-      if (!restoreFocus) {
-        return;
-      }
-      nextTick(() => {
-        const selector = `.dataExplorerVariables__add-${kind}`;
-        const button = document.querySelector(selector) as HTMLElement|null;
-        if (button) {
-          button.focus();
-        }
-      });
+    const activeSection = computed(
+      () => sections.value.find((section) => section.kind === catalogueState.kind) || null,
+    );
+
+    function isOpen(kind: VariableKind) {
+      return catalogueState.open && catalogueState.kind === kind;
+    }
+
+    function open(kind: VariableKind, event: MouseEvent) {
+      openCatalogue(kind, event.currentTarget as HTMLElement);
     }
 
     function onDragStart(event: DragEvent, kind: VariableKind, id: string) {
@@ -183,9 +177,10 @@ export default defineComponent({
     }
 
     return {
-      openPicker,
       sections,
-      closePicker,
+      activeSection,
+      isOpen,
+      open,
       onDragStart,
       onDragEnd: endDrag,
     };

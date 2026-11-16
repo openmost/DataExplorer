@@ -33,6 +33,29 @@
       </div>
     </div>
 
+    <div
+      v-if="visualization === 'table'"
+      class="dataExplorerSettings__section"
+    >
+      <h4 id="dataExplorerCellTypeTitle">{{ translate('DataExplorer_CellType') }}</h4>
+      <div
+        class="dataExplorerCellTypes"
+        role="group"
+        aria-labelledby="dataExplorerCellTypeTitle"
+      >
+        <button
+          v-for="option in cellTypes"
+          :key="option"
+          type="button"
+          class="dataExplorerCellTypes__button"
+          :class="{ 'is-active': option === cellType }"
+          :data-cell-type="option"
+          :aria-pressed="option === cellType ? 'true' : 'false'"
+          @click="$emit('setCellType', option)"
+        >{{ translate(`DataExplorer_CellType_${option}`) }}</button>
+      </div>
+    </div>
+
     <DropZone
       zone="segment"
       accepts="segment"
@@ -126,9 +149,10 @@ import { computed, defineComponent, PropType } from 'vue';
 import { translate } from 'CoreHome';
 import DropZone from './DropZone.vue';
 import FilterRow from './FilterRow.vue';
-import { hasRowDimensions, VISUALIZATIONS } from './explorationState';
+import { CELL_TYPES, hasRowDimensions, VISUALIZATIONS } from './explorationState';
 import type {
   CatalogLimits,
+  CellType,
   FilterView,
   Visualization,
   ZoneItem,
@@ -155,6 +179,10 @@ export default defineComponent({
     visualization: {
       type: String as PropType<Visualization>,
       required: true,
+    },
+    cellType: {
+      type: String as PropType<CellType>,
+      default: 'plain',
     },
     limits: {
       type: Object as PropType<CatalogLimits>,
@@ -193,7 +221,7 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ['setVisualization', 'add', 'remove', 'updateFilter', 'removeFilter'],
+  emits: ['setVisualization', 'setCellType', 'add', 'remove', 'updateFilter', 'removeFilter'],
   setup(props) {
     const visualizations = VISUALIZATIONS.map((id) => ({
       id,
@@ -207,6 +235,7 @@ export default defineComponent({
 
     return {
       visualizations,
+      cellTypes: CELL_TYPES,
       hasRows,
       maxValues,
     };

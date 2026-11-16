@@ -46,12 +46,6 @@ class VisualQueryRunner
 {
     public const MAX_PIVOT_VALUES = 10;
 
-    /** points of an evolution preview ending at a single selected period, like the saved evolution charts */
-    public const EVOLUTION_POINTS = 30;
-
-    /** most recent points kept when the preview requests several periods (a long date range) */
-    public const EVOLUTION_MAX_POINTS = 90;
-
     /** label of the NULL / empty value in archived tables, formatted at display time */
     public const ARCHIVED_NOT_DEFINED = '__dataexplorer_not_defined__';
 
@@ -109,8 +103,8 @@ class VisualQueryRunner
 
     /**
      * Runs a definition without row dimensions once per period, all of them within one time budget: the days of a
-     * range, the requested periods of a multiple period (most recent EVOLUTION_MAX_POINTS), or the EVOLUTION_POINTS
-     * periods ending at a single period.
+     * range or the requested periods, or the periods ending at a single period, at most raw_sql_max_points runs
+     * (the most recent), like raw SQL evolutions.
      *
      * @throws \InvalidArgumentException with a translated message when the definition cannot be run
      */
@@ -122,13 +116,14 @@ class VisualQueryRunner
         }
 
         $site = new Site($idSite);
+        $points = Configuration::getRawSqlMaxPoints();
         if ($period === 'range') {
             $period = 'day';
         } elseif (!Period::isMultiplePeriod($date, $period)) {
-            $date = Range::getRelativeToEndDate($period, 'last' . self::EVOLUTION_POINTS, $date, $site);
+            $date = Range::getRelativeToEndDate($period, 'last' . $points, $date, $site);
         }
         $subPeriods = (new Range($period, $date, $site->getTimezone()))->getSubperiods();
-        $subPeriods = array_slice($subPeriods, -self::EVOLUTION_MAX_POINTS);
+        $subPeriods = array_slice($subPeriods, -$points);
 
         $this->archiving = false;
         $this->seconds = Configuration::getMaxExecutionTimeSeconds();

@@ -167,7 +167,16 @@
         "ExportCsv": "CSV exporteren",
         "SqlNoRows": "De query gaf geen rijen terug.",
         "SqlRowCount": "Teruggegeven rijen: %s",
-        "SqlPlaceholder": "SELECT ..."
+        "SqlPlaceholder": "SELECT ...",
+        "Scope_visit": "bezoek",
+        "Scope_action": "actie",
+        "Scope_conversion": "conversie",
+        "CellType": "Celtype",
+        "CellType_plain": "Eenvoudig",
+        "CellType_bar": "Balk in cel",
+        "CellType_heatmap": "Heatmap",
+        "PanelAddedCount": "Toegevoegd aan deze verkenning: %s",
+        "ItemRefused": "%1$s kan niet worden toegevoegd: %2$s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",
