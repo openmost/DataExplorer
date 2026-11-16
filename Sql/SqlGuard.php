@@ -152,6 +152,12 @@ final class SqlGuard
     /** @var int[] indexes of the alias tokens of every table reference */
     private $aliases = [];
 
+    /**
+     * @var array<int, array{unit: int, branch: int, table: ?string, name: string, alias: ?string, position: int, on: ?int[], preserved: bool, where: ?int[]}>
+     * every table reference, see ParsedQuery::getTableInstances()
+     */
+    private $instances = [];
+
     /** @var array<string, true> lowercase names used as a schema in front of a table */
     private $schemaQualifiers = [];
 
@@ -267,7 +273,14 @@ final class SqlGuard
             }
         }
 
-        return new ParsedQuery($units[-1][0], array_values($statements), array_values(array_unique($tables)), $this->buildExecutableSql());
+        return new ParsedQuery(
+            $units[-1][0],
+            array_values($statements),
+            array_values(array_unique($tables)),
+            $this->buildExecutableSql(),
+            $this->tokens,
+            $this->instances
+        );
     }
 
     /**
@@ -864,51 +877,69 @@ final class SqlGuard
     {
         $this->declared[$unit] = $this->declared[$unit] ?? [];
         $end = $unit === -1 ? count($this->tokens) : $this->closing[$unit];
-        foreach ($segments as $segment) {
+        foreach ($segments as $k => $segment) {
             if (!$segment['parenthesized'] && !empty($segment['FROM'])) {
-                $this->walkTableRegion($unit, $segment['FROM'][0], $end);
+                $this->walkTableRegion($unit, $k, $segment['FROM'][0], $end);
             }
         }
     }
 
-    private function walkTableRegion(int $unit, int $from, int $end): void
+    private function walkTableRegion(int $unit, int $branch, int $from, int $end): void
     {
         $cursor = $from;
         $joined = false;
         $joinTarget = false;
+        $rightJoin = false;
+        $firstInstance = count($this->instances);
         while (true) {
             $start = $this->regionToken($cursor, $end);
             if ($start === null) {
                 throw $this->rejectAtRegionEnd($cursor, $end);
             }
-            $cursor = $this->tableFactor($unit, $start, $end);
+            $instancesBefore = count($this->instances);
+            $cursor = $this->tableFactor($unit, $branch, $start, $end);
+            $instance = count($this->instances) > $instancesBefore ? $instancesBefore : null;
+            if ($instance !== null) {
+                $this->instances[$instance]['preserved'] = $rightJoin;
+            }
 
             $next = $this->regionToken($cursor, $end);
             if ($joinTarget && $next !== null && $this->isWord($next, 'ON')) {
                 $cursor = $this->skipCondition($next, $end);
+                if ($instance !== null) {
+                    $this->instances[$instance]['on'] = [$next + 1, $cursor];
+                }
             } elseif ($joinTarget && $next !== null && $this->isWord($next, 'USING')) {
                 $cursor = $this->nameList($this->nextMeaningfulIndex($next), $next);
             }
 
             $next = $this->regionToken($cursor, $end);
             if ($next === null) {
+                $where = $this->whereCondition($unit, $cursor, $end);
+                for ($i = $firstInstance; $i < count($this->instances); $i++) {
+                    $this->instances[$i]['where'] = $where;
+                }
+
                 return;
             }
             $token = $this->tokens[$next];
             if ($token->type === Token::TYPE_OPERATOR && $token->token === ',' && !$joined) {
                 $cursor = $next;
                 $joinTarget = false;
+                $rightJoin = false;
                 continue;
             }
             if (!$this->isJoinWord($next)) {
                 throw $this->rejectTokenAt($next);
             }
+            $rightJoin = $this->isRightJoinWord($next);
             while ($this->clauseOf($next) !== 'JOIN') {
                 $previous = $next;
                 $next = $this->regionToken($next, $end);
                 if ($next === null || !$this->isJoinWord($next)) {
                     throw $next === null ? $this->rejectTokenAt($previous) : $this->rejectTokenAt($next);
                 }
+                $rightJoin = $rightJoin || $this->isRightJoinWord($next);
             }
             $cursor = $next;
             $joined = true;
@@ -917,9 +948,43 @@ final class SqlGuard
     }
 
     /**
+     * Token range of the WHERE condition following the table region that ends at $cursor, null without WHERE.
+     *
+     * @return int[]|null first and last token index of the condition
+     */
+    private function whereCondition(int $unit, int $cursor, int $end): ?array
+    {
+        $where = $this->nextMeaningfulIndex($cursor);
+        if ($where === null || $where >= $end || !$this->isWord($where, 'WHERE')) {
+            return null;
+        }
+        $last = $where;
+        for ($i = $where + 1; $i < $end; $i++) {
+            $token = $this->tokens[$i];
+            if ($this->isEnd($token) || ($this->enclosing[$i] === $unit && $token->type === Token::TYPE_DELIMITER)) {
+                break;
+            }
+            if ($this->enclosing[$i] === $unit && in_array($this->firstWordOf($i), self::REGION_END_WORDS, true)) {
+                break;
+            }
+            $last = $i;
+        }
+
+        return [$where + 1, $last];
+    }
+
+    /**
+     * @param array{unit: int, branch: int, table: ?string, name: string, alias: ?string, position: int} $instance
+     */
+    private function recordInstance(array $instance): void
+    {
+        $this->instances[] = $instance + ['on' => null, 'preserved' => false, 'where' => null];
+    }
+
+    /**
      * @return int index of the last token of the table reference starting at $start
      */
-    private function tableFactor(int $unit, int $start, int $end): int
+    private function tableFactor(int $unit, int $branch, int $start, int $end): int
     {
         $token = $this->tokens[$start];
         if ($token->type === Token::TYPE_OPERATOR && $token->token === '(') {
@@ -927,7 +992,15 @@ final class SqlGuard
                 throw self::syntax('(', $token->position);
             }
 
-            return $this->alias($unit, $this->selectGroups[$start], $end);
+            $aliasesBefore = count($this->aliases);
+            $cursor = $this->alias($unit, $this->selectGroups[$start], $end);
+            $this->recordInstance([
+                'unit' => $unit, 'branch' => $branch, 'table' => null, 'name' => '',
+                'alias' => count($this->aliases) > $aliasesBefore ? self::rawName($this->tokens[$cursor]) : null,
+                'position' => (int) $token->position,
+            ]);
+
+            return $cursor;
         }
         if ($token->type === Token::TYPE_KEYWORD && strtoupper((string) $token->value) === 'DUAL') {
             return $start;
@@ -961,7 +1034,14 @@ final class SqlGuard
         if ($next !== null && $this->isWord($next, 'PARTITION')) {
             $cursor = $this->nameList($this->nextMeaningfulIndex($next), $next);
         }
+        $aliasesBefore = count($this->aliases);
         $cursor = $this->alias($unit, $cursor, $end);
+        $this->recordInstance([
+            'unit' => $unit, 'branch' => $branch, 'table' => substr($name, strlen($this->prefix)),
+            'name' => self::rawName($this->tokens[$table]),
+            'alias' => count($this->aliases) > $aliasesBefore ? self::rawName($this->tokens[$cursor]) : null,
+            'position' => (int) $this->tokens[$table]->position,
+        ]);
         while (($next = $this->regionToken($cursor, $end)) !== null
             && ($this->isWord($next, 'USE') || $this->isWord($next, 'FORCE') || $this->isWord($next, 'IGNORE'))) {
             $kind = $this->nextMeaningfulIndex($next);
@@ -1098,6 +1178,11 @@ final class SqlGuard
         return !(($word === 'LEFT' || $word === 'RIGHT') && $this->isFollowedByParenthesis($i));
     }
 
+    private function isRightJoinWord(int $i): bool
+    {
+        return (bool) preg_match('/(^|\s)RIGHT(\s|$)/', strtoupper((string) $this->tokens[$i]->token));
+    }
+
     private function isWord(int $i, string $word): bool
     {
         $token = $this->tokens[$i];
@@ -1117,6 +1202,18 @@ final class SqlGuard
         }
 
         return (string) strtok(strtoupper(trim((string) $token->token)), " \t\r\n");
+    }
+
+    /**
+     * A name as written, unquoted, in its own case: the lexer upper-cases the value of a keyword token.
+     */
+    public static function rawName(Token $token): string
+    {
+        if ($token->type === Token::TYPE_SYMBOL) {
+            return (string) $token->value;
+        }
+
+        return (string) $token->token;
     }
 
     private function isAllowedPrefixedTable(string $name): bool

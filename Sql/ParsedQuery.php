@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Piwik\Plugins\DataExplorer\Sql;
 
 use PhpMyAdmin\SqlParser\Statements\SelectStatement;
+use PhpMyAdmin\SqlParser\Token;
 
 /**
  * A raw SQL query accepted by SqlGuard.
@@ -30,16 +31,62 @@ final class ParsedQuery
     /** @var string */
     private $executableSql;
 
+    /** @var Token[] */
+    private $tokens;
+
+    /** @var array<int, array<string, mixed>> */
+    private $tableInstances;
+
     /**
      * @param SelectStatement[] $statements
      * @param string[] $tables
+     * @param Token[] $tokens
+     * @param array<int, array<string, mixed>> $tableInstances
      */
-    public function __construct(SelectStatement $statement, array $statements, array $tables, string $executableSql)
-    {
+    public function __construct(
+        SelectStatement $statement,
+        array $statements,
+        array $tables,
+        string $executableSql,
+        array $tokens = [],
+        array $tableInstances = []
+    ) {
         $this->statement = $statement;
         $this->statements = $statements;
         $this->tables = $tables;
         $this->executableSql = $executableSql;
+        $this->tokens = $tokens;
+        $this->tableInstances = $tableInstances;
+    }
+
+    /**
+     * Every lexer token of the query, whitespace and comments included, in source order. The token ranges of
+     * getTableInstances() index this list.
+     *
+     * @return Token[]
+     */
+    public function getTokens(): array
+    {
+        return $this->tokens;
+    }
+
+    /**
+     * Every table reference of every SELECT, read from the token stream (not from the parser), each once:
+     * - unit: "(" token index of the parenthesized SELECT holding it, -1 for the top level;
+     * - branch: index of its UNION branch within that unit, so unit + branch name one SELECT and its scope;
+     * - table: unprefixed lowercase table name, null for a derived table;
+     * - name: the table name as written, unquoted (empty for a derived table);
+     * - alias: the alias as written, unquoted, or null;
+     * - position: character offset of the table name (or of the derived table's "(");
+     * - on: first and last token index of its own JOIN ... ON condition, or null;
+     * - preserved: true when it is the target of a RIGHT JOIN, so its ON condition does not filter its rows;
+     * - where: first and last token index of the WHERE condition of its SELECT, or null.
+     *
+     * @return array<int, array{unit: int, branch: int, table: ?string, name: string, alias: ?string, position: int, on: ?int[], preserved: bool, where: ?int[]}>
+     */
+    public function getTableInstances(): array
+    {
+        return $this->tableInstances;
     }
 
     /**
