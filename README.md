@@ -40,7 +40,7 @@ The 11 tables that raw SQL can read are `log_visit`, `log_link_visit_action`, `l
 
 ### Configuration
 
-All keys go in a `[DataExplorer]` section of `config/config.ini.php`. The defaults are written there when the plugin is installed.
+All keys go in a `[DataExplorer]` section of `config/config.ini.php`. At install, only the row cap keys and `dataexplorer_sql_row_limit` are written there, with their current values. Every other key is optional and uses its default when absent.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -58,6 +58,7 @@ All keys go in a `[DataExplorer]` section of `config/config.ini.php`. The defaul
 | `dataexplorer_sql_max_subqueries` | 50 | Most subqueries and UNION branches in one query |
 | `invalidation_months` | 6 | Months of history invalidated when a report is saved |
 | `readonly_*` | none | Connection of the read-only user, see above |
+| `readonly_charset`, `readonly_collation`, `readonly_adapter` | follow `[database]` | Advanced, optional: set only if the read-only connection needs different values |
 
 Raising the row caps or the number of dimensions makes the archives bigger and slower. A higher number of dimensions multiplies the subtables of each report.
 
@@ -70,17 +71,18 @@ Raw SQL reports are not archived: they run live on the read-only connection, wit
 ### Limits
 
 - Raw SQL accepts a strict subset of SELECT. `WITH` (common table expressions) is refused, and so are statements other than one SELECT, and some valid MySQL forms that the guard cannot prove safe. The refusal message points at the part of the query it could not accept.
-- The site and period placeholders are accepted in `WHERE`, `ON` and `HAVING`. A query that is not provably limited to the websites of the report shows a warning.
+- The placeholders `{idsite}`, `{date_start}` and `{date_end}` work in `WHERE`, `ON` and `HAVING` conditions. They are not yet accepted in the select list.
+- A query that is not provably limited to the website of the report is flagged as a warning in the editor. It cannot be saved on a site, and a saved one is not run, until every per-site table is filtered with `{idsite}`.
 - Only the 11 tables listed above can be read. Archive tables and plugin tables are not readable.
 - A report has at most 10 metrics, and a KPI card exactly one.
-- The visual preview is limited to 1,000 rows.
+- The visual preview uses the same row caps as saved reports (500 rows per table by default, see the Configuration table).
 - Phase one supports free-form explorations only.
 
 ### FAQ
 
 **Can a user with view access see raw SQL reports?** Yes, a saved report is a report like the others: view access opens it. Only super users write or edit the SQL.
 
-**Does raw SQL see other websites?** A query is checked against the websites of the report. Outside what the guard can prove, a warning is shown and the report should be reviewed by a super user before it is shared.
+**Does raw SQL see other websites?** A query is checked against the website of the report. When the guard cannot prove that every per-site table is filtered with `{idsite}`, the editor flags it and the query cannot be saved on a site or run as a saved report.
 
 **Can I use it without raw SQL?** Yes. The visual explorer needs no extra database user.
 
