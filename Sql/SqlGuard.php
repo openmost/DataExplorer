@@ -218,24 +218,33 @@ final class SqlGuard
             }
         }
 
-        $statements = [];
+        $segments = $this->checkStructure($selectGroups, $closing);
+
         $tables = [];
-        $units = [-1 => $this->parseUnit($this->unitTokens(0, count($this->tokens), $selectGroups), $statements, $tables)];
+        $units = [-1 => $this->parseUnit($this->unitTokens(0, count($this->tokens), $selectGroups), $tables)];
         foreach ($selectGroups as $open => $close) {
             $tokens = $this->unitTokens($open + 1, $close, $selectGroups);
             $tokens[] = new Token(null, Token::TYPE_DELIMITER);
-            $units[$open] = $this->parseUnit($tokens, $statements, $tables);
+            $units[$open] = $this->parseUnit($tokens, $tables);
         }
 
-        $this->checkEveryClauseWasParsed($units);
+        $statements = [];
+        foreach ($units as $unit => $branches) {
+            $this->checkBranchesMatchSegments($branches, $segments[$unit]);
+            foreach ($branches as $k => $branch) {
+                if (!$segments[$unit][$k]['parenthesized']) {
+                    $statements[$this->keyOf($branch)] = $statements[$this->keyOf($branch)] ?? $branch;
+                }
+            }
+        }
 
         return new ParsedQuery($units[-1][0], array_values($statements), array_values(array_unique($tables)), $this->buildExecutableSql());
     }
 
     /**
-     * The tokens of one unit, each nested subquery replaced by "(SELECT 1)": it is opaque text for the parser and is
-     * parsed as its own unit, so every token is parsed about once instead of once per nesting level. A parenthesized
-     * UNION branch stays, the parser has to see it to build the UNION.
+     * The tokens of one unit, each nested parenthesized SELECT replaced by "(SELECT 1)": it is parsed as its own
+     * unit, so every token is parsed once whatever the nesting. A parenthesized UNION branch is stubbed the same way:
+     * the parser still sees a branch there and the branch itself is validated as its own unit.
      *
      * @param array<int, int> $selectGroups "(" index => ")" index of each parenthesized SELECT
      * @return Token[]
@@ -244,7 +253,7 @@ final class SqlGuard
     {
         $tokens = [];
         for ($i = $from; $i < $to; $i++) {
-            if (isset($selectGroups[$i]) && !$this->isUnionBranch($i)) {
+            if (isset($selectGroups[$i])) {
                 foreach (self::stubTokens() as $stub) {
                     $stub = clone $stub;
                     $stub->position = $this->tokens[$i]->position;
@@ -259,19 +268,18 @@ final class SqlGuard
         return $tokens;
     }
 
-    private function isUnionBranch(int $open): bool
+    /**
+     * Index of the first meaningful token after a UNION keyword, past its ALL or DISTINCT.
+     */
+    private function branchStart(int $union): ?int
     {
-        $previous = $this->previousMeaningfulIndex($open);
-        if ($previous === null) {
-            return true;
-        }
-        $word = (string) preg_replace('/\s+/', ' ', strtoupper((string) $this->tokens[$previous]->token));
-        if ($word === 'ALL' || $word === 'DISTINCT') {
-            $before = $this->previousMeaningfulIndex($previous);
-            $word = $before === null ? '' : strtoupper((string) $this->tokens[$before]->token);
+        $next = $this->nextMeaningfulIndex($union);
+        if ($next !== null && $this->tokens[$next]->type === Token::TYPE_KEYWORD
+            && in_array(strtoupper((string) $this->tokens[$next]->token), ['ALL', 'DISTINCT'], true)) {
+            $next = $this->nextMeaningfulIndex($next);
         }
 
-        return in_array($word, ['UNION', 'UNION ALL', 'UNION DISTINCT'], true);
+        return $next;
     }
 
     /**
@@ -548,11 +556,10 @@ final class SqlGuard
      * the parser keeps it as opaque text inside the outer statement.
      *
      * @param Token[] $tokens the unit, ending with the end-of-list token
-     * @param SelectStatement[] $statements collected statements, keyed to drop a UNION branch seen twice
      * @param string[] $tables collected unprefixed table names
      * @return SelectStatement[] the SELECT and its UNION branches
      */
-    private function parseUnit(array $tokens, array &$statements, array &$tables): array
+    private function parseUnit(array $tokens, array &$tables): array
     {
         $this->unitTokens = $tokens;
         $parser = new Parser(new TokensList($tokens, count($tokens)), false);
@@ -581,7 +588,6 @@ final class SqlGuard
 
         foreach ($branches as $select) {
             $this->checkSelect($select, $tables);
-            $statements[$this->keyOf($select)] = $statements[$this->keyOf($select)] ?? $select;
         }
 
         return $branches;
@@ -653,51 +659,114 @@ final class SqlGuard
     }
 
     /**
-     * Refuses the query if the parser silently dropped a clause whose tables were then never checked, or read as a
-     * name what MySQL reads as a clause. Each SELECT, FROM and JOIN keyword belongs to the top-level query or to its
-     * innermost parenthesized subquery, and that unit must have parsed at least as many SELECTs, FROM clauses
-     * and joins. A FROM inside the parentheses of a function call (EXTRACT, TRIM, SUBSTRING) is not a clause.
+     * Structural proof, on tokens only, that the parser cannot leave a SELECT, FROM, JOIN or UNION unchecked:
+     * - a UNION sits directly in the top level or in a parenthesized SELECT (a unit), never in another parenthesis;
+     * - a SELECT starts the query, follows a UNION [ALL|DISTINCT] of a unit, or opens its own parenthesis;
+     * - a FROM or JOIN sits directly in a unit, or a FROM is the keyword of TRIM / SUBSTRING / EXTRACT holding no SELECT.
+     * Each unit is cut into branch segments at its UNIONs; checkBranchesMatchSegments() then requires the parser to
+     * have produced exactly one branch per segment with exactly the FROM and JOINs of that segment.
      *
-     * @param array<int, SelectStatement[]> $units parsed SELECTs per unit, keyed by "(" index, -1 for the top level
+     * @param array<int, int> $selectGroups "(" index => ")" index of each parenthesized SELECT
+     * @param array<int, int> $closing "(" index => ")" index of every parenthesis
+     * @return array<int, array<int, array{parenthesized: bool, FROM: int[], JOIN: int[]}>> per unit, per segment
      */
-    private function checkEveryClauseWasParsed(array $units): void
+    private function checkStructure(array $selectGroups, array $closing): array
     {
-        $produced = [];
-        foreach ($units as $open => $selects) {
-            $produced[$open] = ['SELECT' => count($selects), 'FROM' => 0, 'JOIN' => 0];
-            foreach ($selects as $select) {
-                $produced[$open]['FROM'] += empty($select->from) ? 0 : 1;
-                $produced[$open]['JOIN'] += count($select->join ?: []);
-                if ($select->options !== null && $select->options->has('STRAIGHT_JOIN')) {
-                    $produced[$open]['JOIN']++;
-                }
+        $selectsBefore = [];
+        $selects = 0;
+        foreach ($this->tokens as $i => $token) {
+            $selectsBefore[$i] = $selects;
+            if ($this->clauseOf($i) === 'SELECT') {
+                $selects++;
             }
         }
 
-        $owned = [];
+        $first = $this->nextMeaningfulIndex(-1);
+        $segments = [-1 => [$this->segment($first !== null && isset($selectGroups[$first]))]];
+        foreach ($selectGroups as $open => $close) {
+            $segments[$open] = [$this->segment(false)];
+        }
+
         foreach ($this->tokens as $i => $token) {
             $clause = $this->clauseOf($i);
             if ($clause === null) {
                 continue;
             }
-
             $group = $this->enclosing[$i];
-            if ($clause === 'FROM' && $group !== -1 && !isset($units[$group]) && $this->isFunctionCall($group)) {
+            $inUnit = $group === -1 || isset($selectGroups[$group]);
+
+            if ($clause === 'UNION') {
+                if (!$inUnit) {
+                    throw self::syntax((string) $token->token, $token->position);
+                }
+                $start = $this->branchStart($i);
+                $segments[$group][] = $this->segment($start !== null && isset($selectGroups[$start]));
                 continue;
             }
-            while ($group !== -1 && !isset($units[$group])) {
-                $group = $this->groupParent[$group];
+
+            if ($clause === 'SELECT') {
+                $previous = $this->previousMeaningfulIndex($i);
+                $startsQuery = $previous === null;
+                $startsBranch = $inUnit && $previous !== null && $this->clauseOf($previous) === 'UNION'
+                    || ($inUnit && $previous !== null && in_array(strtoupper((string) $this->tokens[$previous]->token), ['ALL', 'DISTINCT'], true)
+                        && ($before = $this->previousMeaningfulIndex($previous)) !== null && $this->clauseOf($before) === 'UNION');
+                $opensGroup = $group !== -1 && isset($selectGroups[$group]) && $this->nextMeaningfulIndex($group) === $i;
+                if (!$startsQuery && !$startsBranch && !$opensGroup) {
+                    throw self::syntax((string) $token->token, $token->position);
+                }
+                continue;
             }
 
-            $owned[$group][$clause] = ($owned[$group][$clause] ?? 0) + 1;
-            if ($owned[$group][$clause] > $produced[$group][$clause]) {
+            if ($inUnit) {
+                $segments[$group][count($segments[$group]) - 1][$clause][] = $i;
+                continue;
+            }
+            $isFunctionKeyword = $clause === 'FROM' && $this->isFromFunction($group)
+                && $selectsBefore[$closing[$group]] === $selectsBefore[$group];
+            if (!$isFunctionKeyword) {
                 throw self::syntax((string) $token->token, $token->position);
+            }
+        }
+
+        return $segments;
+    }
+
+    /**
+     * @return array{parenthesized: bool, FROM: int[], JOIN: int[]}
+     */
+    private function segment(bool $parenthesized): array
+    {
+        return ['parenthesized' => $parenthesized, 'FROM' => [], 'JOIN' => []];
+    }
+
+    /**
+     * @param SelectStatement[] $branches
+     * @param array<int, array{parenthesized: bool, FROM: int[], JOIN: int[]}> $segments
+     */
+    private function checkBranchesMatchSegments(array $branches, array $segments): void
+    {
+        if (count($branches) !== count($segments)) {
+            throw self::syntax('UNION', $this->findInUnit('UNION'));
+        }
+
+        foreach ($segments as $k => $segment) {
+            $branch = $branches[$k];
+            // A parenthesized branch is a "(SELECT 1)" stub here, its clauses are matched in its own unit.
+            $expectedFrom = $segment['parenthesized'] || empty($branch->from) ? 0 : 1;
+            $expectedJoins = $segment['parenthesized'] ? 0 : count($branch->join ?: [])
+                + ($branch->options !== null && $branch->options->has('STRAIGHT_JOIN') ? 1 : 0);
+
+            foreach (['FROM' => $expectedFrom, 'JOIN' => $expectedJoins] as $clause => $expected) {
+                if (count($segment[$clause]) !== $expected) {
+                    $at = $segment[$clause][$expected] ?? ($segment[$clause][0] ?? null);
+                    throw self::syntax($clause, $at === null ? $this->findInUnit($clause) : $this->tokens[$at]->position);
+                }
             }
         }
     }
 
     /**
-     * @return string|null "SELECT", "FROM" or "JOIN" when the token starts such a clause for MySQL
+     * @return string|null "SELECT", "FROM", "JOIN" or "UNION" when the token is such a keyword for MySQL
      */
     private function clauseOf(int $i): ?string
     {
@@ -711,6 +780,9 @@ final class SqlGuard
         if ($word === 'SELECT' || $word === 'FROM') {
             return $word;
         }
+        if ($word === 'UNION' || $word === 'UNION ALL' || $word === 'UNION DISTINCT') {
+            return 'UNION';
+        }
         if ($word === 'JOIN' || $word === 'STRAIGHT_JOIN' || substr($word, -5) === ' JOIN') {
             return 'JOIN';
         }
@@ -718,13 +790,19 @@ final class SqlGuard
         return null;
     }
 
-    private function isFunctionCall(int $open): bool
+    /**
+     * Functions whose own syntax has a FROM keyword: TRIM(x FROM y), SUBSTRING(x FROM n), EXTRACT(unit FROM d).
+     */
+    private function isFromFunction(int $open): bool
     {
         $previous = $this->previousMeaningfulIndex($open);
-        $token = $previous === null ? null : $this->tokens[$previous];
+        if ($previous === null || isset($this->qualifiedNames[$previous])) {
+            return false;
+        }
+        $token = $this->tokens[$previous];
 
-        return $token !== null && $token->type === Token::TYPE_KEYWORD && ($token->flags & Token::FLAG_KEYWORD_FUNCTION)
-            && !isset($this->qualifiedNames[$previous]);
+        return $token->type === Token::TYPE_KEYWORD
+            && in_array(strtoupper((string) $token->token), ['TRIM', 'SUBSTRING', 'SUBSTR', 'MID', 'EXTRACT'], true);
     }
 
     private function keyOf(SelectStatement $select): string
@@ -794,6 +872,22 @@ final class SqlGuard
         return $next !== null && $next->type === Token::TYPE_OPERATOR && $next->token === '(';
     }
 
+    private function nextMeaningfulIndex(int $i): ?int
+    {
+        $count = count($this->tokens);
+        for ($j = $i + 1; $j < $count; $j++) {
+            $token = $this->tokens[$j];
+            if ($this->isEnd($token)) {
+                return null;
+            }
+            if ($token->type !== Token::TYPE_WHITESPACE && $token->type !== Token::TYPE_COMMENT) {
+                return $j;
+            }
+        }
+
+        return null;
+    }
+
     private function nextMeaningful(int $i): ?Token
     {
         $count = count($this->tokens);
@@ -832,9 +926,6 @@ final class SqlGuard
         return $token->type === Token::TYPE_DELIMITER && $token->token === null;
     }
 
-    /**
-     * @param Token[] $tokens
-     */
     /**
      * @param Token[] $tokens
      * @return Token|null the token holding the error position: the lexer reports an unterminated string at its end

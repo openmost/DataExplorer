@@ -304,6 +304,22 @@ SQL;
         SqlGuard::validate('SELECT 1 FROM `option`', '', self::DB);
     }
 
+    public function test_emptyPrefixRefusesAHiddenUnionBranch(): void
+    {
+        $this->expectException(RejectedQueryException::class);
+        SqlGuard::validate('SELECT idvisit FROM log_visit WHERE idvisit IN ((SELECT 1) UNION SELECT idvisit FROM `user`) UNION (SELECT idvisit FROM log_visit)', '', self::DB);
+    }
+
+    public function test_acceptsNestedParenthesizedUnionBranches(): void
+    {
+        $sql = 'SELECT idvisit FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_log_conversion UNION (SELECT idvisit FROM matomo_log_link_visit_action UNION (SELECT idvisit FROM matomo_site)))'
+            . ' UNION (SELECT idvisit FROM matomo_goal) ORDER BY 1';
+        $query = SqlGuard::validate($sql, self::PREFIX, self::DB);
+
+        $this->assertSame(['log_visit', 'log_conversion', 'log_link_visit_action', 'site', 'goal'], $query->getTables());
+        $this->assertCount(5, $query->getStatements());
+    }
+
     public function test_listsEverySubqueryAndUnionBranchOnce(): void
     {
         $sql = 'SELECT idvisit FROM matomo_log_visit WHERE idvisit IN (SELECT idvisit FROM matomo_log_conversion)'
@@ -447,6 +463,14 @@ SQL;
             'exponent before dot' => ['SELECT 1e1.FROM matomo_log_visit', '.'],
             'identifier starting with a digit' => ['SELECT 1abc FROM matomo_log_visit', '1abc'],
             'non ascii identifier' => ['SELECT idvisit FROM matomo_log_visit v WHERE v.idsite = 1 AND é = 1', 'é'],
+            'hidden union branch in derived table' => ["SELECT z.a FROM matomo_log_visit, ((SELECT 'x' a) UNION SELECT LEFT(email, 3) FROM platform_accounts.users) z UNION (SELECT idvisit FROM matomo_log_visit)", 'UNION'],
+            'hidden union branch in IN' => ['SELECT idvisit FROM matomo_log_visit WHERE idvisit IN ((SELECT 1) UNION SELECT a FROM otherdb.secret) UNION (SELECT idvisit FROM matomo_log_visit)', 'UNION'],
+            'hidden union branch in ANY' => ['SELECT idvisit FROM matomo_log_visit WHERE idvisit = ANY ((SELECT 1) UNION SELECT a FROM otherdb.secret) UNION (SELECT idvisit FROM matomo_log_visit)', 'UNION'],
+            'union of parenthesized branches inside a non-select parenthesis' => ['SELECT a FROM matomo_log_visit WHERE idsite IN ((SELECT 1) UNION (SELECT 2))', 'UNION'],
+            'nested parenthesized union' => ['SELECT idvisit FROM matomo_log_visit WHERE idvisit IN (((SELECT 1) UNION SELECT login FROM otherdb.u))', 'UNION'],
+            'select inside a trim' => ["SELECT TRIM('x' FROM (SELECT login FROM otherdb.u)) FROM matomo_log_visit", 'FROM'],
+            'from inside a non-function parenthesis' => ['SELECT (1 FROM otherdb.t) FROM matomo_log_visit', 'FROM'],
+            'second select in one branch' => ['SELECT 1 FROM matomo_log_visit WHERE 1 = 1 AND SELECT 2', 'SELECT'],
             'unprefixed table' => ['SELECT * FROM log_visit', 'log_visit'],
             'uppercase excluded table' => ['SELECT * FROM MATOMO_USER', 'MATOMO_USER'],
             'for update' => ['SELECT * FROM matomo_log_visit FOR UPDATE', 'FOR'],
@@ -462,7 +486,7 @@ SQL;
             'show' => ['SHOW TABLES', 'SHOW'],
             'table statement in union' => ['SELECT 1 UNION TABLE matomo_user', 'TABLE'],
             'table statement in derived table' => ['SELECT * FROM (TABLE matomo_log_visit) t', 'TABLE'],
-            'parenthesized join' => ['SELECT * FROM (matomo_log_visit JOIN matomo_site ON 1)', 'matomo_log_visit JOIN'],
+            'parenthesized join' => ['SELECT * FROM (matomo_log_visit JOIN matomo_site ON 1)', 'JOIN'],
             'table function' => ["SELECT * FROM JSON_TABLE('[]', '\$[*]' COLUMNS (a INT PATH '\$')) j", 'COLUMNS'],
             'unknown placeholder' => ['SELECT idvisit FROM matomo_log_visit WHERE idsite = {site}', '{'],
             'spaced placeholder' => ['SELECT idvisit FROM matomo_log_visit WHERE idsite = { idsite }', '{'],

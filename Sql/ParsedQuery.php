@@ -53,7 +53,8 @@ final class ParsedQuery
 
     /**
      * The top-level statement: the first SELECT, its other UNION branches in `$statement->union`
-     * as `[UnionKeyword|string, SelectStatement]` pairs.
+     * as `[UnionKeyword|string, SelectStatement]` pairs. A parenthesized branch, "(SELECT ...) UNION (SELECT ...)",
+     * appears here as a "SELECT 1" stub: its real statement is in getStatements().
      */
     public function getStatement(): SelectStatement
     {
@@ -61,13 +62,13 @@ final class ParsedQuery
     }
 
     /**
-     * Every SELECT of the query once, the top-level statement first: each UNION branch, each subquery
-     * (derived table, scalar, IN, EXISTS, in any clause) and the UNION branches of those subqueries.
+     * Every SELECT of the query once: the top-level statement first (unless it is a parenthesized branch), each
+     * UNION branch, each subquery (derived table, scalar, IN, EXISTS, in any clause) and their UNION branches.
      * Each one carries its own `from` (Expression[]), `join` (JoinKeyword[], table in `->expr`, condition in `->on`)
      * and `where` (Condition[]). A derived table appears in `from` or `join` with `subquery === 'SELECT'` and its
-     * own SELECT is listed separately here. Inside a statement, the text of each nested subquery is replaced by
-     * "(SELECT 1)" (it was parsed on its own); read the subquery itself from this list. The `union` property of an entry must not be walked again: its
-     * branches are already in this list.
+     * own SELECT is listed separately here. Inside a statement, the text of each nested subquery or parenthesized
+     * UNION branch is a "(SELECT 1)" stub (it was parsed on its own): read it from this list. Identical SELECTs are
+     * listed once. The `union` property of an entry must not be walked again: its branches are in this list.
      *
      * @return SelectStatement[]
      */
