@@ -178,6 +178,30 @@ class ArchivingTest extends IntegrationTestCase
         $this->assertEquals(2, $this->numeric($archive, SavedReport::numericRecordName($kpi['idreport'], $kpi['revision'], 'nb_visits')));
     }
 
+    public function test_uniqueVisitorsOfATable_areRenamedSumDaily_whenCoreDoesNotComputeThemForThePeriod(): void
+    {
+        $this->disableUniques(['week', 'month', 'year']);
+        $report = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_uniq_visitors', 'nb_visits']]);
+
+        $france = $this->table($report, 'year', '2024-01-01')->getRowFromLabel('fr');
+
+        // fr visitors 1, 2 and 6 on one day each, visitor 7 on two days: 4 distinct, 5 summed per day
+        $this->assertNotFalse($france);
+        $this->assertEquals(5, $france->getColumn('sum_daily_nb_uniq_visitors'));
+        $this->assertFalse($france->getColumn('nb_uniq_visitors'));
+        $this->assertEquals(5, $france->getColumn('nb_visits'));
+    }
+
+    public function test_uniqueVisitorsOfATable_keepTheirNameAndTrueValue_whenCoreComputesThemForThePeriod(): void
+    {
+        $report = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_uniq_visitors']]);
+
+        $france = $this->table($report, 'week', '2024-03-04')->getRowFromLabel('fr');
+
+        $this->assertEquals(1, $france->getColumn('nb_uniq_visitors'));
+        $this->assertFalse($france->getColumn('sum_daily_nb_uniq_visitors'));
+    }
+
     public function test_reportPlacedOnSite1_producesNoRecordOnSite2(): void
     {
         $report = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']], ['sites' => [1]]);

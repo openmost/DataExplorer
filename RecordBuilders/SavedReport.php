@@ -38,7 +38,8 @@ use Piwik\SettingsPiwik;
  * Periods other than day aggregate the day archives the core way: blobs are summed, numerics follow the metric
  * aggregation. Distinct counts that do not add up across days (unique visitors, not visits) are recomputed from
  * the logs for the periods where core computes unique visitors (enable_processing_unique_visitors_*), like core
- * VisitsSummary; for the other periods their numeric record keeps the highest daily value. A table with a pivot
+ * VisitsSummary; for the other periods their numeric record keeps the highest daily value and their table column
+ * is renamed sum_daily_<metric>, like core reports. A table with a pivot
  * column and a max, min or such distinct metric is always rebuilt from the logs for periods other than day: its
  * pivot columns are created per archive, so no aggregation can be declared for them.
  *
@@ -113,8 +114,12 @@ class SavedReport extends RecordBuilder
 
         $metrics = $this->resolve($this->idSite($archiveProcessor))['metrics'] ?? [];
         $ops = [];
+        $renamed = [];
         foreach ($metrics as $metric) {
             $ops[$metric->id] = self::AGGREGATION_OPS[$metric->aggregation] ?? 'sum';
+            if ($this->isNotSummableAcrossDays($metric)) {
+                $renamed[$metric->id] = 'sum_daily_' . $metric->id;
+            }
         }
 
         $name = $this->name();
@@ -125,8 +130,9 @@ class SavedReport extends RecordBuilder
             $record = Record::make(Record::TYPE_BLOB, $name)
                 ->setMaxRowsInTable(Configuration::getMaxRowsInMainTable($depth) + 1)
                 ->setMaxRowsInSubtable(Configuration::getMaxRowsInSubTable($depth) + 1)
-                ->setColumnToSortByBeforeTruncation($this->sortColumn($definition->getMetrics()))
-                ->setBlobColumnAggregationOps($ops);
+                ->setColumnToSortByBeforeTruncation($this->sortColumn($definition->getMetrics(), $renamed))
+                ->setBlobColumnAggregationOps($ops)
+                ->setColumnToRenameAfterAggregation($renamed);
 
             return [$record];
         }
@@ -245,20 +251,22 @@ class SavedReport extends RecordBuilder
     }
 
     /**
-     * Prefers a metric core never renames when it sums tables of several days (nb_uniq_visitors and nb_users may be
-     * renamed to sum_daily_*, Matomo 5.14 keeps them); a table of such metrics only keeps sorting by the first one.
+     * The sort column must exist in tables summed over several days, where the distinct counts that do not add up
+     * are renamed: the first other metric, else the renamed column. Day tables and tables rebuilt from the logs
+     * are already within the caps, so they are never sorted for truncation.
      *
      * @param string[] $metricIds
+     * @param array<string, string> $renamed
      */
-    private function sortColumn(array $metricIds): string
+    private function sortColumn(array $metricIds, array $renamed): string
     {
         foreach ($metricIds as $metricId) {
-            if (!in_array($metricId, ['nb_uniq_visitors', 'nb_users'], true)) {
+            if (!isset($renamed[$metricId])) {
                 return $metricId;
             }
         }
 
-        return reset($metricIds);
+        return $renamed[reset($metricIds)] ?? (string) reset($metricIds);
     }
 
     /**
