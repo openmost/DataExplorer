@@ -41,7 +41,8 @@ class MetricCatalog
         $entries = $this->coreCounters();
         $dimensions = (new DimensionCatalog())->all($idSite);
 
-        foreach (MetricsList::get()->getMetrics() as $metric) {
+        $archived = SiteContext::run($idSite, fn () => MetricsList::get()->getMetrics());
+        foreach ($archived as $metric) {
             if (!$metric instanceof ArchivedMetric || isset($entries[$metric->getName()])) {
                 continue;
             }

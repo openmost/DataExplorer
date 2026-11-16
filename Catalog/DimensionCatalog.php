@@ -34,7 +34,8 @@ class DimensionCatalog
         }
 
         $entries = [];
-        foreach ((new DimensionsProvider())->getAllDimensions() as $dimension) {
+        $all = SiteContext::run($idSite, fn () => (new DimensionsProvider())->getAllDimensions());
+        foreach ($all as $dimension) {
             $table = (string) $dimension->getDbTableName();
             $column = (string) $dimension->getColumnName();
             if ($column === '' || !isset(self::SCOPE_BY_TABLE[$table])) {

@@ -99,6 +99,32 @@ class CatalogTest extends IntegrationTestCase
         $this->assertFalse($compat->isAllowed('conversion', $metrics['nb_visits']));
     }
 
+    private function configureCustomDimensionOnSite1(): void
+    {
+        Fixture::createWebsite('2024-01-01 00:00:00');
+        $_GET['idSite'] = '2';
+        $this->as([], true);
+        \Piwik\Plugins\CustomDimensions\API::getInstance()->configureNewCustomDimension(1, 'Plan', 'visit', true);
+    }
+
+    public function test_customDimensionFollowsIdSiteArgumentNotRequest(): void
+    {
+        $this->configureCustomDimensionOnSite1();
+        $custom = fn (int $site) => array_filter(
+            array_keys((new DimensionCatalog())->all($site)),
+            fn ($id) => strpos($id, 'CustomDimension.CustomDimension') === 0
+        );
+
+        // request names site 2, site 1 asked first
+        $this->assertCount(1, $custom(1));
+        $this->assertCount(0, $custom(2));
+        $this->assertSame('2', $_GET['idSite']);
+
+        \Piwik\Cache::getTransientCache()->flushAll();
+        $this->assertCount(0, $custom(2));
+        $this->assertCount(1, $custom(1));
+    }
+
     public function test_getCatalog_viewUserGetsGroupedCatalog(): void
     {
         $this->as([1]);
