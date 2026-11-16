@@ -108,26 +108,50 @@ class VisualQueryBuilder
     /**
      * Query of one row level (0 for the first row dimension) for the metrics of one scope.
      *
-     * Selected aliases: label_0 to label_<level>, pivot when the pivot column is grouped, metric_<index> where index
-     * is the position of the metric in the definition.
-     *
      * @param string|null $scope metric scope, defaults to the scope of the first metric
      * @return array{sql: string, bind: array}
      * @throws \InvalidArgumentException with a translated message
      */
     public function build(ReportDefinition $definition, LogAggregator $aggregator, int $level = 0, ?string $scope = null, bool $withPivot = true): array
     {
+        return $this->buildQuery($definition, $aggregator, [
+            'scope' => $scope,
+            'labels' => $definition->getRows() ? max(0, $level) + 1 : 0,
+            'pivot' => $withPivot,
+        ]);
+    }
+
+    /**
+     * Selected aliases: label_0 to label_<labels - 1>, pivot when grouped by the pivot column, metric_<index> where
+     * index is the position of the metric in the definition. Rows come ordered by the first metric of the scope.
+     *
+     * @param array{scope?: ?string, labels?: int, pivot?: bool, pivotIn?: ?array, include?: ?array, exclude?: ?array, limit?: int} $spec
+     *        - labels: number of row dimensions grouped, from the first one
+     *        - pivotIn: pivot column values the query is restricted to
+     *        - include / exclude: [int $depth, array $tuples] keeps / drops rows whose first $depth row values
+     *          match one of the tuples (NULL matches NULL)
+     *        - limit: maximum number of rows returned, 0 for none
+     * @return array{sql: string, bind: array}
+     * @throws \InvalidArgumentException with a translated message
+     */
+    public function buildQuery(ReportDefinition $definition, LogAggregator $aggregator, array $spec): array
+    {
         $sites = $aggregator->getSites();
         $resolved = $this->resolve($definition, (int) reset($sites));
-        $scope = $scope ?? $resolved['scopes'][0];
+        $scope = $spec['scope'] ?? $resolved['scopes'][0];
 
         $metrics = array_filter($resolved['metrics'], fn (MetricEntry $m) => $m->scope === $scope);
         if (!$metrics) {
             throw $this->error('DataExplorer_ErrorUnknownMetric', $scope);
         }
 
-        $rows = $resolved['rows'] ? array_slice($resolved['rows'], 0, max(0, $level) + 1) : [];
-        $column = $withPivot ? $resolved['column'] : null;
+        $labels = min((int) ($spec['labels'] ?? 0), count($resolved['rows']));
+        $include = $spec['include'] ?? null;
+        $exclude = $spec['exclude'] ?? null;
+        $depth = max($labels, $include ? (int) $include[0] : 0, $exclude ? (int) $exclude[0] : 0);
+        $rows = array_slice($resolved['rows'], 0, $depth);
+        $pivotIn = $spec['pivotIn'] ?? null;
+        $column = !empty($spec['pivot']) || $pivotIn !== null ? $resolved['column'] : null;
         $filterDimensions = array_column($resolved['filters'], 'dimension');
         $dimensions = array_merge($rows, $column ? [$column] : [], $filterDimensions);
 
@@ -151,17 +175,18 @@ class VisualQueryBuilder
             $from[] = $join['from'];
         }
 
+        $rowExpressions = array_map(fn (DimensionEntry $d) => $this->groupExpression($d, $joins), $rows);
+
         $select = [];
         $groupBy = [];
-        foreach ($rows as $i => $dimension) {
-            $expression = $this->expression($dimension, $joins);
-            $select[] = $expression . ' AS label_' . $i;
-            $groupBy[] = $expression;
+        for ($i = 0; $i < $labels; $i++) {
+            $select[] = $rowExpressions[$i] . ' AS label_' . $i;
+            $groupBy[] = $rowExpressions[$i];
         }
-        if ($column) {
-            $expression = $this->expression($column, $joins);
-            $select[] = $expression . ' AS pivot';
-            $groupBy[] = $expression;
+        $pivotExpression = $column ? $this->groupExpression($column, $joins) : null;
+        if ($pivotExpression !== null && !empty($spec['pivot'])) {
+            $select[] = $pivotExpression . ' AS pivot';
+            $groupBy[] = $pivotExpression;
         }
         foreach ($metrics as $index => $metric) {
             $select[] = $metric->sql . ' AS metric_' . $index;
@@ -171,6 +196,15 @@ class VisualQueryBuilder
         $bind = [];
         foreach ($resolved['filters'] as $filter) {
             [$conditions[], $bind[]] = $this->filterCondition($this->expression($filter['dimension'], $joins), $filter);
+        }
+        if ($include) {
+            $conditions[] = $this->tuplePredicate(array_slice($rowExpressions, 0, (int) $include[0]), $include[1], $bind);
+        }
+        if ($exclude) {
+            $conditions[] = 'NOT ' . $this->tuplePredicate(array_slice($rowExpressions, 0, (int) $exclude[0]), $exclude[1], $bind);
+        }
+        if ($pivotIn !== null) {
+            $conditions[] = $this->tuplePredicate([$pivotExpression], array_map(fn ($v) => [$v], $pivotIn), $bind);
         }
 
         $where = $aggregator->getWhereStatement($baseTable, self::DATETIME_COLUMN[$baseTable]);
@@ -183,10 +217,66 @@ class VisualQueryBuilder
             $from,
             $where,
             implode(', ', $groupBy),
-            'metric_' . array_key_first($metrics) . ' DESC'
+            $groupBy ? 'metric_' . array_key_first($metrics) . ' DESC' : ''
         );
 
+        // the LIMIT is appended to the outer query: given to generateQuery(), a segment that wraps the query in a
+        // subselect would also LIMIT the inner, ungrouped log rows
+        $limit = max(0, (int) ($spec['limit'] ?? 0));
+        if ($limit > 0) {
+            $query['sql'] .= ' LIMIT ' . $limit;
+        }
+
         return ['sql' => $query['sql'], 'bind' => $this->insertFilterBind($aggregator, $query['bind'], $bind)];
+    }
+
+    /**
+     * Never NULL, so it can be negated: tuples without NULL go through one IN list, the others through
+     * null-safe equality.
+     *
+     * @param string[] $expressions
+     * @param array[] $tuples
+     */
+    private function tuplePredicate(array $expressions, array $tuples, array &$bind): string
+    {
+        $plain = [];
+        $withNull = [];
+        foreach ($tuples as $tuple) {
+            $tuple = array_slice(array_values($tuple), 0, count($expressions));
+            if (in_array(null, $tuple, true)) {
+                $withNull[] = $tuple;
+            } else {
+                $plain[] = $tuple;
+            }
+        }
+
+        $parts = [];
+        if ($plain) {
+            $single = count($expressions) === 1;
+            $left = $single ? $expressions[0] : '(' . implode(', ', $expressions) . ')';
+            $placeholder = $single ? '?' : '(' . implode(', ', array_fill(0, count($expressions), '?')) . ')';
+            $parts[] = 'COALESCE(' . $left . ' IN (' . implode(', ', array_fill(0, count($plain), $placeholder)) . '), 0)';
+            foreach ($plain as $tuple) {
+                array_push($bind, ...$tuple);
+            }
+        }
+        foreach ($withNull as $tuple) {
+            $parts[] = '(' . implode(' AND ', array_map(fn (string $e) => $e . ' <=> ?', $expressions)) . ')';
+            array_push($bind, ...$tuple);
+        }
+
+        return $parts ? '(' . implode(' OR ', $parts) . ')' : '(1 = 0)';
+    }
+
+    /**
+     * Grouped value of a dimension, with NULL and '' folded into one "not defined" group. NULLIF(expr, '') is not
+     * used because it also turns the number 0 into NULL ('' compares equal to 0).
+     */
+    private function groupExpression(DimensionEntry $dimension, array $joins): string
+    {
+        $expression = $this->expression($dimension, $joins);
+
+        return 'IF(LENGTH(' . $expression . ') = 0, NULL, ' . $expression . ')';
     }
 
     /**

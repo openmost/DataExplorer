@@ -27,6 +27,7 @@ class DataExplorer extends \Piwik\Plugin
     public function install()
     {
         ReportsDao::install();
+        Configuration::install();
     }
 
     public function uninstall()

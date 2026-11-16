@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Piwik\Plugins\DataExplorer\tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Piwik\Config;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
@@ -23,6 +24,44 @@ use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
  */
 class ReportDefinitionTest extends TestCase
 {
+    private $originalSection;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->originalSection = Config::getInstance()->DataExplorer;
+        Config::getInstance()->DataExplorer = [];
+    }
+
+    protected function tearDown(): void
+    {
+        Config::getInstance()->DataExplorer = $this->originalSection;
+        parent::tearDown();
+    }
+
+    public function testMaxRowDimensionsFollowsTheConfiguration(): void
+    {
+        $rows = fn (int $n) => $this->valid(['rows' => array_map(fn ($i) => 'Dim.D' . $i, range(1, $n))]);
+
+        Config::getInstance()->DataExplorer = ['dataexplorer_max_dimensions' => 5];
+        $this->assertCount(5, ReportDefinition::fromArray($rows(5))->getRows());
+        $this->assertTooManyRows($rows(6), 5);
+
+        Config::getInstance()->DataExplorer = ['dataexplorer_max_dimensions' => 12];
+        $this->assertCount(9, ReportDefinition::fromArray($rows(9))->getRows());
+        $this->assertTooManyRows($rows(10), 9);
+    }
+
+    private function assertTooManyRows(array $raw, int $max): void
+    {
+        try {
+            ReportDefinition::fromArray($raw);
+            $this->fail('Expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_ErrorTooManyRows', [$max]), $e->getMessage());
+        }
+    }
+
     private function valid(array $override = []): array
     {
         return array_merge([

@@ -32,7 +32,12 @@ use Piwik\Site;
 
 /**
  * Runs a visual definition live over the log tables and shapes the result as a DataTable:
- * nested subtables for 2 or 3 row dimensions, pivot cells as "<metric> | <column value>" columns.
+ * nested subtables for 2 or more row dimensions, pivot cells as "<metric> | <column value>" columns.
+ *
+ * Every statement transfers a bounded number of rows: each level keeps the configured number of rows per table
+ * (ranked in SQL by the first metric), child levels and the other metric scopes are restricted to the labels
+ * already kept, and "Others" is computed in SQL over the rows that were not kept, so it is exact for every
+ * aggregation, distinct counts included.
  */
 class VisualQueryRunner
 {
@@ -42,12 +47,29 @@ class VisualQueryRunner
 
     /** @var VisualQueryBuilder */
     private $builder;
+    /** @var callable(): float */
+    private $clock;
     /** @var array<string, Dimension|null> */
     private $dimensions = [];
 
-    public function __construct(?VisualQueryBuilder $builder = null)
+    /** @var ReportDefinition */
+    private $definition;
+    /** @var LogAggregator */
+    private $aggregator;
+    /** @var \Piwik\Db\AdapterInterface */
+    private $db;
+    /** @var float */
+    private $deadline;
+    /** @var int */
+    private $seconds;
+
+    /**
+     * @param callable(): float|null $clock seconds as a float, microtime(true) by default
+     */
+    public function __construct(?VisualQueryBuilder $builder = null, ?callable $clock = null)
     {
         $this->builder = $builder ?: new VisualQueryBuilder();
+        $this->clock = $clock ?: fn () => microtime(true);
     }
 
     /**
@@ -56,72 +78,210 @@ class VisualQueryRunner
     public function run(ReportDefinition $definition, int $idSite, string $period, string $date, string $segment): DataTable
     {
         $resolved = $this->builder->resolve($definition, $idSite);
-        $aggregator = $this->aggregator($idSite, $period, $date, $this->combineSegments($definition->getSegment(), $segment));
-
-        $levels = max(1, count($resolved['rows']));
-        $hasPivot = $resolved['column'] !== null;
-
-        $db = Db::getReader();
-        $seconds = Configuration::getMaxExecutionTimeSeconds();
-        $db->query(SessionLimits::forCurrentServer($db, $seconds));
-        try {
-            $cells = [];
-            for ($level = 0; $level < $levels; $level++) {
-                foreach ($resolved['scopes'] as $scope) {
-                    $this->merge($cells, $level, $this->fetch($db, $definition, $aggregator, $level, $scope, false), false);
-                    if ($hasPivot) {
-                        $this->merge($cells, $level, $this->fetch($db, $definition, $aggregator, $level, $scope, true), true);
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            if (SessionLimits::isTimeout($db, $e)) {
-                throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorQueryTimeout', [$seconds]), 0, $e);
-            }
-            throw $e;
-        } finally {
-            $db->query(SessionLimits::forCurrentServer($db, 0));
-        }
+        $this->definition = $definition;
+        $this->aggregator = $this->aggregator($idSite, $period, $date, $this->combineSegments($definition->getSegment(), $segment));
+        $this->db = Db::getReader();
+        $this->seconds = Configuration::getMaxExecutionTimeSeconds();
+        $this->deadline = ($this->clock)() + $this->seconds;
 
         $metricIds = array_map(fn (MetricEntry $m) => $m->id, $resolved['metrics']);
 
-        if (!$resolved['rows']) {
-            $table = new DataTable\Simple();
-            $table->addRowsFromArray($this->metricColumns($cells[0][$this->key([])]['metrics'] ?? [], $metricIds));
+        try {
+            if (!$resolved['rows']) {
+                $totals = [];
+                foreach ($resolved['scopes'] as $scope) {
+                    foreach ($this->fetch(['scope' => $scope, 'labels' => 0, 'limit' => 1]) as $row) {
+                        $totals += $this->parse($row)['metrics'];
+                    }
+                }
+                $table = new DataTable\Simple();
+                $table->addRowsFromArray($this->metricColumns($totals, $metricIds));
 
-            return $table;
+                return $table;
+            }
+
+            $data = $this->collect($resolved);
+        } catch (\Exception $e) {
+            if (SessionLimits::isTimeout($this->db, $e)) {
+                throw $this->timeout($e);
+            }
+            throw $e;
+        } finally {
+            $this->db->query(SessionLimits::forCurrentServer($this->db, 0));
         }
 
         $formatter = new Formatter();
-        $pivotValues = $hasPivot ? $this->topPivotValues($cells[0] ?? []) : [];
         $pivotLabels = [];
-        foreach ($pivotValues as $value) {
-            $pivotLabels[$this->key([$value])] = $this->label($resolved['column'], $value, $idSite, $formatter);
+        foreach ($data['pivotValues'] as $pivotKey => $value) {
+            $pivotLabels[$pivotKey] = $this->label($resolved['column'], $value, $idSite, $formatter);
         }
 
-        $children = [];
-        for ($level = 1; $level < $levels; $level++) {
-            foreach ($cells[$level] ?? [] as $key => $cell) {
-                $children[$level][$this->key(array_slice($cell['values'], 0, $level))][] = $key;
-            }
-        }
-
-        $context = [
-            'cells' => $cells,
-            'children' => $children,
+        $context = $data + [
             'rows' => $resolved['rows'],
             'metricIds' => $metricIds,
-            'pivotValues' => $pivotValues,
             'pivotLabels' => $pivotLabels,
             'aggregationOps' => $this->aggregationOps($resolved['metrics'], $pivotLabels),
             'idSite' => $idSite,
             'formatter' => $formatter,
         ];
 
-        $table = $this->buildTable($context, 0, array_keys($cells[0] ?? []));
-        $this->truncate($table, Configuration::getPreviewRowLimit(), $metricIds[0]);
+        return $this->buildTable($context, 0, $this->key([]));
+    }
 
-        return $table;
+    /**
+     * @return array{nodes: array, children: array, others: array, pivotValues: array}
+     */
+    private function collect(array $resolved): array
+    {
+        $depth = count($resolved['rows']);
+        $mainCap = Configuration::getMaxRowsInMainTable($depth);
+        $subCap = Configuration::getMaxRowsInSubTable($depth);
+        $primary = $resolved['scopes'][0];
+        $hasPivot = $resolved['column'] !== null;
+
+        $pivotValues = [];
+        if ($hasPivot) {
+            foreach ($this->fetch(['scope' => $primary, 'labels' => 0, 'pivot' => true, 'limit' => self::MAX_PIVOT_VALUES]) as $row) {
+                $value = $this->normalizeValue($row['pivot'] ?? null);
+                $pivotValues[$this->key([$value])] = $value;
+            }
+        }
+        $pivotIn = array_values($pivotValues);
+
+        $nodes = [];
+        $children = [];
+        $others = [];
+        $parents = [[]];
+
+        for ($level = 0; $level < $depth && $parents; $level++) {
+            $cap = $level === 0 ? $mainCap : $subCap;
+            $include = $level === 0 ? null : [$level, $parents];
+            $limit = min(count($parents) * $cap + 1, Configuration::getSqlRowLimit());
+
+            $rows = $this->fetch(['scope' => $primary, 'labels' => $level + 1, 'include' => $include, 'limit' => $limit]);
+            $overflow = count($rows) >= $limit;
+
+            $kept = [];
+            foreach ($rows as $row) {
+                $parsed = $this->parse($row);
+                $parentKey = $this->key(array_slice($parsed['values'], 0, $level));
+                if (count($children[$level][$parentKey] ?? []) >= $cap) {
+                    $overflow = true;
+                    continue;
+                }
+                $key = $this->key($parsed['values']);
+                $children[$level][$parentKey][] = $key;
+                $nodes[$level][$key] = ['values' => $parsed['values'], 'metrics' => $parsed['metrics'], 'pivot' => []];
+                $kept[] = $parsed['values'];
+            }
+            if (!$kept) {
+                break;
+            }
+
+            foreach (array_slice($resolved['scopes'], 1) as $scope) {
+                $spec = ['scope' => $scope, 'labels' => $level + 1, 'include' => [$level + 1, $kept], 'limit' => count($kept) + 1];
+                foreach ($this->fetch($spec) as $row) {
+                    $parsed = $this->parse($row);
+                    $key = $this->key($parsed['values']);
+                    if (isset($nodes[$level][$key])) {
+                        $nodes[$level][$key]['metrics'] += $parsed['metrics'];
+                    }
+                }
+            }
+
+            if ($pivotIn) {
+                foreach ($resolved['scopes'] as $scope) {
+                    $spec = ['scope' => $scope, 'labels' => $level + 1, 'pivot' => true, 'pivotIn' => $pivotIn,
+                        'include' => [$level + 1, $kept], 'limit' => count($kept) * count($pivotIn) + 1];
+                    foreach ($this->fetch($spec) as $row) {
+                        $parsed = $this->parse($row);
+                        $key = $this->key($parsed['values']);
+                        if (isset($nodes[$level][$key])) {
+                            $pivotKey = $this->key([$this->normalizeValue($row['pivot'] ?? null)]);
+                            $nodes[$level][$key]['pivot'][$pivotKey] = $parsed['metrics'] + ($nodes[$level][$key]['pivot'][$pivotKey] ?? []);
+                        }
+                    }
+                }
+            }
+
+            if ($overflow) {
+                $this->collectOthers($resolved['scopes'], $level, $parents, $kept, $pivotIn, $others);
+            }
+
+            $parents = $kept;
+        }
+
+        return ['nodes' => $nodes, 'children' => $children, 'others' => $others, 'pivotValues' => $pivotValues];
+    }
+
+    /**
+     * "Others" of every table of a level: the rows of each parent that were not kept, aggregated in SQL.
+     */
+    private function collectOthers(array $scopes, int $level, array $parents, array $kept, array $pivotIn, array &$others): void
+    {
+        $base = ['labels' => $level, 'exclude' => [$level + 1, $kept], 'limit' => count($parents) + 1];
+        if ($level > 0) {
+            $base['include'] = [$level, $parents];
+        }
+
+        foreach ($scopes as $scope) {
+            foreach ($this->fetch(['scope' => $scope] + $base) as $row) {
+                $parsed = $this->parse($row);
+                $parentKey = $this->key($parsed['values']);
+                $others[$level][$parentKey]['metrics'] = $parsed['metrics'] + ($others[$level][$parentKey]['metrics'] ?? []);
+            }
+
+            if ($pivotIn) {
+                $spec = ['scope' => $scope, 'pivot' => true, 'pivotIn' => $pivotIn, 'limit' => (count($parents) * count($pivotIn)) + 1] + $base;
+                foreach ($this->fetch($spec) as $row) {
+                    $parsed = $this->parse($row);
+                    $parentKey = $this->key($parsed['values']);
+                    $pivotKey = $this->key([$this->normalizeValue($row['pivot'] ?? null)]);
+                    $others[$level][$parentKey]['pivot'][$pivotKey] = $parsed['metrics'] + ($others[$level][$parentKey]['pivot'][$pivotKey] ?? []);
+                }
+            }
+        }
+    }
+
+    /**
+     * Runs one statement inside the time left of the run, capped at the SQL row limit.
+     */
+    private function fetch(array $spec): array
+    {
+        $spec['limit'] = min(max(1, (int) $spec['limit']), Configuration::getSqlRowLimit());
+        $query = $this->builder->buildQuery($this->definition, $this->aggregator, $spec);
+
+        $remaining = (int) floor(($this->deadline - ($this->clock)()) * 1000);
+        if ($remaining < 1) {
+            throw $this->timeout();
+        }
+        $this->db->query(SessionLimits::forCurrentServerMilliseconds($this->db, $remaining));
+
+        return $this->db->fetchAll($query['sql'], $query['bind']);
+    }
+
+    private function timeout(?\Throwable $previous = null): \InvalidArgumentException
+    {
+        return new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorQueryTimeout', [$this->seconds]), 0, $previous);
+    }
+
+    /**
+     * @return array{values: array, metrics: array}
+     */
+    private function parse(array $row): array
+    {
+        $values = [];
+        $metrics = [];
+        foreach ($row as $alias => $value) {
+            if (strpos($alias, 'label_') === 0) {
+                $values[(int) substr($alias, 6)] = $this->normalizeValue($value);
+            } elseif (strpos($alias, 'metric_') === 0) {
+                $metrics[(int) substr($alias, 7)] = $this->number($value);
+            }
+        }
+        ksort($values);
+
+        return ['values' => array_values($values), 'metrics' => $metrics];
     }
 
     private function aggregator(int $idSite, string $period, string $date, string $segment): LogAggregator
@@ -141,95 +301,45 @@ class VisualQueryRunner
         return implode(';', array_filter([trim($stored), trim($requested)], 'strlen'));
     }
 
-    private function fetch($db, ReportDefinition $definition, LogAggregator $aggregator, int $level, string $scope, bool $withPivot): array
-    {
-        $query = $this->builder->build($definition, $aggregator, $level, $scope, $withPivot);
-
-        return $db->fetchAll($query['sql'], $query['bind']);
-    }
-
-    /**
-     * Rows of every scope query are merged by their dimension values, never summed across scopes.
-     */
-    private function merge(array &$cells, int $level, array $rows, bool $pivot): void
-    {
-        foreach ($rows as $row) {
-            $values = [];
-            $metrics = [];
-            foreach ($row as $alias => $value) {
-                if (strpos($alias, 'label_') === 0) {
-                    $values[(int) substr($alias, 6)] = $this->normalizeValue($value);
-                } elseif (strpos($alias, 'metric_') === 0) {
-                    $metrics[(int) substr($alias, 7)] = $this->number($value);
-                }
-            }
-            ksort($values);
-            $values = array_values($values);
-
-            $key = $this->key($values);
-            if (!isset($cells[$level][$key])) {
-                $cells[$level][$key] = ['values' => $values, 'metrics' => [], 'pivot' => []];
-            }
-
-            if ($pivot) {
-                $pivotKey = $this->key([$this->normalizeValue($row['pivot'] ?? null)]);
-                $cells[$level][$key]['pivot'][$pivotKey] = ($cells[$level][$key]['pivot'][$pivotKey] ?? []) + $metrics;
-                $cells[$level][$key]['pivotValues'][$pivotKey] = $this->normalizeValue($row['pivot'] ?? null);
-            } else {
-                $cells[$level][$key]['metrics'] += $metrics;
-            }
-        }
-    }
-
-    /**
-     * Column values ranked by the first metric summed over the first row level, top MAX_PIVOT_VALUES kept.
-     */
-    private function topPivotValues(array $cells): array
-    {
-        $totals = [];
-        $values = [];
-        foreach ($cells as $cell) {
-            foreach ($cell['pivot'] as $pivotKey => $metrics) {
-                $totals[$pivotKey] = ($totals[$pivotKey] ?? 0) + ($metrics[0] ?? 0);
-                $values[$pivotKey] = $cell['pivotValues'][$pivotKey];
-            }
-        }
-        arsort($totals);
-
-        $top = [];
-        foreach (array_slice(array_keys($totals), 0, self::MAX_PIVOT_VALUES) as $pivotKey) {
-            $top[$pivotKey] = $values[$pivotKey];
-        }
-
-        return $top;
-    }
-
-    private function buildTable(array $context, int $level, array $keys): DataTable
+    private function buildTable(array $context, int $level, string $parentKey): DataTable
     {
         $table = new DataTable();
         $table->setMetadata(DataTable::COLUMN_AGGREGATION_OPS_METADATA_NAME, $context['aggregationOps']);
 
         $dimension = $context['rows'][$level];
-        foreach ($keys as $key) {
-            $cell = $context['cells'][$level][$key];
-            $value = $cell['values'][$level];
+        foreach ($context['children'][$level][$parentKey] ?? [] as $key) {
+            $node = $context['nodes'][$level][$key];
+            $value = $node['values'][$level];
 
             $columns = ['label' => $this->label($dimension, $value, $context['idSite'], $context['formatter'])];
-            $columns += $this->metricColumns($cell['metrics'], $context['metricIds']);
-            foreach ($context['pivotValues'] as $pivotKey => $pivotValue) {
-                foreach ($context['metricIds'] as $index => $metricId) {
-                    $columns[$metricId . ' | ' . $context['pivotLabels'][$pivotKey]] = $cell['pivot'][$pivotKey][$index] ?? 0;
-                }
-            }
+            $columns += $this->cellColumns($node, $context);
 
             $row = new Row([Row::COLUMNS => $columns, Row::METADATA => ['value' => $value]]);
-            if (isset($context['children'][$level + 1][$key])) {
-                $row->setSubtable($this->buildTable($context, $level + 1, $context['children'][$level + 1][$key]));
+            if ($level + 1 < count($context['rows']) && (isset($context['children'][$level + 1][$key]) || isset($context['others'][$level + 1][$key]))) {
+                $row->setSubtable($this->buildTable($context, $level + 1, $key));
             }
             $table->addRow($row);
         }
 
+        if (isset($context['others'][$level][$parentKey])) {
+            $others = $context['others'][$level][$parentKey] + ['metrics' => [], 'pivot' => []];
+            $columns = ['label' => Piwik::translate('General_Others')] + $this->cellColumns($others, $context);
+            $table->addSummaryRow(new Row([Row::COLUMNS => $columns]));
+        }
+
         return $table;
+    }
+
+    private function cellColumns(array $cell, array $context): array
+    {
+        $columns = $this->metricColumns($cell['metrics'], $context['metricIds']);
+        foreach ($context['pivotLabels'] as $pivotKey => $pivotLabel) {
+            foreach ($context['metricIds'] as $index => $metricId) {
+                $columns[$metricId . ' | ' . $pivotLabel] = $cell['pivot'][$pivotKey][$index] ?? 0;
+            }
+        }
+
+        return $columns;
     }
 
     private function metricColumns(array $metrics, array $metricIds): array
@@ -254,34 +364,6 @@ class VisualQueryRunner
         }
 
         return $ops;
-    }
-
-    /**
-     * Keeps the top rows by the first metric and sums the rest into one "Others" summary row, at every level.
-     * Unlike the core Truncate filter, a single extra row is summed too so the row count never exceeds the limit.
-     */
-    private function truncate(DataTable $table, int $limit, string $sortColumn): void
-    {
-        $table->filter('Sort', [$sortColumn, 'desc', $naturalSort = true, $recursiveSort = false]);
-
-        $rows = array_values($table->getRows());
-        if (count($rows) > $limit) {
-            $summary = new Row([Row::COLUMNS => ['label' => DataTable::LABEL_SUMMARY_ROW]]);
-            $ops = $table->getMetadata(DataTable::COLUMN_AGGREGATION_OPS_METADATA_NAME);
-            foreach (array_slice($rows, $limit) as $row) {
-                $summary->sumRow($row, $copyMetadata = false, $ops);
-            }
-            $table->filter('Limit', [0, $limit]);
-            $table->addSummaryRow($summary);
-            $table->filter('ReplaceSummaryRowLabel');
-        }
-
-        foreach ($table->getRowsWithoutSummaryRow() as $row) {
-            $subtable = $row->getSubtable();
-            if ($subtable) {
-                $this->truncate($subtable, $limit, $sortColumn);
-            }
-        }
     }
 
     private function label(DimensionEntry $entry, $value, int $idSite, Formatter $formatter): string

@@ -40,6 +40,21 @@ class SessionLimitsTest extends TestCase
         $this->assertSame('SET SESSION MAX_EXECUTION_TIME=0', SessionLimits::forCurrentServer($this->db('8.0.36'), -5));
     }
 
+    public function test_milliseconds(): void
+    {
+        $this->assertSame('SET SESSION MAX_EXECUTION_TIME=1500', SessionLimits::forCurrentServerMilliseconds($this->db('8.0.36'), 1500));
+        $this->assertSame('SET SESSION max_statement_time=1.500', SessionLimits::forCurrentServerMilliseconds($this->db('10.11.6-MariaDB'), 1500));
+    }
+
+    public function test_isTimeout_recognisesMysqlAndMariadbErrors(): void
+    {
+        $db = $this->getMockBuilder(Mysql::class)->disableOriginalConstructor()->onlyMethods([])->getMock();
+
+        $this->assertTrue(SessionLimits::isTimeout($db, new \Exception('SQLSTATE[HY000]: General error: 3024 Query execution was interrupted, maximum statement execution time exceeded')));
+        $this->assertTrue(SessionLimits::isTimeout($db, new \Exception('SQLSTATE[70100]: <<Unknown error>>: 1969 Query execution was interrupted (max_statement_time exceeded)')));
+        $this->assertFalse(SessionLimits::isTimeout($db, new \Exception('SQLSTATE[42S22]: Column not found: 1054 Unknown column')));
+    }
+
     private function db(string $version): AdapterInterface
     {
         $db = $this->getMockBuilder(Mysql::class)->disableOriginalConstructor()->onlyMethods(['fetchOne'])->getMock();

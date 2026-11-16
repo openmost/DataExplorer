@@ -11,6 +11,7 @@ namespace Piwik\Plugins\DataExplorer\tests\Integration;
 
 use Piwik\ArchiveProcessor\Parameters;
 use Piwik\Common;
+use Piwik\Config;
 use Piwik\DataAccess\LogAggregator;
 use Piwik\DataTable;
 use Piwik\Db;
@@ -18,6 +19,7 @@ use Piwik\NoAccessException;
 use Piwik\Period\Factory as PeriodFactory;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\API;
+use Piwik\Plugins\DataExplorer\Configuration;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
@@ -233,17 +235,20 @@ class VisualQueryTest extends IntegrationTestCase
         }
     }
 
-    public function test_rowsBeyondThePreviewLimit_areSummedIntoOthers(): void
+    public function test_rowsBeyondTheDefaultCap_areSummedIntoOthers(): void
     {
         $runner = new VisualQueryRunner();
         $definition = ReportDefinition::fromArray(['name' => 'preview', 'rows' => [self::URL], 'metrics' => ['nb_visits', 'nb_actions']]);
         $table = $runner->run($definition, self::$fixture->idSite2, 'day', '2024-03-02', '');
 
-        $this->assertSame(1001, $table->getRowsCount());
+        $cap = Configuration::getMaxRowsInMainTable(1);
+        $this->assertSame($cap + 1, $table->getRowsCount());
         $others = $table->getRowFromId(DataTable::ID_SUMMARY_ROW);
         $this->assertNotFalse($others);
-        $this->assertSame(Piwik::translate('General_Others'), $others->getColumn('label'));
-        $this->assertSame(1, $others->getColumn('nb_actions'));
+        $this->assertSame($this->others(), $others->getColumn('label'));
+        $this->assertSame(ExplorerFixture::SITE2_URL_COUNT - $cap, $others->getColumn('nb_actions'));
+        // distinct counts of "Others" are counted over the rows not kept, not summed: all of them are one visit
+        $this->assertSame(1, $others->getColumn('nb_visits'));
     }
 
     public function test_tableWithoutRows_returnsTotals(): void
@@ -252,6 +257,96 @@ class VisualQueryTest extends IntegrationTestCase
 
         $this->assertSame(1, $table->getRowsCount());
         $this->assertSame(6, $table->getFirstRow()->getColumn('nb_visits'));
+    }
+
+    public function test_rowCaps_limitMainTablesAndSubtables_andSumTheRestIntoOthers(): void
+    {
+        Config::getInstance()->DataExplorer = [
+            'datatable_archiving_maximum_rows_dataexplorer_dimensions_1' => 2,
+            'datatable_archiving_maximum_rows_dataexplorer_dimensions_2' => 2,
+            'datatable_archiving_maximum_rows_subtable_dataexplorer_dimensions_2' => 1,
+        ];
+
+        $single = $this->explore(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits', 'nb_actions', 'nb_conversions']]);
+        $this->assertSame(3, $single->getRowsCount());
+        $this->assertSame(['France' => 3, 'United States' => 2, $this->others() => 1], $this->column($single, 'nb_visits'));
+        $this->assertSame(['France' => 5, 'United States' => 3, $this->others() => 2], $this->column($single, 'nb_actions'));
+        $this->assertSame(['France' => 1, 'United States' => 1, $this->others() => 0], $this->column($single, 'nb_conversions'));
+
+        $table = $this->explore(['rows' => [self::COUNTRY, self::DEVICE], 'metrics' => ['nb_visits', 'nb_actions']]);
+
+        $this->assertSame(3, $table->getRowsCount());
+        $this->assertSame(['France' => 3, 'United States' => 2, $this->others() => 1], $this->column($table, 'nb_visits'));
+        $this->assertSame(['France' => 5, 'United States' => 3, $this->others() => 2], $this->column($table, 'nb_actions'));
+
+        $france = $table->getRowFromLabel('France')->getSubtable();
+        $this->assertSame(['Desktop' => 2, $this->others() => 1], $this->column($france, 'nb_visits'));
+        $this->assertSame(['Desktop' => 4, $this->others() => 1], $this->column($france, 'nb_actions'));
+
+        $unitedStates = $table->getRowFromLabel('United States')->getSubtable();
+        $this->assertSame(2, $unitedStates->getRowsCount());
+        $this->assertSame(1, $unitedStates->getRowFromId(DataTable::ID_SUMMARY_ROW)->getColumn('nb_visits'));
+    }
+
+    public function test_fourRowDimensions_nestFourLevels(): void
+    {
+        Config::getInstance()->DataExplorer = ['dataexplorer_max_dimensions' => 4];
+
+        $table = $this->explore(['rows' => [self::COUNTRY, self::DEVICE, self::TITLE, self::URL], 'metrics' => ['nb_visits']]);
+
+        $titles = $table->getRowFromLabel('France')->getSubtable()->getRowFromLabel('Desktop')->getSubtable();
+        $this->assertEquals(['Home' => 1, 'Pricing' => 2], $this->column($titles, 'nb_visits'));
+        $urls = $titles->getRowFromLabel('Pricing')->getSubtable();
+        $this->assertSame(2, $this->findBySuffix($this->column($urls, 'nb_visits'), '/pricing'));
+        $this->assertSame(1, $urls->getRowsCount());
+    }
+
+    public function test_pivotUnderLimits_keepsCellsOfKeptRowsAndOthers(): void
+    {
+        Config::getInstance()->DataExplorer = ['datatable_archiving_maximum_rows_dataexplorer_dimensions_1' => 2];
+
+        $table = $this->explore(['rows' => [self::COUNTRY], 'column' => self::DEVICE, 'metrics' => ['nb_visits']]);
+
+        $this->assertSame(['France' => 2, 'United States' => 1, $this->others() => 1], $this->column($table, 'nb_visits | Desktop'));
+        $this->assertSame(['France' => 1, 'United States' => 1, $this->others() => 0], $this->column($table, 'nb_visits | Smartphone'));
+    }
+
+    public function test_nullAndEmptyValues_formOneNotDefinedRow(): void
+    {
+        $visits = Common::prefixTable('log_visit');
+        Db::query("UPDATE $visits SET referer_name = NULL WHERE idsite = 1");
+        Db::query("UPDATE $visits SET referer_name = '' WHERE idsite = 1 AND idvisit IN (1, 3)");
+        Db::query("UPDATE $visits SET referer_name = 'google' WHERE idsite = 1 AND idvisit = 2");
+
+        $table = $this->explore(['rows' => ['Referrers.ReferrerName'], 'metrics' => ['nb_visits']]);
+
+        $notDefined = Piwik::translate('General_NotDefined', Piwik::translate('Referrers_ReferrerName'));
+        $this->assertSame([$notDefined => 5, 'google' => 1], $this->column($table, 'nb_visits'));
+    }
+
+    public function test_actionSegment_appliesToVisitAndActionQueries(): void
+    {
+        $countries = $this->explore(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits', 'nb_actions']], 'pageUrl=@pricing');
+        $this->assertSame(['France' => 2], $this->column($countries, 'nb_visits'));
+
+        $urls = $this->explore(['rows' => [self::URL], 'metrics' => ['nb_actions']], 'pageUrl=@pricing');
+        $this->assertSame(2, $this->findBySuffix($this->column($urls, 'nb_actions'), '/pricing'));
+    }
+
+    public function test_exhaustedTimeBudget_throwsTheTimeoutError(): void
+    {
+        $calls = 0;
+        $clock = function () use (&$calls) {
+            return $calls++ === 0 ? 1000.0 : 2000.0;
+        };
+        $definition = ReportDefinition::fromArray(['name' => 'preview', 'rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);
+
+        try {
+            (new VisualQueryRunner(null, $clock))->run($definition, self::$fixture->idSite, 'range', self::RANGE, '');
+            $this->fail('expected a timeout');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_ErrorQueryTimeout', [30]), $e->getMessage());
+        }
     }
 
     public function test_statementTimeout_isResetAfterTheRun(): void
@@ -280,6 +375,11 @@ class VisualQueryTest extends IntegrationTestCase
         $definition = ReportDefinition::fromArray($definition + ['name' => 'preview']);
 
         return (new VisualQueryRunner())->run($definition, self::$fixture->idSite, 'range', self::RANGE, $segment);
+    }
+
+    private function others(): string
+    {
+        return Piwik::translate('General_Others');
     }
 
     private function aggregator(string $segment): LogAggregator

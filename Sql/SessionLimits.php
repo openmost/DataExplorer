@@ -23,18 +23,31 @@ final class SessionLimits
      */
     public const TIMEOUT_ERROR_CODES = [3024, 1969];
 
+    /** @var \SplObjectStorage|null keeps the connections it knows, so an id is never reused for another one */
+    private static $isMariaDb;
+
     /**
      * @param int $seconds 0 or less removes the limit
      */
     public static function forCurrentServer(AdapterInterface $db, int $seconds): string
     {
-        $seconds = max(0, $seconds);
+        return self::forCurrentServerMilliseconds($db, max(0, $seconds) * 1000);
+    }
+
+    /**
+     * @param int $milliseconds 0 or less removes the limit
+     */
+    public static function forCurrentServerMilliseconds(AdapterInterface $db, int $milliseconds): string
+    {
+        $milliseconds = max(0, $milliseconds);
 
         if (self::isMariaDb($db)) {
+            $seconds = $milliseconds % 1000 === 0 ? (string) ($milliseconds / 1000) : sprintf('%.3F', $milliseconds / 1000);
+
             return 'SET SESSION max_statement_time=' . $seconds;
         }
 
-        return 'SET SESSION MAX_EXECUTION_TIME=' . ($seconds * 1000);
+        return 'SET SESSION MAX_EXECUTION_TIME=' . $milliseconds;
     }
 
     public static function isTimeout(AdapterInterface $db, \Throwable $e): bool
@@ -50,8 +63,12 @@ final class SessionLimits
 
     private static function isMariaDb(AdapterInterface $db): bool
     {
-        $version = method_exists($db, 'fetchOne') ? (string) $db->fetchOne('SELECT VERSION()') : '';
+        self::$isMariaDb = self::$isMariaDb ?: new \SplObjectStorage();
+        if (!self::$isMariaDb->contains($db)) {
+            $version = method_exists($db, 'fetchOne') ? (string) $db->fetchOne('SELECT VERSION()') : '';
+            self::$isMariaDb[$db] = stripos($version, 'mariadb') !== false;
+        }
 
-        return stripos($version, 'mariadb') !== false;
+        return self::$isMariaDb[$db];
     }
 }

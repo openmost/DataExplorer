@@ -12,13 +12,13 @@ declare(strict_types=1);
 namespace Piwik\Plugins\DataExplorer\Model;
 
 use Piwik\Piwik;
+use Piwik\Plugins\DataExplorer\Configuration;
 
 /**
  * Validated definition of a saved exploration (visual) or raw SQL report.
  */
 class ReportDefinition
 {
-    public const MAX_ROWS = 3;
     public const MAX_METRICS = 10;
     public const MAX_NAME_LENGTH = 255;
 
@@ -106,8 +106,9 @@ class ReportDefinition
 
     private function validateVisual(): void
     {
-        if (count($this->rows) > self::MAX_ROWS) {
-            throw self::error('DataExplorer_ErrorTooManyRows', self::MAX_ROWS);
+        $maxRows = Configuration::getMaxDimensions();
+        if (count($this->rows) > $maxRows) {
+            throw self::error('DataExplorer_ErrorTooManyRows', $maxRows);
         }
         if (count($this->metrics) > self::MAX_METRICS) {
             throw self::error('DataExplorer_ErrorTooManyMetrics', self::MAX_METRICS);
