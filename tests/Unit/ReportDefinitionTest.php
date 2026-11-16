@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Piwik\Plugins\DataExplorer\tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 
@@ -69,29 +70,37 @@ class ReportDefinitionTest extends TestCase
     /**
      * @dataProvider invalidProvider
      */
-    public function testInvalidDefinitionsAreRefused(array $override): void
+    public function testInvalidDefinitionsAreRefused(array $override, string $key, array $params = []): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        ReportDefinition::fromArray($this->valid($override));
+        try {
+            ReportDefinition::fromArray($this->valid($override));
+            $this->fail('Expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertNotSame('', $e->getMessage());
+            $this->assertSame(Piwik::translate($key, $params), $e->getMessage());
+        }
     }
 
     public function invalidProvider(): array
     {
+        $ev = ['report_type' => 'evolution'];
+        $kpi = ['report_type' => 'kpicard'];
+
         return [
-            'no row' => [['rows' => []]],
-            'four rows' => [['rows' => ['a', 'b', 'c', 'd']]],
-            'pivot on evolution' => [['report_type' => 'evolution', 'rows' => [], 'column' => 'a']],
-            'pivot on kpicard' => [['report_type' => 'kpicard', 'rows' => [], 'column' => 'a']],
-            'eleven metrics' => [['metrics' => range(1, 11)]],
-            'no metric' => [['metrics' => []]],
-            'kpicard two metrics' => [['report_type' => 'kpicard', 'rows' => [], 'metrics' => ['a', 'b']]],
-            'evolution with row' => [['report_type' => 'evolution', 'rows' => ['a']]],
-            'other technique' => [['technique' => 'funnel']],
-            'sql empty' => [['type' => 'sql', 'sql' => '  ']],
-            'empty name' => [['name' => '']],
-            'long name' => [['name' => str_repeat('a', 256)]],
-            'bad type' => [['type' => 'xyz']],
-            'bad report type' => [['report_type' => 'pie']],
+            'no row' => [['rows' => []], 'DataExplorer_ErrorRowRequired'],
+            'four rows' => [['rows' => ['a', 'b', 'c', 'd']], 'DataExplorer_ErrorTooManyRows', [3]],
+            'pivot on evolution' => [$ev + ['rows' => [], 'column' => 'a'], 'DataExplorer_ErrorColumnOnlyForTable'],
+            'pivot on kpicard' => [$kpi + ['rows' => [], 'column' => 'a'], 'DataExplorer_ErrorColumnOnlyForTable'],
+            'eleven metrics' => [['metrics' => array_map('strval', range(1, 11))], 'DataExplorer_ErrorTooManyMetrics', [10]],
+            'no metric' => [['metrics' => []], 'DataExplorer_ErrorMetricRequired'],
+            'kpicard two metrics' => [$kpi + ['rows' => [], 'metrics' => ['a', 'b']], 'DataExplorer_ErrorKpiCardOneMetric'],
+            'evolution with row' => [$ev + ['rows' => ['a']], 'DataExplorer_ErrorRowsOnlyForTable'],
+            'other technique' => [['technique' => 'funnel'], 'DataExplorer_ErrorTechniqueInvalid'],
+            'sql empty' => [['type' => 'sql', 'sql' => '  '], 'DataExplorer_ErrorSqlEmpty'],
+            'empty name' => [['name' => ''], 'DataExplorer_ErrorNameInvalid', [255]],
+            'long name' => [['name' => str_repeat('a', 256)], 'DataExplorer_ErrorNameInvalid', [255]],
+            'bad type' => [['type' => 'xyz'], 'DataExplorer_ErrorTypeInvalid'],
+            'bad report type' => [['report_type' => 'pie'], 'DataExplorer_ErrorReportTypeInvalid'],
         ];
     }
 
