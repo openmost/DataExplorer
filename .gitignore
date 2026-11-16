@@ -7,3 +7,4 @@ node_modules/
 # Matomo loads the minified library only, the non minified build's lazy chunks are not shipped
 /vue/dist/*.umd.vendors~*.js
 /vue/dist/*.umd.echarts.js
+/vue/dist/*.umd.codemirror.js

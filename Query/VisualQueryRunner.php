@@ -12,11 +12,14 @@ declare(strict_types=1);
 namespace Piwik\Plugins\DataExplorer\Query;
 
 use Piwik\ArchiveProcessor\Parameters;
+use Piwik\Archive\DataTableFactory;
 use Piwik\DataAccess\LogAggregator;
 use Piwik\DataTable;
 use Piwik\DataTable\Row;
 use Piwik\Db;
+use Piwik\Period;
 use Piwik\Period\Factory as PeriodFactory;
+use Piwik\Period\Range;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionEntry;
 use Piwik\Plugins\DataExplorer\Catalog\MetricEntry;
@@ -42,6 +45,12 @@ use Piwik\Site;
 class VisualQueryRunner
 {
     public const MAX_PIVOT_VALUES = 10;
+
+    /** points of an evolution preview ending at a single selected period, like the saved evolution charts */
+    public const EVOLUTION_POINTS = 30;
+
+    /** most recent points kept when the preview requests several periods (a long date range) */
+    public const EVOLUTION_MAX_POINTS = 90;
 
     /** label of the NULL / empty value in archived tables, formatted at display time */
     public const ARCHIVED_NOT_DEFINED = '__dataexplorer_not_defined__';
@@ -96,6 +105,46 @@ class VisualQueryRunner
         $this->deadline = ($this->clock)() + $this->seconds;
 
         return $this->execute($definition, $resolved, $aggregator, $idSite, Configuration::getMaxRowsInMainTable($depth), Configuration::getMaxRowsInSubTable($depth));
+    }
+
+    /**
+     * Runs a definition without row dimensions once per period, all of them within one time budget: the days of a
+     * range, the requested periods of a multiple period (most recent EVOLUTION_MAX_POINTS), or the EVOLUTION_POINTS
+     * periods ending at a single period.
+     *
+     * @throws \InvalidArgumentException with a translated message when the definition cannot be run
+     */
+    public function runEvolution(ReportDefinition $definition, int $idSite, string $period, string $date, string $segment): DataTable\Map
+    {
+        $resolved = $this->builder->resolve($definition, $idSite);
+        if ($resolved['rows']) {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorRowsOnlyForTable'));
+        }
+
+        $site = new Site($idSite);
+        if ($period === 'range') {
+            $period = 'day';
+        } elseif (!Period::isMultiplePeriod($date, $period)) {
+            $date = Range::getRelativeToEndDate($period, 'last' . self::EVOLUTION_POINTS, $date, $site);
+        }
+        $subPeriods = (new Range($period, $date, $site->getTimezone()))->getSubperiods();
+        $subPeriods = array_slice($subPeriods, -self::EVOLUTION_MAX_POINTS);
+
+        $this->archiving = false;
+        $this->seconds = Configuration::getMaxExecutionTimeSeconds();
+        $this->deadline = ($this->clock)() + $this->seconds;
+
+        $map = new DataTable\Map();
+        $map->setKeyName('date');
+        foreach ($subPeriods as $subPeriod) {
+            $aggregator = $this->aggregator($idSite, $subPeriod->getLabel(), $subPeriod->getDateStart()->toString(), self::combineSegments($definition->getSegment(), $segment));
+            $table = $this->execute($definition, $resolved, $aggregator, $idSite, 1, 1);
+            $table->setMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX, $subPeriod);
+            $table->setMetadata(DataTableFactory::TABLE_METADATA_SITE_INDEX, $site);
+            $map->addTable($table, $subPeriod->getLabel() === 'week' ? $subPeriod->getRangeString() : $subPeriod->getPrettyString());
+        }
+
+        return $map;
     }
 
     /**

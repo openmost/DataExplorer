@@ -4,7 +4,11 @@
   "description": "Build dependencies of the DataExplorer Vue library (charts and SQL editor)",
   "dependencies": {
     "@codemirror/lang-sql": "^6.8.0",
+    "@codemirror/language": "^6.13.1",
     "@codemirror/lint": "^6.8.5",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
     "codemirror": "^6.0.2",
     "echarts": "^5.6.0"
   },

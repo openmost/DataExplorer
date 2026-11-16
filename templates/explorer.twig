@@ -1,3 +1,1 @@
-<div class="dataExplorerExplorer">
-    <p>{{ 'DataExplorer_ExploreIntro'|translate }}</p>
-</div>
+<div class="dataExplorerExplorer" vue-entry="DataExplorer.Explorer"{% for name, value in explorerProps %} {{ name }}="{{ value|json_encode }}"{% endfor %}></div>

@@ -413,6 +413,43 @@ class VisualQueryTest extends IntegrationTestCase
         API::getInstance()->runVisual(1, 'range', self::RANGE, $definition);
     }
 
+    public function test_api_runVisual_evolutionOverADateRange_returnsOneTotalPerDay(): void
+    {
+        $definition = json_encode(['report_type' => 'evolution', 'metrics' => ['nb_visits', 'nb_actions']]);
+
+        $map = API::getInstance()->runVisual(1, 'range', self::RANGE, $definition);
+
+        $this->assertInstanceOf(DataTable\Map::class, $map);
+        $values = [];
+        foreach ($map->getDataTables() as $table) {
+            $values[] = $table->getFirstRow()->getColumn('nb_visits');
+        }
+        $this->assertSame([2, 2, 2], $values);
+    }
+
+    public function test_api_runVisual_evolutionOfOnePeriod_endsWithThatPeriod(): void
+    {
+        $definition = json_encode(['report_type' => 'evolution', 'metrics' => ['nb_visits']]);
+
+        $map = API::getInstance()->runVisual(1, 'day', '2024-03-03', $definition);
+
+        $tables = $map->getDataTables();
+        $this->assertCount(VisualQueryRunner::EVOLUTION_POINTS, $tables);
+        $this->assertSame(2, end($tables)->getFirstRow()->getColumn('nb_visits'));
+        $this->assertSame(0, reset($tables)->getFirstRow()->getColumn('nb_visits'));
+    }
+
+    public function test_api_runVisual_evolutionOfAMultiplePeriod_keepsTheMostRecentPoints(): void
+    {
+        $definition = json_encode(['report_type' => 'evolution', 'metrics' => ['nb_visits']]);
+
+        $map = API::getInstance()->runVisual(1, 'day', '2023-01-01,2024-03-03', $definition);
+
+        $tables = $map->getDataTables();
+        $this->assertCount(VisualQueryRunner::EVOLUTION_MAX_POINTS, $tables);
+        $this->assertSame(2, end($tables)->getFirstRow()->getColumn('nb_visits'));
+    }
+
     private function explore(array $definition, string $segment = ''): DataTable
     {
         $definition = ReportDefinition::fromArray($definition + ['name' => 'preview']);

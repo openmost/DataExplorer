@@ -166,6 +166,21 @@ class CatalogTest extends IntegrationTestCase
         $this->assertSame([['definition' => 'countryCode==fr', 'name' => 'My segment']], $catalog['segments']);
     }
 
+    public function test_getCatalog_exposesTheLimitsOfTheExplorer(): void
+    {
+        $this->as([1]);
+        $original = \Piwik\Config::getInstance()->DataExplorer;
+
+        try {
+            $this->assertSame(['maxDimensions' => 3, 'maxMetrics' => 10, 'maxColumns' => 1], API::getInstance()->getCatalog(1)['limits']);
+
+            \Piwik\Config::getInstance()->DataExplorer = ['dataexplorer_max_dimensions' => 5];
+            $this->assertSame(5, API::getInstance()->getCatalog(1)['limits']['maxDimensions']);
+        } finally {
+            \Piwik\Config::getInstance()->DataExplorer = $original;
+        }
+    }
+
     public function test_getCatalog_withoutAccessRefused(): void
     {
         $this->as([]);

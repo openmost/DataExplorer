@@ -11,9 +11,13 @@ declare(strict_types=1);
 
 namespace Piwik\Plugins\DataExplorer\Widgets;
 
+use Piwik\Access;
 use Piwik\Common;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
+use Piwik\Plugins\DataExplorer\Sql\ReadOnlySetup;
+use Piwik\Site;
+use Piwik\Url;
 use Piwik\Widget\Widget;
 use Piwik\Widget\WidgetConfig;
 
@@ -36,8 +40,32 @@ class ExplorerWidget extends Widget
 
     public function render()
     {
-        Piwik::checkUserHasViewAccess(Common::getRequestVar('idSite', 0, 'int'));
+        $idSite = Common::getRequestVar('idSite', 0, 'int');
+        Piwik::checkUserHasViewAccess($idSite);
 
-        return $this->renderTemplate('explorer');
+        $isSuperUser = Piwik::hasUserSuperUserAccess();
+
+        $writableSites = [];
+        foreach (Access::getInstance()->getSitesIdWithAtLeastWriteAccess() as $id) {
+            $writableSites[] = ['id' => (int) $id, 'name' => Common::unsanitizeInputValue(Site::getNameFor((int) $id))];
+        }
+        usort($writableSites, fn (array $a, array $b) => $a['id'] <=> $b['id']);
+
+        return $this->renderTemplate('explorer', [
+            'explorerProps' => [
+                'is-super-user' => $isSuperUser,
+                'can-save' => Piwik::isUserHasWriteAccess($idSite),
+                'writable-sites' => $writableSites,
+                // the raw SQL tab is a super user tool, its status needs a connection to the read-only user
+                'sql-status' => $isSuperUser ? (new ReadOnlySetup())->status() : null,
+                'setup-url' => $isSuperUser ? 'index.php?' . Url::getQueryStringFromParameters([
+                    'module' => 'DataExplorer',
+                    'action' => 'setup',
+                    'idSite' => $idSite,
+                    'period' => Common::getRequestVar('period', 'day', 'string'),
+                    'date' => Common::getRequestVar('date', 'today', 'string'),
+                ]) : '',
+            ],
+        ]);
     }
 }

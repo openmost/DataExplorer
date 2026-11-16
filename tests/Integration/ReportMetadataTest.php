@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace Piwik\Plugins\DataExplorer\tests\Integration;
 
+use Piwik\API\Request;
 use Piwik\Cache;
 use Piwik\Category\CategoryList;
 use Piwik\Piwik;
@@ -128,6 +129,34 @@ class ReportMetadataTest extends IntegrationTestCase
         $this->assertSame(EChartsLine::ID, $widgets['General_Actions/Campaign pages/Everywhere']['viewDataTable']);
         $this->assertSame(EChartsKpi::ID, $widgets['General_Visitors/General_Overview/Visits card']['viewDataTable']);
         $this->assertArrayNotHasKey('General_Visitors/General_Overview/On site 2', $widgets);
+    }
+
+    /**
+     * The reporting menu opens a page from the subcategory id in the URL hash: an id with characters HTML and URLs
+     * treat specially must reach the browser unchanged in the JSON the menu reads, and in the save dialog list.
+     */
+    public function test_subcategoryWithSpecialCharacters_reachesTheMenuAndTheSaveDialogUnchanged(): void
+    {
+        $subcategory = 'Q&A <beta> "x": 100% #1';
+        $this->save('Special page report', 'table', ['sites' => [1]], 'General_Actions', $subcategory, ['rows' => ['UserCountry.Country'], 'metrics' => ['nb_visits']]);
+        $_GET['idSite'] = '1';
+        Cache::getTransientCache()->flushAll();
+
+        $json = Request::processRequest('API.getReportPagesMetadata', ['idSite' => 1, 'format' => 'json', 'filter_limit' => -1]);
+        $page = null;
+        foreach (json_decode($json, true) as $candidate) {
+            if ($candidate['subcategory']['id'] === $subcategory) {
+                $page = $candidate;
+            }
+        }
+        $this->assertNotNull($page, $json);
+        $this->assertSame('General_Actions', $page['category']['id']);
+        $this->assertSame($subcategory, $page['subcategory']['name']);
+        $this->assertContains('Special page report', array_column($page['widgets'], 'name'));
+
+        $json = Request::processRequest('DataExplorer.getCategories', ['idSite' => 1, 'format' => 'json']);
+        $actions = array_column(json_decode($json, true), null, 'id')['General_Actions'];
+        $this->assertContains(['id' => $subcategory, 'name' => $subcategory], $actions['subcategories']);
     }
 
     private function dataExplorerReports(int $idSite): array

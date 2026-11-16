@@ -27,6 +27,122 @@ use Piwik\Site;
 
 class DataExplorer extends \Piwik\Plugin
 {
+    /**
+     * Translations used by the Vue explorer, raw SQL editor and save dialog.
+     */
+    private const CLIENT_SIDE_TRANSLATION_KEYS = [
+        'DataExplorer_DataExplorer',
+        'DataExplorer_KpiPreviousPeriod',
+        'DataExplorer_Variables',
+        'DataExplorer_Dimensions',
+        'DataExplorer_Metrics',
+        'DataExplorer_Segments',
+        'DataExplorer_AddDimensions',
+        'DataExplorer_AddMetrics',
+        'DataExplorer_AddSegments',
+        'DataExplorer_NoDimensions',
+        'DataExplorer_NoMetrics',
+        'DataExplorer_NoSegments',
+        'DataExplorer_DimensionUseHint',
+        'DataExplorer_MetricUseHint',
+        'DataExplorer_SegmentUseHint',
+        'DataExplorer_RemoveVariable',
+        'DataExplorer_PickerSearch',
+        'DataExplorer_PickerNoMatch',
+        'DataExplorer_SavedSegments',
+        'DataExplorer_TabSettings',
+        'DataExplorer_Visualization',
+        'DataExplorer_Visualization_table',
+        'DataExplorer_Visualization_bar',
+        'DataExplorer_Visualization_pie',
+        'DataExplorer_Visualization_line',
+        'DataExplorer_Visualization_kpicard',
+        'DataExplorer_SegmentComparison',
+        'DataExplorer_Rows',
+        'DataExplorer_Columns',
+        'DataExplorer_Values',
+        'DataExplorer_Filters',
+        'DataExplorer_DropDimension',
+        'DataExplorer_DropMetric',
+        'DataExplorer_DropSegment',
+        'DataExplorer_DropFilter',
+        'DataExplorer_ZoneCount',
+        'DataExplorer_ChipRemoveHint',
+        'DataExplorer_RemoveFromZone',
+        'DataExplorer_RowsNotUsedByVisualization',
+        'DataExplorer_KpiFirstMetricOnly',
+        'DataExplorer_FilterOperatorLabel',
+        'DataExplorer_FilterOperator_equals',
+        'DataExplorer_FilterOperator_not_equals',
+        'DataExplorer_FilterOperator_contains',
+        'DataExplorer_FilterOperator_starts_with',
+        'DataExplorer_FilterOperator_regex',
+        'DataExplorer_FilterOperator_gt',
+        'DataExplorer_FilterOperator_lt',
+        'DataExplorer_FilterValueLabel',
+        'DataExplorer_FilterValuePlaceholder',
+        'DataExplorer_RemoveFilter',
+        'DataExplorer_Canvas',
+        'DataExplorer_Totals',
+        'DataExplorer_HintAddMetric',
+        'DataExplorer_HintAddRow',
+        'DataExplorer_HintIncompatible',
+        'DataExplorer_IncompatibleWithDimension',
+        'DataExplorer_IncompatibleWithMetric',
+        'DataExplorer_UnknownVariable',
+        'DataExplorer_ExploreTab',
+        'DataExplorer_SqlTab',
+        'DataExplorer_OpenReport',
+        'DataExplorer_NewExploration',
+        'DataExplorer_SaveReport',
+        'DataExplorer_ReportCreated',
+        'DataExplorer_ReportUpdated',
+        'DataExplorer_SaveDialogTitle',
+        'DataExplorer_SaveDialogEditTitle',
+        'DataExplorer_SaveName',
+        'DataExplorer_SaveReportType',
+        'DataExplorer_SaveReportTypeHelp',
+        'DataExplorer_SavedAs',
+        'DataExplorer_ReportType_table',
+        'DataExplorer_ReportType_evolution',
+        'DataExplorer_ReportType_kpicard',
+        'DataExplorer_SavePlacement',
+        'DataExplorer_PlacementThisSite',
+        'DataExplorer_PlacementSites',
+        'DataExplorer_PlacementAll',
+        'DataExplorer_SaveSites',
+        'DataExplorer_SaveCategory',
+        'DataExplorer_SaveSubcategory',
+        'DataExplorer_SaveNewSubcategoryOption',
+        'DataExplorer_SaveNewSubcategory',
+        'DataExplorer_DefaultSubcategory',
+        'DataExplorer_SaveOrder',
+        'DataExplorer_SaveOrderHelp',
+        'DataExplorer_SaveAsNew',
+        'DataExplorer_SqlOpenSetup',
+        'DataExplorer_SqlSchema',
+        'DataExplorer_SqlSchemaHelp',
+        'DataExplorer_SqlSchemaSearch',
+        'DataExplorer_SqlInsertName',
+        'DataExplorer_SqlInsertTable',
+        'DataExplorer_SqlEditor',
+        'DataExplorer_SqlEditorHelp',
+        'DataExplorer_SqlChecking',
+        'DataExplorer_SqlValid',
+        'DataExplorer_SqlRun',
+        'DataExplorer_SqlRunShortcut',
+        'DataExplorer_SqlRunDisabled',
+        'DataExplorer_ExportCsv',
+        'DataExplorer_SqlNoRows',
+        'DataExplorer_SqlRowCount',
+        'DataExplorer_SqlPlaceholder',
+        'General_Save',
+        'General_Cancel',
+        'General_Close',
+        'General_Others',
+        'CoreHome_ThereIsNoDataForThisReport',
+    ];
+
     public function registerEvents()
     {
         return [
@@ -40,6 +156,7 @@ class DataExplorer extends \Piwik\Plugin
             // after the other plugins, to see the subcategories they add
             'Category.addSubcategories' => ['function' => 'addSubcategories', 'after' => true],
             'AssetManager.getStylesheetFiles' => 'getStylesheetFiles',
+            'Translate.getClientSideTranslationKeys' => 'getClientSideTranslationKeys',
         ];
     }
 
@@ -138,6 +255,12 @@ class DataExplorer extends \Piwik\Plugin
     public function getStylesheetFiles(array &$stylesheets): void
     {
         $stylesheets[] = 'plugins/DataExplorer/stylesheets/charts.less';
+        $stylesheets[] = 'plugins/DataExplorer/stylesheets/explorer.less';
+    }
+
+    public function getClientSideTranslationKeys(array &$translationKeys): void
+    {
+        $translationKeys = array_merge($translationKeys, self::CLIENT_SIDE_TRANSLATION_KEYS);
     }
 
     /**

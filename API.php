@@ -19,6 +19,7 @@ use Piwik\Common;
 use Piwik\Config;
 use Piwik\Container\StaticContainer;
 use Piwik\DataTable;
+use Piwik\Db;
 use Piwik\NoAccessException;
 use Piwik\Piwik;
 use Piwik\Plugin\Manager as PluginManager;
@@ -35,6 +36,7 @@ use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
 use Piwik\Plugins\DataExplorer\Sql\ParsedQuery;
 use Piwik\Plugins\DataExplorer\Sql\RawSqlRunner;
+use Piwik\Plugins\DataExplorer\Sql\ReadOnlySetup;
 use Piwik\Plugins\DataExplorer\Sql\RejectedQueryException;
 use Piwik\Plugins\DataExplorer\Sql\SiteScopeProof;
 use Piwik\Plugins\DataExplorer\Sql\SqlGuard;
@@ -58,10 +60,11 @@ class API extends \Piwik\Plugin\API
     private const MAX_ORDER = 1000;
 
     /**
-     * Dimensions and metrics grouped by category (for the "+" pickers) and the stored segments of the site.
+     * Dimensions and metrics grouped by category (for the "+" pickers), the stored segments of the site and the
+     * limits of an exploration (row dimensions, metrics, column dimensions).
      *
      * @param int $idSite
-     * @return array{dimensions: array, metrics: array, segments: array}
+     * @return array{dimensions: array, metrics: array, segments: array, limits: array}
      */
     public function getCatalog(int $idSite): array
     {
@@ -90,11 +93,17 @@ class API extends \Piwik\Plugin\API
             'dimensions' => $this->groupByCategory($dimensions),
             'metrics' => $this->groupByCategory($metrics),
             'segments' => $segments,
+            'limits' => [
+                'maxDimensions' => Configuration::getMaxDimensions(),
+                'maxMetrics' => ReportDefinition::MAX_METRICS,
+                'maxColumns' => 1,
+            ],
         ];
     }
 
     /**
-     * Runs a visual exploration live (the explorer canvas). Nothing is saved.
+     * Runs a visual exploration live (the explorer canvas). Nothing is saved. An evolution definition returns one
+     * table per period: the days of a range, the requested periods, or the last periods ending at the selected one.
      *
      * @unsanitized
      * @param int $idSite
@@ -102,9 +111,9 @@ class API extends \Piwik\Plugin\API
      * @param string $date
      * @param string $definition JSON of the exploration, same shape as a saved visual definition
      * @param string $segment combined (AND) with the segment stored in the definition
-     * @return DataTable
+     * @return DataTable|DataTable\Map
      */
-    public function runVisual(int $idSite, string $period, string $date, string $definition, string $segment = ''): DataTable
+    public function runVisual(int $idSite, string $period, string $date, string $definition, string $segment = ''): DataTable\DataTableInterface
     {
         (new ReportPermissions())->checkCanExplore($idSite);
 
@@ -117,7 +126,12 @@ class API extends \Piwik\Plugin\API
             $raw['name'] = 'preview';
         }
 
-        return (new VisualQueryRunner())->run(ReportDefinition::fromArray($raw), $idSite, $period, $date, $segment);
+        $validated = ReportDefinition::fromArray($raw);
+        if ($validated->getReportType() === ReportDefinition::REPORT_TYPE_EVOLUTION) {
+            return (new VisualQueryRunner())->runEvolution($validated, $idSite, $period, $date, $segment);
+        }
+
+        return (new VisualQueryRunner())->run($validated, $idSite, $period, $date, $segment);
     }
 
     /**
@@ -136,6 +150,24 @@ class API extends \Piwik\Plugin\API
         (new ReportPermissions())->checkCanRunRawSql();
 
         return (new RawSqlRunner())->run($sql, $idSite, $period, $date);
+    }
+
+    /**
+     * Columns of the tables raw SQL can read, keyed by their prefixed name as written in a query, for the
+     * autocompletion of the SQL editor (super user only).
+     *
+     * @return array<string, string[]>
+     */
+    public function getSqlSchema(): array
+    {
+        (new ReportPermissions())->checkCanRunRawSql();
+
+        $schema = [];
+        foreach ((new ReadOnlySetup())->tables() as $table) {
+            $schema[$table] = array_map(fn (array $column) => (string) $column['Field'], Db::fetchAll('SHOW COLUMNS FROM `' . str_replace('`', '``', $table) . '`'));
+        }
+
+        return $schema;
     }
 
     /**
