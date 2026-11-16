@@ -68,10 +68,11 @@ final class RawSqlRunner
      * site-scoped, {idsite} is bound to $idSite.
      *
      * @param array $report a hydrated row of ReportsDao
+     * @param int|null $maxSeconds statement time limit, max_execution_time_seconds by default
      * @throws NotConfiguredException|NotReadOnlyException|RejectedQueryException
      * @throws \InvalidArgumentException with a translated message when the query fails or times out
      */
-    public function runSaved(array $report, int $idSite, string $period, string $date): DataTable
+    public function runSaved(array $report, int $idSite, string $period, string $date, ?int $maxSeconds = null): DataTable
     {
         (new ReportPermissions())->checkCanView($report, $idSite);
 
@@ -86,7 +87,7 @@ final class RawSqlRunner
             throw new RejectedQueryException(Piwik::translate('DataExplorer_SqlWarningNotSiteScoped', [$unproven]), $unproven);
         }
 
-        return $this->runChecked($sql, $parsed, $idSite, $period, $date, true);
+        return $this->runChecked($sql, $parsed, $idSite, $period, $date, true, $maxSeconds);
     }
 
     private function validate(string $sql): ParsedQuery
@@ -99,7 +100,7 @@ final class RawSqlRunner
         return SqlGuard::validate($sql, $config['tables_prefix'], $config['dbname']);
     }
 
-    private function runChecked(string $sql, ParsedQuery $parsed, int $idSite, string $period, string $date, bool $useCache): DataTable
+    private function runChecked(string $sql, ParsedQuery $parsed, int $idSite, string $period, string $date, bool $useCache, ?int $maxSeconds = null): DataTable
     {
         [$executable, $placeholders] = self::prepare($parsed, Configuration::getRawSqlRowLimit());
         $values = ['{idsite}' => $idSite] + self::dateBounds($idSite, $period, $date);
@@ -124,7 +125,7 @@ final class RawSqlRunner
         $status = 'error';
         $rows = null;
         try {
-            $rows = $this->execute($db, $executable, $bind);
+            $rows = $this->execute($db, $executable, $bind, $maxSeconds ?? Configuration::getMaxExecutionTimeSeconds());
             $status = 'ok';
         } catch (\InvalidArgumentException $e) {
             if ($e->getPrevious() instanceof \Exception && SessionLimits::isTimeout($db, $e->getPrevious())) {
@@ -281,14 +282,14 @@ final class RawSqlRunner
         ];
     }
 
-    private function execute(AdapterInterface $db, string $sql, array $bind): array
+    private function execute(AdapterInterface $db, string $sql, array $bind, int $maxSeconds): array
     {
         $restore = SessionLimits::restoreStatement($db);
         $failure = null;
         $inTransaction = false;
         try {
             $db->query("SET SESSION sql_mode = '" . self::SQL_MODE . "'");
-            $db->query(SessionLimits::forCurrentServer($db, Configuration::getMaxExecutionTimeSeconds()));
+            $db->query(SessionLimits::forCurrentServer($db, $maxSeconds));
             $db->query('SET SESSION TRANSACTION READ ONLY');
             $db->query('START TRANSACTION READ ONLY');
             $inTransaction = true;

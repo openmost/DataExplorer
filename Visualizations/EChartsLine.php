@@ -53,13 +53,7 @@ class EChartsLine extends ChartVisualization
     {
         $periods = $this->tablesByPeriod($dataTable);
 
-        $columns = [];
-        foreach ($periods as $period) {
-            $columns = $this->metricColumns($period['table']);
-            if ($columns) {
-                break;
-            }
-        }
+        $columns = $this->firstMetricColumns($periods);
 
         $labels = [];
         $series = [];

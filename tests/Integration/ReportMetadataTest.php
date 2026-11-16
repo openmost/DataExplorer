@@ -52,6 +52,7 @@ class ReportMetadataTest extends IntegrationTestCase
 
         Fixture::loadAllTranslations();
         FakeAccess::clearAccess(true);
+        ReportsDao::clearCache();
         Fixture::createWebsite('2024-01-01 00:00:00', 0, 'Site 1', 'https://one.example');
         Fixture::createWebsite('2024-01-01 00:00:00', 0, 'Site 2', 'https://two.example');
 

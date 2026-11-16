@@ -12,9 +12,13 @@ declare(strict_types=1);
 namespace Piwik\Plugins\DataExplorer\tests\Integration;
 
 use Piwik\Cache;
+use Piwik\Common;
+use Piwik\Config;
+use Piwik\Db;
 use Piwik\FrontController;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
+use Piwik\Plugins\DataExplorer\Sql\ReadOnlyConnection;
 use Piwik\Plugins\DataExplorer\tests\Fixtures\ExplorerFixture;
 use Piwik\Tests\Framework\Fixture;
 use Piwik\Tests\Framework\Mock\FakeAccess;
@@ -51,6 +55,7 @@ class VisualizationTest extends IntegrationTestCase
         FakeAccess::clearAccess(false, [], [1], 'viewer');
         Cache::getLazyCache()->flushAll();
         Cache::getTransientCache()->flushAll();
+        ReportsDao::clearCache();
         $this->backupGet = $_GET;
     }
 
@@ -89,6 +94,57 @@ class VisualizationTest extends IntegrationTestCase
 
         $this->assertStringContainsString('Visits | Desktop', $html);
         $this->assertStringContainsString('Visits | Smartphone', $html);
+    }
+
+    public function test_evolutionReport_footerOffersNoOtherVisualization(): void
+    {
+        $id = $this->save('evolution', ['metrics' => ['nb_visits']]);
+
+        $icons = $this->footerIcons($this->render($id, 'day', '2024-03-03'));
+
+        $this->assertSame(['DataExplorerLine'], $icons);
+    }
+
+    public function test_sqlTable_keepsTheOrderOfTheQuery(): void
+    {
+        $user = 'dataexplorer_vt';
+        $password = 'p' . bin2hex(random_bytes(12));
+        $original = Config::getInstance()->DataExplorer;
+        $hosts = ['localhost', '127.0.0.1', '::1'];
+        $table = Common::prefixTable('log_visit');
+        foreach ($hosts as $host) {
+            Db::exec(sprintf("DROP USER IF EXISTS '%s'@'%s'", $user, $host));
+            Db::exec(sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s'", $user, $host, $password));
+            Db::exec(sprintf("GRANT SELECT ON `%s`.`%s` TO '%s'@'%s'", Config::getInstance()->database['dbname'], $table, $user, $host));
+        }
+        Config::getInstance()->DataExplorer = array_merge(is_array($original) ? $original : [], ['readonly_username' => $user, 'readonly_password' => $password]);
+        ReadOnlyConnection::reset();
+
+        try {
+            // ascending, while the default table sort is descending on the first metric
+            $sql = 'SELECT idvisit, visit_total_actions FROM ' . $table . ' WHERE idsite = {idsite} ORDER BY visit_total_actions ASC, idvisit ASC';
+            $id = (new ReportsDao())->insert([
+                'name' => 'Visits by actions',
+                'type' => 'sql',
+                'report_type' => 'table',
+                'definition' => ['sql' => $sql],
+                'category' => 'General_Visitors',
+                'subcategory' => 'General_Overview',
+            ], Placement::fromArray(['sites' => [1]]));
+            $expected = array_map('strval', array_column(Db::fetchAll(str_replace('{idsite}', '1', $sql)), 'idvisit'));
+
+            $html = $this->render($id, 'day', '2024-03-01,2024-03-06', '', 'range');
+
+            preg_match_all('/<span class=\'label\'\s*><span class="value">(\d+)<\/span>/', $html, $labels);
+            $this->assertSame($expected, $labels[1]);
+            $this->assertCount(8, $expected);
+        } finally {
+            ReadOnlyConnection::reset();
+            Config::getInstance()->DataExplorer = $original;
+            foreach ($hosts as $host) {
+                Db::exec(sprintf("DROP USER IF EXISTS '%s'@'%s'", $user, $host));
+            }
+        }
     }
 
     public function test_coreReports_doNotOfferTheDataExplorerCharts(): void
@@ -175,9 +231,9 @@ class VisualizationTest extends IntegrationTestCase
         ], Placement::fromArray(['sites' => [1]]));
     }
 
-    private function render(int $idReport, string $period, string $date, string $viewDataTable = ''): string
+    private function render(int $idReport, string $period, string $date, string $viewDataTable = '', string $periodOverride = ''): string
     {
-        $params = ['idReport' => (string) $idReport, 'period' => $period, 'date' => $date, 'widget' => '1'];
+        $params = ['idReport' => (string) $idReport, 'period' => $periodOverride ?: $period, 'date' => $date, 'widget' => '1'];
         if ($viewDataTable !== '') {
             $params['viewDataTable'] = $viewDataTable;
         }

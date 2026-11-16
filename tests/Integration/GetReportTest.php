@@ -22,6 +22,7 @@ use Piwik\Plugins\DataExplorer\API;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
+use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Reports\GetSavedReport;
 use Piwik\Plugins\DataExplorer\Sql\ReadOnlyConnection;
 use Piwik\Plugins\DataExplorer\Sql\RejectedQueryException;
@@ -70,6 +71,7 @@ class GetReportTest extends IntegrationTestCase
         FakeAccess::clearAccess(true);
         Cache::getLazyCache()->flushAll();
         Cache::getTransientCache()->flushAll();
+        ReportsDao::clearCache();
 
         $this->originalSection = Config::getInstance()->DataExplorer;
         $this->password = 'p' . bin2hex(random_bytes(12));
@@ -236,6 +238,37 @@ class GetReportTest extends IntegrationTestCase
 
         $this->expectException(RejectedQueryException::class);
         $this->api()->getReport(1, 'day', '2024-03-01', $report);
+    }
+
+    public function test_cachedSqlResult_isNotServedWhenTheStoredQueryNoLongerPassesTheGuard(): void
+    {
+        $report = $this->save('sql', 'table', ['sql' => 'SELECT name FROM ' . Common::prefixTable('site') . ' WHERE idsite = {idsite}']);
+        $this->assertSame(['Site 1'], $this->api()->getReport(1, 'day', '2024-03-01', $report)->getColumn('label'));
+
+        // same query text, so the same cache entry, but the guard now refuses it
+        Config::getInstance()->DataExplorer = array_merge(Config::getInstance()->DataExplorer, ['dataexplorer_sql_max_length' => 10]);
+
+        $this->expectException(RejectedQueryException::class);
+        $this->api()->getReport(1, 'day', '2024-03-01', $report);
+    }
+
+    public function test_sqlEvolution_stopsWithTheTimeoutError_whenTheTotalTimeBudgetIsSpent(): void
+    {
+        $id = $this->save('sql', 'evolution', ['sql' => 'SELECT COUNT(*) AS visits FROM ' . Common::prefixTable('log_visit')
+            . ' WHERE idsite = {idsite} AND visit_last_action_time >= {date_start} AND visit_last_action_time <= {date_end}']);
+        $now = 1000.0;
+        $runs = 0;
+        // every clock reading after the first run is past the budget
+        $clock = function () use (&$now, &$runs) {
+            return $now + ($runs++ > 1 ? 31 : 0);
+        };
+
+        try {
+            (new SavedReportReader(null, $clock))->read((new ReportsDao())->get($id), 1, 'day', '2024-03-01,2024-03-05');
+            $this->fail('expected the timeout error');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_ErrorRawSqlTimeout', [30]), $e->getMessage());
+        }
     }
 
     public function test_sqlEvolution_overLast60Days_keepsTheLast30Points(): void

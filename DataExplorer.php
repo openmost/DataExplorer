@@ -90,7 +90,7 @@ class DataExplorer extends \Piwik\Plugin
             return;
         }
 
-        foreach ((new ReportsDao())->getForSite($idSite) as $row) {
+        foreach ((new ReportsDao())->getForSiteCached($idSite) as $row) {
             $report = new GetSavedReport();
             $report->initFromRow($row, $idSite);
             $reports[] = $report;
@@ -119,7 +119,7 @@ class DataExplorer extends \Piwik\Plugin
         }
 
         $order = 200;
-        foreach ((new ReportsDao())->getForSite($idSite) as $row) {
+        foreach ((new ReportsDao())->getForSiteCached($idSite) as $row) {
             $key = $row['category'] . '|' . $row['subcategory'];
             if ($row['category'] === '' || $row['subcategory'] === '' || isset($existing[$key])) {
                 continue;

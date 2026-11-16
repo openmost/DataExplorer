@@ -114,6 +114,24 @@ abstract class ChartVisualization extends Visualization
         return $row === false ? [] : array_values(array_diff(array_keys($row->getColumns()), ['label']));
     }
 
+    /**
+     * Metric columns of the first period that has any.
+     *
+     * @param array[] $periods result of tablesByPeriod()
+     * @return string[]
+     */
+    protected function firstMetricColumns(array $periods): array
+    {
+        foreach ($periods as $period) {
+            $columns = $this->metricColumns($period['table']);
+            if ($columns) {
+                return $columns;
+            }
+        }
+
+        return [];
+    }
+
     protected function translate(string $column): string
     {
         return (string) ($this->config->translations[$column] ?? $column);

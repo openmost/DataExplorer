@@ -16,6 +16,7 @@ use Piwik\Archive\DataTableFactory;
 use Piwik\DataTable;
 use Piwik\DataTable\DataTableInterface;
 use Piwik\Period;
+use Piwik\Piwik;
 use Piwik\Period\Range;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Configuration;
@@ -37,11 +38,17 @@ class SavedReportReader
     private $sqlRunner;
     /** @var LabelFormatter */
     private $labels;
+    /** @var callable(): float */
+    private $clock;
 
-    public function __construct(?RawSqlRunner $sqlRunner = null)
+    /**
+     * @param callable(): float|null $clock seconds as a float, microtime(true) by default
+     */
+    public function __construct(?RawSqlRunner $sqlRunner = null, ?callable $clock = null)
     {
         $this->sqlRunner = $sqlRunner ?: new RawSqlRunner();
         $this->labels = new LabelFormatter();
+        $this->clock = $clock ?: fn () => microtime(true);
     }
 
     /**
@@ -131,7 +138,9 @@ class SavedReportReader
 
     /**
      * A table runs once for the requested period. Evolution and KPI card keep the first row and its numeric
-     * columns. Several periods (lastN, a date range) run once per sub-period, keeping the most recent ones only.
+     * columns. Several periods (lastN, a date range) run once per sub-period, keeping the most recent ones only,
+     * all of them within one max_execution_time_seconds budget: each run gets the time left, a run that times
+     * out or no time left stops the whole report with the timeout error.
      */
     private function readSql(array $report, int $idSite, string $period, string $date): DataTableInterface
     {
@@ -147,10 +156,17 @@ class SavedReportReader
         $subPeriods = (new Range($period, $date, $site->getTimezone()))->getSubperiods();
         $subPeriods = array_slice($subPeriods, -Configuration::getRawSqlMaxPoints());
 
+        $budget = Configuration::getMaxExecutionTimeSeconds();
+        $deadline = ($this->clock)() + $budget;
+
         $map = new DataTable\Map();
         $map->setKeyName('date');
         foreach ($subPeriods as $subPeriod) {
-            $table = $this->sqlRunner->runSaved($report, $idSite, $subPeriod->getLabel(), $subPeriod->getDateStart()->toString());
+            $left = (int) ceil($deadline - ($this->clock)());
+            if ($left <= 0) {
+                throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorRawSqlTimeout', [$budget]));
+            }
+            $table = $this->sqlRunner->runSaved($report, $idSite, $subPeriod->getLabel(), $subPeriod->getDateStart()->toString(), $left);
             $table = $numeric ? $this->firstNumericRow($table) : $this->withLabel($table);
             $table->setMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX, $subPeriod);
             $table->setMetadata(DataTableFactory::TABLE_METADATA_SITE_INDEX, $site);

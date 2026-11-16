@@ -59,13 +59,7 @@ class EChartsKpi extends ChartVisualization
     {
         $periods = $this->tablesByPeriod($dataTable);
 
-        $metric = '';
-        foreach ($periods as $period) {
-            $metric = $this->metricColumns($period['table'])[0] ?? '';
-            if ($metric !== '') {
-                break;
-            }
-        }
+        $metric = $this->firstMetricColumns($periods)[0] ?? '';
 
         $values = [];
         $labels = [];

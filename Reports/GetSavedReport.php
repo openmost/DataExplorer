@@ -17,6 +17,7 @@ use Piwik\DataTable;
 use Piwik\Piwik;
 use Piwik\Plugin\Report;
 use Piwik\Plugin\ViewDataTable;
+use Piwik\ViewDataTable\Manager as ViewDataTableManager;
 use Piwik\Plugins\CoreVisualizations\Visualizations\HtmlTable;
 use Piwik\Plugins\DataExplorer\Catalog\SiteContext;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
@@ -27,8 +28,10 @@ use Piwik\Plugins\DataExplorer\Query\LabelFormatter;
 use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\RecordBuilders\SavedReport;
+use Piwik\Plugins\DataExplorer\Visualizations\EChartsBar;
 use Piwik\Plugins\DataExplorer\Visualizations\EChartsKpi;
 use Piwik\Plugins\DataExplorer\Visualizations\EChartsLine;
+use Piwik\Plugins\DataExplorer\Visualizations\EChartsPie;
 
 /**
  * One saved report shown as a Matomo report: in the reporting menu place its author chose, the widget list,
@@ -65,7 +68,7 @@ class GetSavedReport extends Report
         $idReport = Common::getRequestVar(self::PARAMETER, 0, 'int');
         $idSite = Common::getRequestVar('idSite', 0, 'int');
         if ($idReport > 0 && $idSite > 0) {
-            $row = (new ReportsDao())->get($idReport);
+            $row = (new ReportsDao())->getCached($idReport);
             $placement = $row['placement'] ?? null;
             if ($row !== null && empty($row['deleted']) && $placement instanceof Placement && $placement->includes($idSite)) {
                 $this->initFromRow($row, $idSite, false);
@@ -129,6 +132,12 @@ class GetSavedReport extends Report
         return $this->getReportType() === ReportDefinition::REPORT_TYPE_EVOLUTION || $this->getReportType() === ReportDefinition::REPORT_TYPE_KPICARD;
     }
 
+    public function getDefaultSortColumn()
+    {
+        // no default sort, so the rows of a raw SQL report keep the order of the query
+        return $this->isSql() ? '' : parent::getDefaultSortColumn();
+    }
+
     public function isEnabled()
     {
         return $this->row !== null;
@@ -166,6 +175,7 @@ class GetSavedReport extends Report
         $view->config->addTranslations($this->metricNames);
 
         if ($this->getReportType() !== ReportDefinition::REPORT_TYPE_TABLE) {
+            $view->config->footer_icons = $this->allowedFooterIcons($view, [$this->getDefaultTypeViewDataTable()]);
             return;
         }
 
@@ -175,6 +185,12 @@ class GetSavedReport extends Report
         $view->config->show_goals = false;
         $view->config->show_insights = false;
         $view->config->show_table_all_columns = false;
+        $view->config->footer_icons = $this->allowedFooterIcons($view, [HtmlTable::ID, EChartsBar::ID, EChartsPie::ID]);
+
+        if ($this->isSql()) {
+            // the rows keep the order of the query
+            $view->config->enable_sort = false;
+        }
 
         $isWidget = Common::getRequestVar('widget', 0, 'int');
         $module = Common::getRequestVar('module', '', 'string');
@@ -208,6 +224,25 @@ class GetSavedReport extends Report
                 }
             }
         };
+    }
+
+    /**
+     * The footer icons core would show, restricted to the given visualizations: visualizations of other plugins
+     * accept every report but cannot read DataExplorer data.
+     *
+     * @param string[] $allowed visualization ids
+     */
+    private function allowedFooterIcons(ViewDataTable $view, array $allowed): array
+    {
+        $groups = [];
+        foreach (ViewDataTableManager::configureFooterIcons($view) as $group) {
+            $group['buttons'] = array_values(array_filter($group['buttons'], fn ($button) => in_array($button['id'] ?? '', $allowed, true)));
+            if ($group['buttons']) {
+                $groups[] = $group;
+            }
+        }
+
+        return $groups;
     }
 
     private function initVisual(array $row, int $idSite): void

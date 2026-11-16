@@ -22,6 +22,11 @@ class ReportsDao
     private const REPORT_TABLE = 'dataexplorer_report';
     private const SITE_TABLE = 'dataexplorer_report_site';
 
+    /** @var array<int, array|null> per request, see getCached() */
+    private static $cachedReports = [];
+    /** @var array<int, array[]> per request, see getForSiteCached() */
+    private static $cachedForSite = [];
+
     public static function install(): void
     {
         DbHelper::createTable(self::REPORT_TABLE, "
@@ -91,6 +96,7 @@ class ReportsDao
 
         $id = (int) Db::get()->lastInsertId();
         $this->writePlacement($id, $placement);
+        self::clearCache();
 
         return $id;
     }
@@ -117,6 +123,7 @@ class ReportsDao
         );
 
         $this->writePlacement($id, $placement);
+        self::clearCache();
     }
 
     public function softDelete(int $id): void
@@ -125,6 +132,40 @@ class ReportsDao
             'UPDATE ' . self::reportTable() . ' SET `deleted` = 1, `updated_date` = ? WHERE `idreport` = ?',
             [Date::now()->getDatetime(), $id]
         );
+        self::clearCache();
+    }
+
+    /**
+     * get() memoized for the request: core builds the report list, the subcategories and the report of a widget
+     * several times per request. Every write of this class clears the memo.
+     */
+    public function getCached(int $id): ?array
+    {
+        if (!array_key_exists($id, self::$cachedReports)) {
+            self::$cachedReports[$id] = $this->get($id);
+        }
+
+        return self::$cachedReports[$id];
+    }
+
+    /**
+     * getForSite() memoized for the request, see getCached().
+     *
+     * @return array[]
+     */
+    public function getForSiteCached(int $idSite): array
+    {
+        if (!array_key_exists($idSite, self::$cachedForSite)) {
+            self::$cachedForSite[$idSite] = $this->getForSite($idSite);
+        }
+
+        return self::$cachedForSite[$idSite];
+    }
+
+    public static function clearCache(): void
+    {
+        self::$cachedReports = [];
+        self::$cachedForSite = [];
     }
 
     /**
@@ -170,6 +211,7 @@ class ReportsDao
     public function removeSite(int $idSite): void
     {
         Db::query('DELETE FROM ' . self::siteTable() . ' WHERE `idsite` = ?', [$idSite]);
+        self::clearCache();
     }
 
     private function writePlacement(int $id, Placement $placement): void
