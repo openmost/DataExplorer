@@ -15,7 +15,10 @@
         "ErrorKpiCardOneMetric": "تعرض بطاقة KPI مقياسا واحدا بالضبط.",
         "ErrorListInvalid": "يجب أن يكون الحقل %s قائمة من المعرفات.",
         "ErrorFiltersInvalid": "عوامل التصفية غير صالحة.",
-        "ErrorPlacementInvalid": "اختر كل المواقع أو موقعا صالحا واحدا على الأقل."
+        "ErrorPlacementInvalid": "اختر كل المواقع أو موقعا صالحا واحدا على الأقل.",
+        "ErrorReportNotPlaced": "يجب وضع التقرير على موقع ويب واحد على الأقل.",
+        "ErrorEditNotAllowed": "ليس لديك إذن بتعديل هذا التقرير.",
+        "ErrorReportNotAvailable": "هذا التقرير غير متاح."
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

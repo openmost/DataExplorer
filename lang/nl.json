@@ -15,7 +15,10 @@
         "ErrorKpiCardOneMetric": "Een KPI-kaart toont precies één statistiek.",
         "ErrorListInvalid": "Het veld %s moet een lijst met identificaties zijn.",
         "ErrorFiltersInvalid": "De filters zijn ongeldig.",
-        "ErrorPlacementInvalid": "Kies alle websites of ten minste één geldige website."
+        "ErrorPlacementInvalid": "Kies alle websites of ten minste één geldige website.",
+        "ErrorReportNotPlaced": "Het rapport moet op minstens één website worden geplaatst.",
+        "ErrorEditNotAllowed": "U mag dit rapport niet bewerken.",
+        "ErrorReportNotAvailable": "Dit rapport is niet beschikbaar."
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",

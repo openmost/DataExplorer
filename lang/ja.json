@@ -15,7 +15,10 @@
         "ErrorKpiCardOneMetric": "KPI カードに表示できる指標は 1 つだけです。",
         "ErrorListInvalid": "フィールド %s は識別子のリストである必要があります。",
         "ErrorFiltersInvalid": "フィルターが無効です。",
-        "ErrorPlacementInvalid": "すべてのウェブサイトまたは有効なウェブサイトを 1 つ以上選択してください。"
+        "ErrorPlacementInvalid": "すべてのウェブサイトまたは有効なウェブサイトを 1 つ以上選択してください。",
+        "ErrorReportNotPlaced": "レポートは少なくとも1つのウェブサイトに配置する必要があります。",
+        "ErrorEditNotAllowed": "このレポートを編集する権限がありません。",
+        "ErrorReportNotAvailable": "このレポートは利用できません。"
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",

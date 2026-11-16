@@ -15,7 +15,10 @@
         "ErrorKpiCardOneMetric": "Una tarjeta KPI muestra exactamente una métrica.",
         "ErrorListInvalid": "El campo %s debe ser una lista de identificadores.",
         "ErrorFiltersInvalid": "Los filtros no son válidos.",
-        "ErrorPlacementInvalid": "Elija todos los sitios web o al menos un sitio válido."
+        "ErrorPlacementInvalid": "Elija todos los sitios web o al menos un sitio válido.",
+        "ErrorReportNotPlaced": "El informe debe colocarse en al menos un sitio web.",
+        "ErrorEditNotAllowed": "No tiene permiso para editar este informe.",
+        "ErrorReportNotAvailable": "Este informe no está disponible."
     },
     "OpenmostCommunication": {
         "Dismiss": "Descartar",

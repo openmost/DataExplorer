@@ -15,7 +15,10 @@
         "ErrorKpiCardOneMetric": "KPI 卡片只顯示一個指標。",
         "ErrorListInvalid": "欄位 %s 必須是識別碼清單。",
         "ErrorFiltersInvalid": "篩選條件無效。",
-        "ErrorPlacementInvalid": "請選擇所有網站或至少一個有效網站。"
+        "ErrorPlacementInvalid": "請選擇所有網站或至少一個有效網站。",
+        "ErrorReportNotPlaced": "報表必須至少放置在一個網站上。",
+        "ErrorEditNotAllowed": "您無權編輯此報表。",
+        "ErrorReportNotAvailable": "此報表無法使用。"
     },
     "OpenmostCommunication": {
         "Dismiss": "關閉",

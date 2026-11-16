@@ -15,7 +15,10 @@
         "ErrorKpiCardOneMetric": "A KPI card shows exactly one metric.",
         "ErrorListInvalid": "The field %s must be a list of identifiers.",
         "ErrorFiltersInvalid": "The filters are invalid.",
-        "ErrorPlacementInvalid": "Choose all websites or at least one valid website."
+        "ErrorPlacementInvalid": "Choose all websites or at least one valid website.",
+        "ErrorReportNotPlaced": "The report must be placed on at least one website.",
+        "ErrorEditNotAllowed": "You are not allowed to edit this report.",
+        "ErrorReportNotAvailable": "This report is not available."
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

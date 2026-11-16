@@ -15,7 +15,10 @@
         "ErrorKpiCardOneMetric": "Eine KPI-Karte zeigt genau eine Metrik.",
         "ErrorListInvalid": "Das Feld %s muss eine Liste von Bezeichnern sein.",
         "ErrorFiltersInvalid": "Die Filter sind ungültig.",
-        "ErrorPlacementInvalid": "Wählen Sie alle Websites oder mindestens eine gültige Website."
+        "ErrorPlacementInvalid": "Wählen Sie alle Websites oder mindestens eine gültige Website.",
+        "ErrorReportNotPlaced": "Der Bericht muss auf mindestens einer Website platziert werden.",
+        "ErrorEditNotAllowed": "Sie dürfen diesen Bericht nicht bearbeiten.",
+        "ErrorReportNotAvailable": "Dieser Bericht ist nicht verfügbar."
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",

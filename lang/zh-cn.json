@@ -15,7 +15,10 @@
         "ErrorKpiCardOneMetric": "KPI 卡片只显示一个指标。",
         "ErrorListInvalid": "字段 %s 必须是标识符列表。",
         "ErrorFiltersInvalid": "筛选条件无效。",
-        "ErrorPlacementInvalid": "请选择所有网站或至少一个有效网站。"
+        "ErrorPlacementInvalid": "请选择所有网站或至少一个有效网站。",
+        "ErrorReportNotPlaced": "报表必须至少放置在一个网站上。",
+        "ErrorEditNotAllowed": "您无权编辑此报表。",
+        "ErrorReportNotAvailable": "此报表不可用。"
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",
