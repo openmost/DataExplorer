@@ -3,8 +3,8 @@
 // Explorer page (vue/src/Explorer, RawSql, SaveDialog): three columns like GA4 Explorations on one
 // flat surface. Every color comes from the Matomo theme variables (Matomo 5.10 or higher), which
 // switch with the dark mode and custom themes; the state colors (no theme variable before 5.14.1)
-// come from the Morpheus palette. The accent is the theme link color, not the brand green that core
-// buttons use, and the core button and field styles are reset inside the plugin surfaces.
+// come from the Morpheus palette. The accent is the theme link color. Buttons are the .btn of the
+// Matomo UI kit, only the fields and the plugin's own controls are styled here.
 
 @de-surface: ~"var(--theme-color-background-contrast)";
 @de-sunken: ~"var(--theme-color-background-base)";
@@ -46,55 +46,8 @@
   text-transform: uppercase;
 }
 
-// buttons and fields of the plugin surfaces, without the core green, shadows and uppercase
+// fields of the plugin surfaces; buttons keep the Morpheus .btn of the Matomo UI kit
 .de-controls() {
-  .btn,
-  button.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    height: @de-control-height;
-    padding: 0 14px;
-    border: 1px solid transparent;
-    border-radius: @de-radius-control;
-    background: @de-accent;
-    box-shadow: none;
-    color: @de-on-accent !important;
-    font-size: 13px;
-    font-weight: 500;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    transition: background-color .12s ease, border-color .12s ease;
-
-    &:hover,
-    &:focus {
-      background: @de-accent-hover;
-      box-shadow: none;
-      color: @de-on-accent !important;
-    }
-
-    &.btn-flat {
-      border-color: @de-border-strong;
-      background: transparent;
-      color: @de-text !important;
-
-      &:hover,
-      &:focus {
-        background: @de-hover;
-        color: @de-text-strong !important;
-      }
-    }
-
-    &[disabled],
-    &.disabled {
-      border-color: transparent;
-      background: @de-hover !important;
-      color: @de-text-lighter !important;
-    }
-  }
-
   select.browser-default,
   input.browser-default {
     box-sizing: border-box;
@@ -1350,4 +1303,69 @@ button.dataExplorerCanvas__period {
   color: @de-text-strong;
   font-size: 12px;
   white-space: pre;
+}
+
+// export of the canvas: a menu under the download button
+.dataExplorerCanvas__export {
+  position: relative;
+  align-self: center;
+}
+
+.dataExplorerCanvas__exportButton {
+  min-width: 32px;
+  height: 32px;
+  font-size: 16px;
+}
+
+.dataExplorerCanvas__exportMenu {
+  right: 0;
+  left: auto;
+  min-width: 140px;
+}
+
+// PDF export: the browser prints the canvas only
+@media print {
+  html.dataExplorer-printing body * {
+    visibility: hidden;
+  }
+
+  html.dataExplorer-printing .dataExplorerCanvas,
+  html.dataExplorer-printing .dataExplorerCanvas * {
+    visibility: visible;
+  }
+
+  html.dataExplorer-printing .dataExplorerCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    aspect-ratio: auto;
+  }
+
+  html.dataExplorer-printing .dataExplorerCanvas__export,
+  html.dataExplorer-printing .dataExplorerCanvas .loadingPiwik {
+    display: none;
+  }
+}
+
+// manage explorations page
+.dataExplorerManage__intro {
+  margin-bottom: 16px;
+}
+
+.dataExplorerManage__search {
+  margin-bottom: 12px;
+
+  input {
+    width: 100%;
+    max-width: 320px;
+  }
+}
+
+.dataExplorerManage {
+  .de-controls();
+}
+
+.dataExplorerManage__actions {
+  white-space: nowrap;
 }

@@ -43,6 +43,45 @@
           <span>{{ segmentText }}</span>
         </span>
       </div>
+      <div
+        v-if="canExport"
+        class="dataExplorerCanvas__export"
+      >
+        <button
+          ref="exportButton"
+          type="button"
+          class="dataExplorerIconButton dataExplorerCanvas__exportButton"
+          :title="translate('DataExplorer_Export')"
+          :aria-label="translate('DataExplorer_Export')"
+          aria-haspopup="menu"
+          :aria-expanded="exportOpen ? 'true' : 'false'"
+          @click="exportOpen = !exportOpen"
+        >
+          <span
+            class="icon-export"
+            aria-hidden="true"
+          ></span>
+        </button>
+        <ul
+          v-if="exportOpen"
+          class="dataExplorerDropZone__menu dataExplorerCanvas__exportMenu"
+          role="menu"
+          v-focus-anywhere-but-here="{ blur: closeExport }"
+          @keydown.esc.stop.prevent="closeExport(true)"
+        >
+          <li
+            v-for="format in exportFormats"
+            :key="format.id"
+            role="none"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              @click="exportAs(format.id)"
+            >{{ format.label }}</button>
+          </li>
+        </ul>
+      </div>
       <ActivityIndicator :loading="loading" />
     </div>
 
@@ -202,6 +241,7 @@ import {
 } from 'vue';
 import {
   ActivityIndicator,
+  FocusAnywhereButHere,
   Notification,
   NumberFormatter,
   translate,
@@ -218,6 +258,14 @@ import type {
 } from './resultTable';
 import { cellBucket, columnMaxima } from './resultTable';
 import { VISUALIZATION_ICONS } from './explorationState';
+import {
+  Cell,
+  download,
+  exportFileName,
+  ExportFormat,
+  tableData,
+  toDelimited,
+} from './exportData';
 import type { CellType, Visualization } from '../types';
 
 export interface KpiView {
@@ -240,6 +288,9 @@ export default defineComponent({
     EChartsLine,
     EChartsPie,
     KpiCard,
+  },
+  directives: {
+    FocusAnywhereButHere,
   },
   props: {
     title: {
@@ -401,9 +452,87 @@ export default defineComponent({
       }))
       : []));
 
+    const exportOpen = ref(false);
+    const exportButton = ref<HTMLElement|null>(null);
+    const exportFormats = [
+      { id: 'tsv', label: 'TSV' },
+      { id: 'csv', label: 'CSV' },
+      { id: 'pdf', label: 'PDF' },
+    ];
+
+    function exportRows(): { header: Cell[], body: Cell[][] }|null {
+      if (props.visualization === 'line' && props.evolution) {
+        const series = lineSeries.value;
+        return {
+          header: [translate('General_Date'), ...series.map((line) => line.name)],
+          body: props.evolution.labels.map((label, index) => [
+            label,
+            ...series.map((line) => line.data[index]),
+          ]),
+        };
+      }
+      if (props.visualization === 'kpicard' && props.kpi) {
+        return { header: [props.kpi.metricName], body: [[props.kpi.value]] };
+      }
+      if (!props.rows.length) {
+        return null;
+      }
+      return tableData(
+        props.dimensionNames,
+        props.columns,
+        sortedRows.value,
+        props.metricNames,
+        translate('DataExplorer_Totals'),
+      );
+    }
+
+    const canExport = computed(() => !props.error && !props.hint && exportRows() !== null);
+
+    function closeExport(restoreFocus = false) {
+      exportOpen.value = false;
+      if (restoreFocus === true && exportButton.value) {
+        exportButton.value.focus();
+      }
+    }
+
+    function printCanvas() {
+      const root = document.documentElement;
+      const done = () => {
+        root.classList.remove('dataExplorer-printing');
+        window.removeEventListener('afterprint', done);
+      };
+      root.classList.add('dataExplorer-printing');
+      window.addEventListener('afterprint', done);
+      window.print();
+    }
+
+    function exportAs(formatId: string) {
+      closeExport(true);
+      if (formatId === 'pdf') {
+        printCanvas();
+        return;
+      }
+      const data = exportRows();
+      if (!data) {
+        return;
+      }
+      const fileFormat = formatId as ExportFormat;
+      download(
+        toDelimited(data.header, data.body, fileFormat),
+        exportFileName(props.title, props.periodText, fileFormat),
+        fileFormat,
+      );
+    }
+
     const tabIcon = computed(() => VISUALIZATION_ICONS[props.visualization as Visualization]);
 
     return {
+      exportOpen,
+      exportButton,
+      exportFormats,
+      canExport,
+      closeExport,
+      exportAs,
       tabIcon,
       hasPivot,
       pivotGroups,

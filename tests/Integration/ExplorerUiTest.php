@@ -171,6 +171,22 @@ class ExplorerUiTest extends IntegrationTestCase
         $this->assertContains('DataExplorer_SetupConfigHelp', $keys);
     }
 
+    public function test_manageWidget_mountsTheReportsManager_onItsOwnPage(): void
+    {
+        FakeAccess::clearAccess(false, [], [1], 'viewer');
+        $_GET = ['module' => 'DataExplorer', 'action' => 'manageWidget', 'idSite' => '1', 'period' => 'day', 'date' => '2024-03-01', 'widget' => '1'];
+
+        $html = (string) FrontController::getInstance()->fetchDispatch('DataExplorer', 'manageWidget');
+
+        $this->assertStringContainsString('vue-entry="DataExplorer.ReportsManager"', $html);
+        $this->assertStringContainsString('is-super-user="false"', $html);
+
+        $pages = \Piwik\Plugins\API\API::getInstance()->getReportPagesMetadata(1);
+        $manage = array_values(array_filter($pages, fn (array $page) => $page['subcategory']['id'] === 'DataExplorer_ManageReports'));
+        $this->assertCount(1, $manage);
+        $this->assertSame('manageWidget', $manage[0]['widgets'][0]['action']);
+    }
+
     public function test_setupPage_mountsTheVueComponent_withTheReadOnlyStatus(): void
     {
         FakeAccess::clearAccess(true);

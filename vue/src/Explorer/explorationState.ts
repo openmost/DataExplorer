@@ -19,6 +19,9 @@ import type {
 export const HASH_PARAM = 'exploration';
 export const REPORT_HASH_PARAM = 'idReport';
 
+// id of ExploreSubcategory, the reporting page of the explorer
+export const EXPLORE_SUBCATEGORY = 'DataExplorer_Explore';
+
 export const VISUALIZATION_ICONS: Record<Visualization, string> = {
   table: 'icon-table',
   bar: 'icon-chart-bar',

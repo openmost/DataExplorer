@@ -117,6 +117,9 @@ export interface SavedReport {
   subcategory: string;
   order: number;
   editable: boolean;
+  created_by?: string;
+  created_date?: string;
+  updated_date?: string;
 }
 
 export interface Subcategory {

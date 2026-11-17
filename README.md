@@ -10,6 +10,8 @@ Explore your Matomo data the way you would in GA4 Explorations, then save the re
 - **Visualizations**: table, line chart, bar chart, pie chart and KPI card. A table shows a totals row, and any report can apply one saved segment as a filter.
 - **Raw SQL** for super users: a SQL editor with a table and column browser, a validity check before running, CSV export, and placeholders for the site and the period. Queries run with a read-only database user that you create.
 - **Saved reports in the menu**: a saved report becomes a page of the Matomo reporting menu, in the category and subcategory you pick, for one website, a list of websites or all websites. It also works as a dashboard widget, in the API, in exports and in scheduled reports like any other report. A raw SQL report can be scheduled when every column of its select list has a name (`AS alias` or a plain column), `*` and unnamed expressions are only known once the query ran.
+- **Export**: download what the explorer shows as TSV or CSV, or print it to PDF.
+- **Manage explorations**: a page of the Data Explorer menu lists the reports saved on the website, with links to their page and to the explorer, a search and deletion.
 - **Roles**: users with view access open the saved reports and explore the visual explorer (the anonymous user only opens saved reports), users with write access save reports on the websites they can write to, admins edit or delete any report of their websites, and only super users run raw SQL and save a report for all websites.
 - Translated into 12 languages.
 

@@ -204,6 +204,7 @@ import {
   decode,
   defaultState,
   encode,
+  EXPLORE_SUBCATEGORY,
   fromDefinition,
   hasRowDimensions,
   HASH_PARAM,
@@ -976,7 +977,24 @@ export default defineComponent({
     // lifecycle
     const stopWatchers: (() => void)[] = [];
 
+    // A new period, date or segment makes the reporting page render the Explore page again, which
+    // reloads the widget and remounts the explorer. The explorer already follows those URL
+    // parameters, so it takes over the reload of its own page and only runs the query again.
+    function keepPageOnUrlChange(
+      args: { category?: string, subcategory?: string, promise?: unknown },
+    ) {
+      const parsed = MatomoUrl.parsed.value;
+      if (args.category === parsed.category
+        && args.subcategory === parsed.subcategory
+        && args.subcategory === EXPLORE_SUBCATEGORY
+      ) {
+        args.promise = Promise.resolve();
+      }
+    }
+
     onMounted(() => {
+      Matomo.on('ReportingPage.loadPage', keepPageOnUrlChange);
+
       Promise.all([
         AjaxHelper.fetch<Catalog>(
           { method: 'DataExplorer.getCatalog', idSite },
@@ -1005,6 +1023,7 @@ export default defineComponent({
     });
 
     onBeforeUnmount(() => {
+      Matomo.off('ReportingPage.loadPage', keepPageOnUrlChange);
       stopWatchers.forEach((stop) => stop());
       if (runTimer) {
         clearTimeout(runTimer);
