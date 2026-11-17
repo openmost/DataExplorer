@@ -68,9 +68,12 @@ export type Visualization = 'table' | 'line' | 'bar' | 'pie' | 'kpicard';
 
 export type ReportType = 'table' | 'evolution' | 'kpicard';
 
-export type CellType = 'plain' | 'bar' | 'heatmap';
 
-export type FilterOperator = 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'regex' | 'gt' | 'lt';
+export type FilterOperator = 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with'
+  | 'regex' | 'gt' | 'lt';
+
+// the filters all apply (AND) or any of them is enough (OR)
+export type FilterMatch = 'all' | 'any';
 
 export interface Filter {
   dimension: string;
@@ -89,11 +92,10 @@ export interface ExplorationState {
   column: string|null;
   values: string[];
   filters: Filter[];
+  filterMatch: FilterMatch;
   visualization: Visualization;
   // definition of the applied segment, '' for none (one segment in v1)
   segment: string;
-  // how the table draws its metric cells
-  cellType: CellType;
 }
 
 export interface VisualDefinition {
@@ -103,6 +105,7 @@ export interface VisualDefinition {
   column: string|null;
   metrics: string[];
   filters: Filter[];
+  filter_match?: FilterMatch;
   segment: string;
   // the view a saved table report opens with
   chart?: '' | 'bar' | 'pie';

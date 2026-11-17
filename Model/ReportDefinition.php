@@ -33,6 +33,10 @@ class ReportDefinition
     // how a table report opens, its footer still offers the other views
     public const CHARTS = ['', 'bar', 'pie'];
 
+    // the filters all apply (AND) or any of them is enough (OR)
+    public const FILTER_MATCH_ALL = 'all';
+    public const FILTER_MATCH_ANY = 'any';
+
     /** @var string */
     private $name;
     /** @var string */
@@ -55,6 +59,8 @@ class ReportDefinition
     private $sql;
     /** @var string */
     private $chart = '';
+    /** @var string */
+    private $filterMatch = self::FILTER_MATCH_ALL;
 
     private function __construct()
     {
@@ -93,6 +99,9 @@ class ReportDefinition
         $column = $raw['column'] ?? null;
         $def->column = is_string($column) && $column !== '' ? $column : null;
         $def->filters = self::filters($raw['filters'] ?? []);
+        $def->filterMatch = self::string($raw, 'filter_match', self::FILTER_MATCH_ALL) === self::FILTER_MATCH_ANY && count($def->filters) > 1
+            ? self::FILTER_MATCH_ANY
+            : self::FILTER_MATCH_ALL;
         $def->segment = self::string($raw, 'segment', '');
         $def->sql = trim(self::string($raw, 'sql', ''));
         $chart = self::string($raw, 'chart', '');
@@ -283,6 +292,11 @@ class ReportDefinition
         return $this->chart;
     }
 
+    public function getFilterMatch(): string
+    {
+        return $this->filterMatch;
+    }
+
     public function getSql(): string
     {
         return $this->sql;
@@ -309,6 +323,7 @@ class ReportDefinition
             'column' => $this->column,
             'metrics' => $this->metrics,
             'filters' => $this->filters,
+            'filter_match' => $this->filterMatch,
             'segment' => $this->segment,
             'sql' => $this->sql,
             'chart' => $this->chart,

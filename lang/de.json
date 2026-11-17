@@ -173,10 +173,6 @@
         "Scope_visit": "Besuch",
         "Scope_action": "Aktion",
         "Scope_conversion": "Conversion",
-        "CellType": "Zellentyp",
-        "CellType_plain": "Einfach",
-        "CellType_bar": "Balken in der Zelle",
-        "CellType_heatmap": "Heatmap",
         "PanelAddedCount": "Zu dieser Exploration hinzugefügt: %s",
         "ItemRefused": "%1$s kann nicht hinzugefügt werden: %2$s",
         "ManageReports": "Explorationen verwalten",
@@ -198,7 +194,14 @@
         "Export": "Daten exportieren",
         "EditReport": "Bericht bearbeiten",
         "PieFirstMetricOnly": "Das Kreisdiagramm zeigt nur die erste Metrik.",
-        "PanelNoSegments": "Noch kein gespeichertes Segment. Erstellen Sie eines mit dem Segment-Editor von Matomo."
+        "PanelNoSegments": "Noch kein gespeichertes Segment. Erstellen Sie eines mit dem Segment-Editor von Matomo.",
+        "FilterOperator_ends_with": "endet mit",
+        "FilterMatchAll": "Alle Filter (UND)",
+        "FilterMatchAny": "Mindestens ein Filter (ODER)",
+        "FilterMatchLabel": "Filter kombinieren",
+        "FilterConditions": "Bedingung",
+        "FilterApply": "Anwenden",
+        "FilterEdit": "Filter für %s bearbeiten"
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",

@@ -116,7 +116,6 @@
             <table
               cellspacing="0"
               class="dataTable dataExplorerResult"
-              :data-cell-type="cellType"
             >
               <thead>
                 <tr v-if="hasPivot">
@@ -184,7 +183,6 @@
                     v-for="column in columns"
                     :key="column.key"
                     class="column dataExplorerResult__metric"
-                    :class="cellClass(row.values[column.key], column.key)"
                   >{{ format(row.values[column.key]) }}</td>
                 </tr>
               </tbody>
@@ -275,7 +273,6 @@ import type {
   ResultColumn,
   ResultRow,
 } from './resultTable';
-import { cellBucket, columnMaxima } from './resultTable';
 import { VISUALIZATION_ICONS } from './explorationState';
 import {
   Cell,
@@ -285,7 +282,7 @@ import {
   tableData,
   toDelimited,
 } from './exportData';
-import type { CellType, Visualization } from '../types';
+import type { Visualization } from '../types';
 
 export interface KpiView {
   metricName: string;
@@ -328,10 +325,6 @@ export default defineComponent({
     visualization: {
       type: String as PropType<Visualization>,
       required: true,
-    },
-    cellType: {
-      type: String as PropType<CellType>,
-      default: 'plain',
     },
     loading: {
       type: Boolean,
@@ -454,20 +447,6 @@ export default defineComponent({
       return NumberFormatter.formatNumber(value, Number.isInteger(value) ? 0 : 2);
     }
 
-    const maxima = computed(() => (props.cellType === 'plain'
-      ? {}
-      : columnMaxima(props.rows, props.columns)));
-
-    // one class per tenth of the column maximum, the stylesheet draws the bar or the color
-    function cellClass(value: number|undefined, key: string): string {
-      if (props.cellType === 'plain' || typeof value !== 'number') {
-        return '';
-      }
-      const bucket = cellBucket(value, maxima.value[key] || 0);
-      const prefix = props.cellType === 'bar' ? 'dataExplorerCell--bar' : 'dataExplorerCell--heat';
-      return `${prefix}-${bucket}`;
-    }
-
     const lineSeries = computed(() => (props.evolution
       ? props.evolution.series.map((line) => ({
         name: props.metricNames[line.metric] || line.metric,
@@ -565,7 +544,6 @@ export default defineComponent({
       ariaSort,
       sortIcon,
       format,
-      cellClass,
       lineSeries,
     };
   },

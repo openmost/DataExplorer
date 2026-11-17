@@ -200,6 +200,32 @@ class VisualQueryTest extends IntegrationTestCase
         $this->assertSame([], $this->column($none, 'nb_visits'));
     }
 
+    public function test_filters_matchAll_orAny(): void
+    {
+        $filters = [
+            ['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'France'],
+            ['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'Germany'],
+        ];
+        $base = ['rows' => [self::COUNTRY], 'metrics' => ['nb_visits'], 'filters' => $filters];
+
+        $all = $this->explore($base);
+        $any = $this->explore($base + ['filter_match' => 'any']);
+
+        $this->assertSame([], $this->column($all, 'nb_visits'));
+        $this->assertEqualsCanonicalizing(['France', 'Germany'], array_keys($this->column($any, 'nb_visits')));
+    }
+
+    public function test_endsWithFilter(): void
+    {
+        $table = $this->explore([
+            'rows' => [self::COUNTRY],
+            'metrics' => ['nb_visits'],
+            'filters' => [['dimension' => self::COUNTRY, 'operator' => 'ends_with', 'value' => 'MANY']],
+        ]);
+
+        $this->assertSame(['Germany'], array_keys($this->column($table, 'nb_visits')));
+    }
+
     public function test_deviceTypeFilter_byName_neverMatchesDesktop(): void
     {
         // compared as stored, MySQL casts "Smartphone" to 0, the id of Desktop

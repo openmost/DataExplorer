@@ -7,7 +7,6 @@
 
 import type {
   CatalogLimits,
-  CellType,
   ExplorationState,
   Filter,
   FilterOperator,
@@ -32,13 +31,12 @@ export const VISUALIZATION_ICONS: Record<Visualization, string> = {
 
 export const VISUALIZATIONS: Visualization[] = ['table', 'bar', 'pie', 'line', 'kpicard'];
 
-export const CELL_TYPES: CellType[] = ['plain', 'bar', 'heatmap'];
-
 export const FILTER_OPERATORS: FilterOperator[] = [
   'equals',
   'not_equals',
   'contains',
   'starts_with',
+  'ends_with',
   'regex',
   'gt',
   'lt',
@@ -55,9 +53,9 @@ export function defaultState(): ExplorationState {
     column: null,
     values: [],
     filters: [],
+    filterMatch: 'all',
     visualization: 'table',
     segment: '',
-    cellType: 'plain',
   };
 }
 
@@ -182,13 +180,11 @@ export function normalize(raw: unknown): ExplorationState {
   state.column = typeof value.column === 'string' && value.column !== '' ? value.column : null;
   state.values = stringList(value.values);
   state.filters = filterList(value.filters);
+  state.filterMatch = value.filterMatch === 'any' ? 'any' : 'all';
   state.visualization = VISUALIZATIONS.includes(value.visualization as Visualization)
     ? value.visualization as Visualization
     : 'table';
   state.segment = typeof value.segment === 'string' ? value.segment : '';
-  state.cellType = CELL_TYPES.includes(value.cellType as CellType)
-    ? value.cellType as CellType
-    : 'plain';
 
   return withVariables(state);
 }
@@ -244,6 +240,7 @@ export function toDefinition(state: ExplorationState): VisualDefinition {
     column: isTable ? state.column : null,
     metrics: reportType === 'kpicard' ? state.values.slice(0, 1) : [...state.values],
     filters: state.filters.filter(isFilterComplete).map((filter) => ({ ...filter })),
+    filter_match: state.filterMatch,
     segment: state.segment,
   };
 }
@@ -269,6 +266,7 @@ export function fromDefinition(
     column: definition.column,
     values: definition.metrics,
     filters: definition.filters,
+    filterMatch: definition.filter_match,
     segment: definition.segment,
     visualization,
   });

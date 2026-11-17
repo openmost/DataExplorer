@@ -240,27 +240,3 @@ export function toCsv(header: string[], lines: (string|number|null)[][]): string
 
   return [header, ...lines].map((line) => line.map(cell).join(',')).join('\r\n');
 }
-
-export const CELL_BUCKETS = 10;
-
-/**
- * Step (0 to 10) of a cell value against the largest value of its column, for the bar and heat
- * map cell types: 0 draws nothing, 10 the full bar or the strongest color.
- */
-export function cellBucket(value: number, max: number): number {
-  if (!(max > 0) || !(value > 0)) {
-    return 0;
-  }
-  return Math.min(CELL_BUCKETS, Math.ceil((value / max) * CELL_BUCKETS));
-}
-
-/**
- * Largest value of each metric column.
- */
-export function columnMaxima(rows: ResultRow[], columns: ResultColumn[]): Record<string, number> {
-  const maxima: Record<string, number> = {};
-  columns.forEach((column) => {
-    maxima[column.key] = rows.reduce((max, row) => Math.max(max, row.values[column.key] || 0), 0);
-  });
-  return maxima;
-}

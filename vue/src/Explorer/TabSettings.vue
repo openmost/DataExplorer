@@ -33,29 +33,6 @@
       </div>
     </div>
 
-    <div
-      v-if="visualization === 'table'"
-      class="dataExplorerSettings__section"
-    >
-      <h4 id="dataExplorerCellTypeTitle">{{ translate('DataExplorer_CellType') }}</h4>
-      <div
-        class="dataExplorerCellTypes"
-        role="group"
-        aria-labelledby="dataExplorerCellTypeTitle"
-      >
-        <button
-          v-for="option in cellTypes"
-          :key="option"
-          type="button"
-          class="dataExplorerCellTypes__button"
-          :class="{ 'is-active': option === cellType }"
-          :data-cell-type="option"
-          :aria-pressed="option === cellType ? 'true' : 'false'"
-          @click="$emit('setCellType', option)"
-        >{{ translate(`DataExplorer_CellType_${option}`) }}</button>
-      </div>
-    </div>
-
     <DropZone
       zone="segment"
       accepts="segment"
@@ -127,22 +104,40 @@
       :placeholder="translate('DataExplorer_DropFilter')"
       :empty-menu-text="translate('DataExplorer_NoDimensions')"
       @add="$emit('add', 'filters', $event)"
-    />
-    <ul
-      v-if="filters.length"
-      class="dataExplorerFilters"
-      :aria-label="translate('DataExplorer_Filters')"
     >
-      <FilterRow
-        v-for="(filter, index) in filters"
-        :key="`${index}-${filter.filter.dimension}`"
-        :filter="filter.filter"
-        :dimension-name="filter.name"
-        :reason="filter.reason"
-        @update="$emit('updateFilter', index, $event)"
-        @remove="$emit('removeFilter', index)"
-      />
-    </ul>
+      <div
+        v-if="filters.length > 1"
+        class="dataExplorerSegmented dataExplorerFilterMatch"
+        role="radiogroup"
+        :aria-label="translate('DataExplorer_FilterMatchLabel')"
+      >
+        <button
+          v-for="match in filterMatches"
+          :key="match.id"
+          type="button"
+          role="radio"
+          class="dataExplorerSegmented__button"
+          :class="{ 'is-active': filterMatch === match.id }"
+          :aria-checked="filterMatch === match.id ? 'true' : 'false'"
+          @click="$emit('setFilterMatch', match.id)"
+        >{{ match.label }}</button>
+      </div>
+      <ul
+        v-if="filters.length"
+        class="dataExplorerFilters"
+        :aria-label="translate('DataExplorer_Filters')"
+      >
+        <FilterRow
+          v-for="(filter, index) in filters"
+          :key="`${index}-${filter.filter.dimension}`"
+          :filter="filter.filter"
+          :dimension-name="filter.name"
+          :reason="filter.reason"
+          @update="$emit('updateFilter', index, $event)"
+          @remove="$emit('removeFilter', index)"
+        />
+      </ul>
+    </DropZone>
   </div>
 </template>
 
@@ -152,14 +147,13 @@ import { translate } from 'CoreHome';
 import DropZone from './DropZone.vue';
 import FilterRow from './FilterRow.vue';
 import {
-  CELL_TYPES,
   hasRowDimensions,
   VISUALIZATION_ICONS as ICONS,
   VISUALIZATIONS,
 } from './explorationState';
 import type {
   CatalogLimits,
-  CellType,
+  FilterMatch,
   FilterView,
   Visualization,
   ZoneItem,
@@ -178,10 +172,6 @@ export default defineComponent({
     visualization: {
       type: String as PropType<Visualization>,
       required: true,
-    },
-    cellType: {
-      type: String as PropType<CellType>,
-      default: 'plain',
     },
     limits: {
       type: Object as PropType<CatalogLimits>,
@@ -207,6 +197,10 @@ export default defineComponent({
       type: Array as PropType<FilterView[]>,
       required: true,
     },
+    filterMatch: {
+      type: String as PropType<FilterMatch>,
+      default: 'all',
+    },
     dimensionOptions: {
       type: Array as PropType<ZoneItem[]>,
       required: true,
@@ -220,7 +214,14 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ['setVisualization', 'setCellType', 'add', 'remove', 'updateFilter', 'removeFilter'],
+  emits: [
+    'setVisualization',
+    'add',
+    'remove',
+    'updateFilter',
+    'removeFilter',
+    'setFilterMatch',
+  ],
   setup(props) {
     const visualizations = VISUALIZATIONS.map((id) => ({
       id,
@@ -232,7 +233,8 @@ export default defineComponent({
 
     // the pie and the KPI card show one metric: one more can't be added, those already there stay
     // (hatched) for the visualizations that show them all
-    const singleValue = computed(() => props.visualization === 'pie' || props.visualization === 'kpicard');
+    const singleValue = computed(() => props.visualization === 'pie'
+      || props.visualization === 'kpicard');
     const maxValues = computed(() => (singleValue.value ? 1 : props.limits.maxMetrics));
     const activeValues = computed(() => (singleValue.value ? 1 : 0));
     const inactiveValueReason = computed(() => {
@@ -242,9 +244,14 @@ export default defineComponent({
       return props.visualization === 'kpicard' ? translate('DataExplorer_KpiFirstMetricOnly') : '';
     });
 
+    const filterMatches = [
+      { id: 'all' as FilterMatch, label: translate('DataExplorer_FilterMatchAll') },
+      { id: 'any' as FilterMatch, label: translate('DataExplorer_FilterMatchAny') },
+    ];
+
     return {
+      filterMatches,
       visualizations,
-      cellTypes: CELL_TYPES,
       hasRows,
       maxValues,
       activeValues,

@@ -173,10 +173,6 @@
         "Scope_visit": "bezoek",
         "Scope_action": "actie",
         "Scope_conversion": "conversie",
-        "CellType": "Celtype",
-        "CellType_plain": "Eenvoudig",
-        "CellType_bar": "Balk in cel",
-        "CellType_heatmap": "Heatmap",
         "PanelAddedCount": "Toegevoegd aan deze verkenning: %s",
         "ItemRefused": "%1$s kan niet worden toegevoegd: %2$s",
         "ManageReports": "Verkenningen beheren",
@@ -198,7 +194,14 @@
         "Export": "Gegevens exporteren",
         "EditReport": "Rapport bewerken",
         "PieFirstMetricOnly": "Het cirkeldiagram toont alleen de eerste metriek.",
-        "PanelNoSegments": "Nog geen opgeslagen segment. Maak er een met de segmenteditor van Matomo."
+        "PanelNoSegments": "Nog geen opgeslagen segment. Maak er een met de segmenteditor van Matomo.",
+        "FilterOperator_ends_with": "eindigt op",
+        "FilterMatchAll": "Alle filters (EN)",
+        "FilterMatchAny": "Minstens één filter (OF)",
+        "FilterMatchLabel": "Filters combineren",
+        "FilterConditions": "Voorwaarde",
+        "FilterApply": "Toepassen",
+        "FilterEdit": "Filter op %s bewerken"
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",

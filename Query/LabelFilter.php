@@ -43,6 +43,8 @@ final class LabelFilter
                 return $needle === '' || mb_strpos($haystack, $needle) !== false;
             case 'starts_with':
                 return $needle === '' || mb_strpos($haystack, $needle) === 0;
+            case 'ends_with':
+                return $needle === '' || mb_substr($haystack, -mb_strlen($needle)) === $needle;
             case 'regex':
                 return @preg_match('/' . str_replace('/', '\/', $value) . '/iu', $candidate) === 1;
         }

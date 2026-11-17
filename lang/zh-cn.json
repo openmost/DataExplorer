@@ -173,10 +173,6 @@
         "Scope_visit": "访问",
         "Scope_action": "操作",
         "Scope_conversion": "转化",
-        "CellType": "单元格类型",
-        "CellType_plain": "普通",
-        "CellType_bar": "单元格内条形",
-        "CellType_heatmap": "热图",
         "PanelAddedCount": "已添加到此探索：%s",
         "ItemRefused": "无法添加 %1$s：%2$s",
         "ManageReports": "管理探索",
@@ -198,7 +194,14 @@
         "Export": "导出数据",
         "EditReport": "编辑报表",
         "PieFirstMetricOnly": "饼图仅显示第一个指标。",
-        "PanelNoSegments": "还没有已保存的分段。请使用 Matomo 分段编辑器创建一个。"
+        "PanelNoSegments": "还没有已保存的分段。请使用 Matomo 分段编辑器创建一个。",
+        "FilterOperator_ends_with": "结尾为",
+        "FilterMatchAll": "全部筛选条件 (AND)",
+        "FilterMatchAny": "任一筛选条件 (OR)",
+        "FilterMatchLabel": "组合筛选条件",
+        "FilterConditions": "条件",
+        "FilterApply": "应用",
+        "FilterEdit": "编辑 %s 的筛选条件"
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",

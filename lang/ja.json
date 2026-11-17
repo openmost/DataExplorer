@@ -173,10 +173,6 @@
         "Scope_visit": "訪問",
         "Scope_action": "アクション",
         "Scope_conversion": "コンバージョン",
-        "CellType": "セルの種類",
-        "CellType_plain": "標準",
-        "CellType_bar": "セル内の棒",
-        "CellType_heatmap": "ヒートマップ",
         "PanelAddedCount": "この探索に追加済み: %s",
         "ItemRefused": "%1$s は追加できません: %2$s",
         "ManageReports": "探索の管理",
@@ -198,7 +194,14 @@
         "Export": "データをエクスポート",
         "EditReport": "レポートを編集",
         "PieFirstMetricOnly": "円グラフには最初の指標のみが表示されます。",
-        "PanelNoSegments": "保存済みのセグメントはまだありません。Matomo のセグメントエディターで作成してください。"
+        "PanelNoSegments": "保存済みのセグメントはまだありません。Matomo のセグメントエディターで作成してください。",
+        "FilterOperator_ends_with": "で終わる",
+        "FilterMatchAll": "すべてのフィルタ (AND)",
+        "FilterMatchAny": "いずれかのフィルタ (OR)",
+        "FilterMatchLabel": "フィルタの組み合わせ",
+        "FilterConditions": "条件",
+        "FilterApply": "適用",
+        "FilterEdit": "%s のフィルタを編集"
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",

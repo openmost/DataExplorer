@@ -30,7 +30,7 @@ use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
  */
 class VisualQueryBuilder
 {
-    public const OPERATORS = ['equals', 'not_equals', 'contains', 'starts_with', 'regex', 'gt', 'lt'];
+    public const OPERATORS = ['equals', 'not_equals', 'contains', 'starts_with', 'ends_with', 'regex', 'gt', 'lt'];
     public const OPERATOR_IN = 'in';
     public const OPERATOR_NOT_IN = 'not_in';
 
@@ -201,10 +201,13 @@ class VisualQueryBuilder
 
         $conditions = array_values(array_unique($conditions));
         $bind = [];
+        $filterConditions = [];
         foreach ($resolved['filters'] as $filter) {
-            [$condition, $values] = $this->filterCondition($this->expression($filter['dimension'], $joins), $filter);
-            $conditions[] = $condition;
+            [$filterConditions[], $values] = $this->filterCondition($this->expression($filter['dimension'], $joins), $filter);
             array_push($bind, ...$values);
+        }
+        if ($filterConditions) {
+            $conditions[] = '(' . implode($definition->getFilterMatch() === ReportDefinition::FILTER_MATCH_ANY ? ' OR ' : ' AND ', $filterConditions) . ')';
         }
         if ($include) {
             $conditions[] = $this->tuplePredicate(array_slice($rowExpressions, 0, (int) $include[0]), $include[1], $bind);
@@ -444,6 +447,8 @@ class VisualQueryBuilder
                 return [$expression . ' LIKE ?', ['%' . $this->escapeLike($value) . '%']];
             case 'starts_with':
                 return [$expression . ' LIKE ?', [$this->escapeLike($value) . '%']];
+            case 'ends_with':
+                return [$expression . ' LIKE ?', ['%' . $this->escapeLike($value)]];
             case 'regex':
                 return [$expression . ' REGEXP ?', [$value]];
             case 'gt':

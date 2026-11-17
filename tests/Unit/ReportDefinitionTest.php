@@ -101,6 +101,18 @@ class ReportDefinitionTest extends TestCase
         $this->assertSame('', ReportDefinition::fromArray($this->valid(['report_type' => 'evolution', 'rows' => [], 'chart' => 'pie']))->getChart());
     }
 
+    public function testFilterMatch_anyNeedsTwoFilters(): void
+    {
+        $two = [
+            ['dimension' => 'UserCountry.Country', 'operator' => 'equals', 'value' => 'fr'],
+            ['dimension' => 'UserCountry.Country', 'operator' => 'equals', 'value' => 'de'],
+        ];
+        $this->assertSame('any', ReportDefinition::fromArray($this->valid(['filters' => $two, 'filter_match' => 'any']))->getFilterMatch());
+        $this->assertSame('all', ReportDefinition::fromArray($this->valid(['filters' => $two, 'filter_match' => 'or 1=1']))->getFilterMatch());
+        $this->assertSame('all', ReportDefinition::fromArray($this->valid(['filter_match' => 'any']))->getFilterMatch(), 'one filter is always all');
+        $this->assertSame('any', ReportDefinition::fromArray($this->valid(['filters' => $two, 'filter_match' => 'any']))->toArray()['filter_match']);
+    }
+
     public function testValidEvolutionAndKpiCard(): void
     {
         $evo = ReportDefinition::fromArray($this->valid(['report_type' => 'evolution', 'rows' => [], 'metrics' => ['a', 'b']]));

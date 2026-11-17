@@ -173,10 +173,6 @@
         "Scope_visit": "visit",
         "Scope_action": "action",
         "Scope_conversion": "conversion",
-        "CellType": "Cell type",
-        "CellType_plain": "Plain",
-        "CellType_bar": "Bar in cell",
-        "CellType_heatmap": "Heat map",
         "PanelAddedCount": "Added to this exploration: %s",
         "ItemRefused": "%1$s cannot be added: %2$s",
         "ManageReports": "Manage explorations",
@@ -198,7 +194,14 @@
         "Export": "Export data",
         "EditReport": "Edit report",
         "PieFirstMetricOnly": "The pie chart shows the first metric only.",
-        "PanelNoSegments": "No saved segment yet. Create one with the Matomo segment editor."
+        "PanelNoSegments": "No saved segment yet. Create one with the Matomo segment editor.",
+        "FilterOperator_ends_with": "ends with",
+        "FilterMatchAll": "All filters (AND)",
+        "FilterMatchAny": "Any filter (OR)",
+        "FilterMatchLabel": "Combine the filters",
+        "FilterConditions": "Condition",
+        "FilterApply": "Apply",
+        "FilterEdit": "Edit the filter on %s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

@@ -173,10 +173,6 @@
         "Scope_visit": "زيارة",
         "Scope_action": "إجراء",
         "Scope_conversion": "تحويل",
-        "CellType": "نوع الخلية",
-        "CellType_plain": "عادي",
-        "CellType_bar": "شريط داخل الخلية",
-        "CellType_heatmap": "خريطة حرارية",
         "PanelAddedCount": "المضاف إلى هذا الاستكشاف: %s",
         "ItemRefused": "لا يمكن إضافة %1$s: %2$s",
         "ManageReports": "إدارة الاستكشافات",
@@ -198,7 +194,14 @@
         "Export": "تصدير البيانات",
         "EditReport": "تعديل التقرير",
         "PieFirstMetricOnly": "يعرض المخطط الدائري المقياس الأول فقط.",
-        "PanelNoSegments": "لا يوجد مقطع محفوظ بعد. أنشئ واحدًا باستخدام محرر المقاطع في Matomo."
+        "PanelNoSegments": "لا يوجد مقطع محفوظ بعد. أنشئ واحدًا باستخدام محرر المقاطع في Matomo.",
+        "FilterOperator_ends_with": "ينتهي بـ",
+        "FilterMatchAll": "كل عوامل التصفية (و)",
+        "FilterMatchAny": "عامل تصفية واحد على الأقل (أو)",
+        "FilterMatchLabel": "دمج عوامل التصفية",
+        "FilterConditions": "الشرط",
+        "FilterApply": "تطبيق",
+        "FilterEdit": "تعديل عامل التصفية على %s"
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

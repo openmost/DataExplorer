@@ -11,14 +11,19 @@ export type ExportFormat = 'csv' | 'tsv';
 
 export type Cell = string | number | null | undefined;
 
-function csvCell(value: Cell): string {
+// a spreadsheet runs a cell starting with these as a formula, and a page title is visitor input
+function safeText(value: Cell): string {
   const text = value === null || value === undefined ? '' : String(value);
+  return typeof value === 'string' && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+}
+
+function csvCell(value: Cell): string {
+  const text = safeText(value);
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 function tsvCell(value: Cell): string {
-  const text = value === null || value === undefined ? '' : String(value);
-  return text.replace(/[\t\r\n]+/g, ' ');
+  return safeText(value).replace(/[\t\r\n]+/g, ' ');
 }
 
 /**

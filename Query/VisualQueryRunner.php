@@ -568,7 +568,7 @@ class VisualQueryRunner
     private function resolveLabelFilters(array $resolved, int $idSite): array
     {
         foreach ($resolved['filters'] as $index => $filter) {
-            if (!in_array($filter['operator'], ['equals', 'not_equals', 'contains', 'starts_with', 'regex'], true)) {
+            if (!in_array($filter['operator'], ['equals', 'not_equals', 'contains', 'starts_with', 'ends_with', 'regex'], true)) {
                 continue;
             }
 

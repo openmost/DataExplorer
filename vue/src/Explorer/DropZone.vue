@@ -72,6 +72,7 @@
         </button>
       </li>
     </ul>
+    <slot></slot>
     <div
       v-if="!isFull && !disabled"
       class="dataExplorerDropZone__slot"

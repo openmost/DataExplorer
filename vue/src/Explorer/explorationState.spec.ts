@@ -28,9 +28,9 @@ function exploration(): ExplorationState {
     column: 'DevicesDetection.DeviceType',
     values: ['nb_visits', 'nb_actions'],
     filters: [{ dimension: 'Actions.PageTitle', operator: 'contains', value: 'Élan "100%" & <b>' }],
+    filterMatch: 'any',
     visualization: 'bar',
     segment: 'browserCode==FF',
-    cellType: 'heatmap',
   };
 }
 
@@ -75,7 +75,7 @@ describe('explorationState', () => {
       filters: [{ dimension: 'UserCountry.Country', operator: 'equals', value: '3' }],
       visualization: 'table',
       segment: '',
-      cellType: 'plain',
+      filterMatch: 'all',
     });
   });
 
@@ -104,6 +104,7 @@ describe('explorationState', () => {
       column: 'DevicesDetection.DeviceType',
       metrics: ['nb_visits', 'nb_actions'],
       filters: [{ dimension: 'Actions.PageTitle', operator: 'contains', value: 'Élan "100%" & <b>' }],
+      filter_match: 'any',
       segment: 'browserCode==FF',
     });
 
@@ -147,18 +148,14 @@ describe('explorationState', () => {
       ...defaultState(),
       rows: ['a', 'b', 'c', 'd'],
       values: ['m1', 'm2', 'm3'],
-      cellType: 'bar' as const,
+      filterMatch: 'any' as const,
     };
 
     const clamped = clampToLimits(state, { maxDimensions: 2, maxMetrics: 2, maxColumns: 1 });
     expect(clamped.rows).toEqual(['a', 'b']);
     expect(clamped.values).toEqual(['m1', 'm2']);
     expect(clamped.variables.dimensions).toEqual([]);
-    expect(clamped.cellType).toBe('bar');
-  });
-
-  it('defaults an unknown cell type to plain', () => {
-    expect(decode(encode({ ...defaultState(), cellType: 'sparkles' as 'plain' })).cellType).toBe('plain');
+    expect(clamped.filterMatch).toBe('any');
   });
 
   it('sends a filter once it has a value, a blank value is not a filter yet', () => {
@@ -207,5 +204,21 @@ describe('explorationState', () => {
     expect(fromDefinition({ ...definition, chart: 'bar' }, 'table').visualization).toBe('bar');
     expect(fromDefinition(definition, 'table').visualization).toBe('table');
     expect(fromDefinition({ ...definition, chart: 'pie' }, 'evolution').visualization).toBe('line');
+  });
+
+  it('sends how the filters combine and keeps it through the URL hash', () => {
+    const state = {
+      ...exploration(),
+      filters: [
+        { dimension: 'UserCountry.Country', operator: 'equals' as const, value: 'fr' },
+        { dimension: 'UserCountry.Country', operator: 'ends_with' as const, value: 'many' },
+      ],
+      filterMatch: 'any' as const,
+    };
+
+    expect(toDefinition(state).filter_match).toBe('any');
+    expect(decode(encode(state)).filterMatch).toBe('any');
+    expect(decode(encode({ ...state, filterMatch: 'xor' as 'any' })).filterMatch).toBe('all');
+    expect(fromDefinition({ ...toDefinition(state) }, 'table').filterMatch).toBe('any');
   });
 });

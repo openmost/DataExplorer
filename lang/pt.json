@@ -173,10 +173,6 @@
         "Scope_visit": "visita",
         "Scope_action": "ação",
         "Scope_conversion": "conversão",
-        "CellType": "Tipo de célula",
-        "CellType_plain": "Simples",
-        "CellType_bar": "Barra na célula",
-        "CellType_heatmap": "Mapa de calor",
         "PanelAddedCount": "Adicionados a esta exploração: %s",
         "ItemRefused": "Não é possível adicionar %1$s: %2$s",
         "ManageReports": "Gerir explorações",
@@ -198,7 +194,14 @@
         "Export": "Exportar dados",
         "EditReport": "Editar o relatório",
         "PieFirstMetricOnly": "O gráfico circular mostra apenas a primeira métrica.",
-        "PanelNoSegments": "Ainda não há nenhum segmento guardado. Crie um com o editor de segmentos do Matomo."
+        "PanelNoSegments": "Ainda não há nenhum segmento guardado. Crie um com o editor de segmentos do Matomo.",
+        "FilterOperator_ends_with": "termina em",
+        "FilterMatchAll": "Todos os filtros (E)",
+        "FilterMatchAny": "Pelo menos um filtro (OU)",
+        "FilterMatchLabel": "Combinar os filtros",
+        "FilterConditions": "Condição",
+        "FilterApply": "Aplicar",
+        "FilterEdit": "Editar o filtro de %s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Dispensar",

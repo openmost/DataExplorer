@@ -567,7 +567,7 @@ html.dataExplorer-panel-open {
   font-size: 12px;
 }
 
-// visualization picker: square buttons like GA4, cell types: a segmented control
+// visualization picker: square buttons like GA4; segmented control for the filter combination
 .dataExplorerVisualizations {
   display: flex;
   flex-wrap: wrap;
@@ -598,7 +598,7 @@ html.dataExplorer-panel-open {
   }
 }
 
-.dataExplorerCellTypes {
+.dataExplorerSegmented {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 2px;
@@ -607,7 +607,7 @@ html.dataExplorer-panel-open {
   background: @de-hover;
 }
 
-.dataExplorerCellTypes__button {
+.dataExplorerSegmented__button {
   height: 28px;
   padding: 0 10px;
   border: 0;
@@ -791,41 +791,85 @@ html.dataExplorer-panel-open {
 }
 
 .dataExplorerFilters {
-  margin: 8px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 6px;
   padding: 0;
   list-style: none;
 }
 
+.dataExplorerFilterMatch {
+  margin-bottom: 8px;
+}
+
+// a filter is a dimension card: its summary line, the condition below while it is edited
 .dataExplorerFilter {
-  margin-bottom: 6px;
-  padding: 8px;
-  border: 1px solid @de-border;
-  border-radius: 8px;
+  border: 1px solid @de-border-strong;
+  border-left: 4px solid @de-dimension;
+  border-radius: 4px;
+  background: @de-surface;
 
   &.is-incompatible {
-    box-shadow: inset 3px 0 0 @de-warning;
+    border-left-color: @de-warning;
   }
 }
 
 .dataExplorerFilter__header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 4px 4px 4px 10px;
+}
+
+.dataExplorerFilter__summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
   color: @de-text-strong;
+  font: inherit;
   font-size: 13px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+
+  .icon-warning {
+    margin-right: 4px;
+    color: @de-warning;
+  }
+}
+
+.dataExplorerFilter__condition {
+  margin-left: 4px;
+  color: @de-text-light;
 }
 
 .dataExplorerFilter__reason {
-  margin: 2px 0;
+  margin: 0 10px 6px;
   color: @de-text-lighter;
   font-size: 12px;
+}
+
+.dataExplorerFilter__label {
+  color: @de-text-lighter;
+  font-size: 12px;
+}
+
+.dataExplorerFilter__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .dataExplorerFilter__fields {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 2px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid @de-border;
 
   // the Matomo fields keep their look, without the spacing of a full-page form
   .matomo-form-field.row {
@@ -845,30 +889,11 @@ html.dataExplorer-panel-open {
   }
 }
 
-// cell types of the canvas table: bars and heat buckets
-.dataExplorerCellBuckets(@i) when (@i > 0) {
-  .dataExplorerResult .dataExplorerCell--bar-@{i} {
-    background-image: linear-gradient(to left, @de-cell-bar 0%, @de-cell-bar unit(@i * 10, %), transparent unit(@i * 10, %));
-  }
-
-  // at most half the accent, so the theme text stays readable on every bucket
-  @heat: unit((@i * 5), %);
-
-  .dataExplorerResult .dataExplorerCell--heat-@{i} {
-    background-color: ~"color-mix(in srgb, var(--theme-color-link) @{heat}, transparent)";
-  }
-
-  .dataExplorerCellBuckets(@i - 1);
-}
-
-@de-cell-bar: ~"color-mix(in srgb, var(--theme-color-link) 22%, transparent)";
-
-.dataExplorerCellBuckets(10);
-
 // canvas
 .dataExplorerCanvas {
   display: flex;
   flex-direction: column;
+  padding-bottom: 0;
   // no aspect-ratio: stretched to the height of the other columns it would grow wider than its track
   min-width: 0;
   min-height: 480px;
@@ -991,10 +1016,12 @@ button.dataExplorerCanvas__period {
   flex-direction: column;
   min-height: 0;
   padding-top: 16px;
+  padding-bottom: 16px;
 
-  // the table starts right under the tab strip, like a report under its title
+  // the table runs from the header down to the bottom border of the canvas
   &.is-table {
     padding-top: 0;
+    padding-bottom: 0;
   }
   transition: opacity .15s ease;
 
@@ -1234,6 +1261,15 @@ button.dataExplorerCanvas__period {
     &:hover {
       background: @de-hover;
     }
+
+    // the list scrolls, an outline drawn outside the row would be cut at its edges
+    &:focus-visible {
+      outline-offset: -2px;
+    }
+  }
+
+  .dataExplorerSchema__insert:focus-visible {
+    outline-offset: -2px;
   }
 }
 

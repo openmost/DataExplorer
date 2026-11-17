@@ -111,9 +111,8 @@ class TranslationsTest extends TestCase
         $families = [
             'ReportType_' => ['table', 'evolution', 'kpicard'],
             'Scope_' => ['visit', 'action', 'conversion'],
-            'FilterOperator_' => ['equals', 'not_equals', 'contains', 'starts_with', 'regex', 'gt', 'lt'],
+            'FilterOperator_' => ['equals', 'not_equals', 'contains', 'starts_with', 'ends_with', 'regex', 'gt', 'lt'],
             'Visualization_' => ['table', 'bar', 'pie', 'line', 'kpicard'],
-            'CellType_' => ['plain', 'bar', 'heatmap'],
         ];
         foreach ($families as $prefix => $suffixes) {
             foreach ($suffixes as $suffix) {

@@ -173,10 +173,6 @@
         "Scope_visit": "visite",
         "Scope_action": "action",
         "Scope_conversion": "conversion",
-        "CellType": "Type de cellule",
-        "CellType_plain": "Simple",
-        "CellType_bar": "Barre dans la cellule",
-        "CellType_heatmap": "Carte de chaleur",
         "PanelAddedCount": "Ajoutés à cette exploration : %s",
         "ItemRefused": "%1$s ne peut pas être ajouté : %2$s",
         "ManageReports": "Gérer les explorations",
@@ -198,7 +194,14 @@
         "Export": "Exporter les données",
         "EditReport": "Modifier le rapport",
         "PieFirstMetricOnly": "Le camembert n'affiche que la première métrique.",
-        "PanelNoSegments": "Aucun segment enregistré pour l'instant. Créez-en un avec l'éditeur de segments de Matomo."
+        "PanelNoSegments": "Aucun segment enregistré pour l'instant. Créez-en un avec l'éditeur de segments de Matomo.",
+        "FilterOperator_ends_with": "se termine par",
+        "FilterMatchAll": "Tous les filtres (ET)",
+        "FilterMatchAny": "Au moins un filtre (OU)",
+        "FilterMatchLabel": "Combiner les filtres",
+        "FilterConditions": "Condition",
+        "FilterApply": "Appliquer",
+        "FilterEdit": "Modifier le filtre sur %s"
     },
     "OpenmostCommunication": {
         "Dismiss": "Masquer",

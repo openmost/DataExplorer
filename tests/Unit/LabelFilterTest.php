@@ -40,6 +40,8 @@ class LabelFilterTest extends TestCase
             'contains nowhere' => ['contains', 'xyz', 'Germany', 'de', false],
             'starts with the label' => ['starts_with', 'uni', 'United States', 'us', true],
             'starts with, not in the middle' => ['starts_with', 'states', 'United States', 'us', false],
+            'ends with the label' => ['ends_with', 'STATES', 'United States', 'us', true],
+            'ends with, not in the middle' => ['ends_with', 'united', 'United States', 'us', false],
             'regex on the label' => ['regex', '^(France|Germany)$', 'Germany', 'de', true],
             'regex is case insensitive' => ['regex', '^chrome$', 'Chrome', 'CH', true],
             'regex with a slash' => ['regex', 'a/b', 'a/b', 'a/b', true],
