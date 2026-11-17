@@ -103,7 +103,7 @@
       <div
         v-if="!error && !hint"
         class="dataExplorerCanvas__result"
-        :class="{ 'is-stale': loading }"
+        :class="{ 'is-stale': loading, 'is-table': visualization === 'table' }"
       >
         <div
           v-if="visualization === 'table'"

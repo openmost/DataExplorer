@@ -874,7 +874,7 @@ html.dataExplorer-panel-open {
   align-items: flex-end;
   gap: 12px;
   min-height: 48px;
-  margin-bottom: 16px;
+  margin-bottom: 0;
   padding: 0 16px 0 12px;
   border-bottom: 1px solid @de-border;
   background: @de-sunken;
@@ -986,6 +986,12 @@ button.dataExplorerCanvas__period {
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  padding-top: 16px;
+
+  // the table starts right under the tab strip, like a report under its title
+  &.is-table {
+    padding-top: 0;
+  }
   transition: opacity .15s ease;
 
   &.is-stale {
@@ -1342,4 +1348,8 @@ button.dataExplorerCanvas__period {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: -.02em;
+}
+
+.dataExplorerCanvas__status:not(:empty) {
+  padding-top: 16px;
 }
