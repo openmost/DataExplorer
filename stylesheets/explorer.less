@@ -879,11 +879,6 @@ html.dataExplorer-panel-open {
   border-bottom: 1px solid @de-border;
   background: @de-sunken;
   border-top-right-radius: @de-radius;
-
-  .loadingPiwik {
-    align-self: center;
-    margin: 0;
-  }
 }
 
 .dataExplorerCanvas__tab {
@@ -967,6 +962,24 @@ button.dataExplorerCanvas__period {
   }
 }
 
+// the Matomo loader over the dimmed previous result, centred in the canvas
+.dataExplorerCanvas__stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dataExplorerCanvas__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
 // a new result loads over the previous one, dimmed, so the canvas never blanks or jumps
 .dataExplorerCanvas__result {
   display: flex;
@@ -997,61 +1010,20 @@ button.dataExplorerCanvas__period {
   text-align: center;
 }
 
-.dataExplorerCanvas__table {
+.dataExplorerCanvas__table .dataTableScroller {
   max-height: 640px;
   overflow: auto;
-  border: 1px solid @de-border;
-  border-radius: 8px;
 }
 
-// result table: quiet header, hairline rows, no zebra
-.dataExplorer table.entityTable.dataExplorerResult {
-  width: 100%;
-  margin: 0;
-  border: 0;
-  border-collapse: separate;
-  border-spacing: 0;
-
-  thead tr th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    padding: 10px 14px !important;
-    border-bottom: 1px solid @de-border;
-    background: @de-surface;
-    color: @de-text-lighter;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .05em;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  tbody tr td {
-    padding: 9px 14px !important;
-    border-bottom: 1px solid @de-border !important;
-    background-color: transparent;
-    color: @de-text;
-    font-size: 13px;
-    line-height: 18px;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: 0 !important;
-  }
-
-  tbody tr:hover td {
-    background-color: @de-hover;
+// result table: the report table of Matomo (table.dataTable), only the pivot header and the cell
+// types are the plugin's own
+.dataExplorer table.dataTable.dataExplorerResult {
+  .dataExplorerResult__pivot {
+    text-align: center;
   }
 
   .dataExplorerResult__metric {
-    text-align: right !important;
     font-variant-numeric: tabular-nums;
-  }
-
-  .dataExplorerResult__pivot {
-    border-bottom: 1px solid @de-border;
-    text-align: center !important;
   }
 }
 
@@ -1332,7 +1304,7 @@ button.dataExplorerCanvas__period {
   }
 
   html.dataExplorer-printing .dataExplorerCanvas__export,
-  html.dataExplorer-printing .dataExplorerCanvas .loadingPiwik {
+  html.dataExplorer-printing .dataExplorerCanvas__loading {
     display: none;
   }
 }

@@ -82,7 +82,6 @@
           </li>
         </ul>
       </div>
-      <ActivityIndicator :loading="loading" />
     </div>
 
     <div
@@ -100,134 +99,153 @@
       >{{ hint }}</div>
     </div>
 
-    <div
-      v-if="!error && !hint"
-      class="dataExplorerCanvas__result"
-      :class="{ 'is-stale': loading }"
-    >
+    <div class="dataExplorerCanvas__stage">
       <div
-        v-if="visualization === 'table'"
-        class="dataExplorerCanvas__table"
+        v-if="!error && !hint"
+        class="dataExplorerCanvas__result"
+        :class="{ 'is-stale': loading }"
       >
-        <table
-          class="entityTable dataTable dataExplorerResult"
-          :data-cell-type="cellType"
-          v-if="rows.length"
-        >
-          <thead>
-            <tr v-if="hasPivot">
-              <th
-                :colspan="dimensionNames.length"
-                class="dataExplorerResult__corner"
-              ></th>
-              <th
-                v-for="group in pivotGroups"
-                :key="group.key"
-                :colspan="group.span"
-                class="dataExplorerResult__pivot"
-                scope="colgroup"
-              >{{ group.label }}</th>
-            </tr>
-            <tr>
-              <th
-                v-for="(name, index) in dimensionNames"
-                :key="`d${index}`"
-                scope="col"
-                :aria-sort="ariaSort(`d${index}`)"
-              >
-                <button
-                  type="button"
-                  class="dataExplorerResult__sort"
-                  @click="sortBy(`d${index}`)"
-                >{{ name }}<span
-                  :class="sortIcon(`d${index}`)"
-                  aria-hidden="true"
-                ></span></button>
-              </th>
-              <th
-                v-for="column in columns"
-                :key="column.key"
-                scope="col"
-                class="dataExplorerResult__metric"
-                :aria-sort="ariaSort(column.key)"
-              >
-                <button
-                  type="button"
-                  class="dataExplorerResult__sort"
-                  @click="sortBy(column.key)"
-                >{{ metricNames[column.metric] || column.metric }}<span
-                  :class="sortIcon(column.key)"
-                  aria-hidden="true"
-                ></span></button>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(row, rowIndex) in sortedRows"
-              :key="rowIndex"
-            >
-              <td
-                v-for="(label, index) in row.labels"
-                :key="`d${index}`"
-                class="label"
-              >{{ label }}</td>
-              <td
-                v-for="column in columns"
-                :key="column.key"
-                class="dataExplorerResult__metric"
-                :class="cellClass(row.values[column.key], column.key)"
-              >{{ format(row.values[column.key]) }}</td>
-            </tr>
-          </tbody>
-        </table>
         <div
-          v-else-if="!loading"
-          class="dataExplorerCanvas__hint"
-        >{{ translate('CoreHome_ThereIsNoDataForThisReport') }}</div>
-      </div>
+          v-if="visualization === 'table'"
+          class="dataTableVizHtmlTable dataExplorerCanvas__table"
+        >
+          <div
+            v-if="rows.length"
+            class="dataTableScroller"
+          >
+            <table
+              cellspacing="0"
+              class="dataTable dataExplorerResult"
+              :data-cell-type="cellType"
+            >
+              <thead>
+                <tr v-if="hasPivot">
+                  <th
+                    :colspan="dimensionNames.length"
+                    class="dataExplorerResult__corner"
+                  ></th>
+                  <th
+                    v-for="group in pivotGroups"
+                    :key="group.key"
+                    :colspan="group.span"
+                    class="dataExplorerResult__pivot"
+                    scope="colgroup"
+                  >{{ group.label }}</th>
+                </tr>
+                <tr>
+                  <th
+                    v-for="(name, index) in dimensionNames"
+                    :key="`d${index}`"
+                    scope="col"
+                    class="sortable label"
+                    :class="{ first: index === 0, columnSorted: sortKey === `d${index}` }"
+                    :aria-sort="ariaSort(`d${index}`)"
+                  >
+                    <button
+                      type="button"
+                      class="thDIV dataExplorerResult__sort"
+                      @click="sortBy(`d${index}`)"
+                    >{{ name }}<span
+                      :class="sortIcon(`d${index}`)"
+                      aria-hidden="true"
+                    ></span></button>
+                  </th>
+                  <th
+                    v-for="column in columns"
+                    :key="column.key"
+                    scope="col"
+                    class="sortable dataExplorerResult__metric"
+                    :class="{ columnSorted: sortKey === column.key }"
+                    :aria-sort="ariaSort(column.key)"
+                  >
+                    <button
+                      type="button"
+                      class="thDIV dataExplorerResult__sort"
+                      @click="sortBy(column.key)"
+                    >{{ metricNames[column.metric] || column.metric }}<span
+                      :class="sortIcon(column.key)"
+                      aria-hidden="true"
+                    ></span></button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(row, rowIndex) in sortedRows"
+                  :key="rowIndex"
+                >
+                  <td
+                    v-for="(label, index) in row.labels"
+                    :key="`d${index}`"
+                    class="label"
+                    :class="{ first: index === 0 }"
+                  >{{ label }}</td>
+                  <td
+                    v-for="column in columns"
+                    :key="column.key"
+                    class="column dataExplorerResult__metric"
+                    :class="cellClass(row.values[column.key], column.key)"
+                  >{{ format(row.values[column.key]) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div
+            v-else-if="!loading"
+            class="dataExplorerCanvas__hint"
+          >{{ translate('CoreHome_ThereIsNoDataForThisReport') }}</div>
+        </div>
 
-      <div
-        v-else-if="(visualization === 'bar' || visualization === 'pie') && slice"
-        class="dataExplorerChart"
-      >
-        <EChartsBar
-          v-if="visualization === 'bar'"
-          :labels="slice.labels"
-          :values="slice.values"
-          :metric-name="sliceMetricName"
-          :series="barSeries"
-        />
-        <EChartsPie
-          v-else
-          :labels="slice.labels"
-          :values="slice.values"
-          :metric-name="sliceMetricName"
-        />
-      </div>
+        <div
+          v-else-if="(visualization === 'bar' || visualization === 'pie') && slice"
+          class="dataExplorerChart"
+        >
+          <EChartsBar
+            v-if="visualization === 'bar'"
+            :labels="slice.labels"
+            :values="slice.values"
+            :metric-name="sliceMetricName"
+            :series="barSeries"
+          />
+          <EChartsPie
+            v-else
+            :labels="slice.labels"
+            :values="slice.values"
+            :metric-name="sliceMetricName"
+          />
+        </div>
 
-      <div
-        v-else-if="visualization === 'line' && evolution"
-        class="dataExplorerChart"
-      >
-        <EChartsLine
-          :labels="evolution.labels"
-          :series="lineSeries"
-        />
-      </div>
+        <div
+          v-else-if="visualization === 'line' && evolution"
+          class="dataExplorerChart"
+        >
+          <EChartsLine
+            :labels="evolution.labels"
+            :series="lineSeries"
+          />
+        </div>
 
+        <div
+          v-else-if="visualization === 'kpicard' && kpi"
+          class="dataExplorerCanvas__kpi"
+        >
+          <div class="dataExplorerCanvas__kpiName">{{ kpi.metricName }}</div>
+          <KpiCard
+            :metric-name="kpi.metricName"
+            :value="kpi.value"
+            :evolution="kpi.evolution"
+            :sparkline="kpi.sparkline"
+            :sparkline-labels="kpi.sparklineLabels"
+          />
+        </div>
+      </div>
       <div
-        v-else-if="visualization === 'kpicard' && kpi"
-        class="dataExplorerCanvas__kpi"
+        v-if="loading"
+        class="dataExplorerCanvas__loading"
+        role="status"
+        :aria-label="translate('General_LoadingData')"
       >
-        <div class="dataExplorerCanvas__kpiName">{{ kpi.metricName }}</div>
-        <KpiCard
-          :metric-name="kpi.metricName"
-          :value="kpi.value"
-          :evolution="kpi.evolution"
-          :sparkline="kpi.sparkline"
-          :sparkline-labels="kpi.sparklineLabels"
-        />
+        <MatomoLoader />
       </div>
     </div>
   </div>
@@ -241,8 +259,8 @@ import {
   ref,
 } from 'vue';
 import {
-  ActivityIndicator,
   FocusAnywhereButHere,
+  MatomoLoader,
   Notification,
   NumberFormatter,
   translate,
@@ -283,7 +301,7 @@ export interface KpiView {
 export default defineComponent({
   name: 'Canvas',
   components: {
-    ActivityIndicator,
+    MatomoLoader,
     Notification,
     EChartsBar,
     EChartsLine,
@@ -532,6 +550,7 @@ export default defineComponent({
     const tabIcon = computed(() => VISUALIZATION_ICONS[props.visualization as Visualization]);
 
     return {
+      sortKey,
       exportOpen,
       exportButton,
       exportFormats,
