@@ -39,26 +39,30 @@
       class="dataExplorerFilter__reason"
     >{{ reason }}</div>
     <div class="dataExplorerFilter__fields">
-      <select
-        class="browser-default dataExplorerFilter__operator"
-        :aria-label="translate('DataExplorer_FilterOperatorLabel', dimensionName)"
-        :value="filter.operator"
-        @change="update({ operator: $event.target.value })"
-      >
-        <option
-          v-for="operator in operators"
-          :key="operator"
-          :value="operator"
-        >{{ translate(`DataExplorer_FilterOperator_${operator}`) }}</option>
-      </select>
-      <input
-        type="text"
-        class="browser-default dataExplorerFilter__value"
-        :aria-label="translate('DataExplorer_FilterValueLabel', dimensionName)"
+      <Field
+        uicontrol="select"
+        :name="`${uid}-operator`"
+        class="dataExplorerFilter__operator"
+        :full-width="true"
+        :options="operatorOptions"
+        :model-value="filter.operator"
+        :ui-control-attributes="{
+          'aria-label': translate('DataExplorer_FilterOperatorLabel', dimensionName),
+        }"
+        @update:model-value="update({ operator: $event })"
+      />
+      <Field
+        uicontrol="text"
+        :name="`${uid}-value`"
+        class="dataExplorerFilter__value"
+        :full-width="true"
         :placeholder="translate('DataExplorer_FilterValuePlaceholder')"
-        :value="filter.value"
-        :inputmode="isNumeric ? 'decimal' : 'text'"
-        @input="update({ value: $event.target.value })"
+        :model-value="filter.value"
+        :ui-control-attributes="{
+          'aria-label': translate('DataExplorer_FilterValueLabel', dimensionName),
+          inputmode: isNumeric ? 'decimal' : 'text',
+        }"
+        @update:model-value="update({ value: String($event) })"
       />
     </div>
   </li>
@@ -66,6 +70,8 @@
 
 <script lang="ts">
 import { computed, defineComponent, PropType } from 'vue';
+import { translate } from 'CoreHome';
+import { Field } from 'CorePluginsAdmin';
 import { FILTER_OPERATORS } from './explorationState';
 import type { Filter } from '../types';
 
@@ -77,6 +83,9 @@ let nextId = 0;
  */
 export default defineComponent({
   name: 'FilterRow',
+  components: {
+    Field,
+  },
   props: {
     filter: {
       type: Object as PropType<Filter>,
@@ -104,7 +113,10 @@ export default defineComponent({
 
     return {
       uid,
-      operators: FILTER_OPERATORS,
+      operatorOptions: FILTER_OPERATORS.map((operator) => ({
+        key: operator,
+        value: translate(`DataExplorer_FilterOperator_${operator}`),
+      })),
       isNumeric,
       update,
     };

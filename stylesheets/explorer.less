@@ -826,11 +826,6 @@ html.dataExplorer-panel-open {
   flex-direction: column;
   gap: 6px;
   margin-top: 6px;
-
-  select,
-  input {
-    width: 100%;
-  }
 }
 
 // cell types of the canvas table: bars and heat buckets
@@ -867,18 +862,16 @@ html.dataExplorer-panel-open {
   }
 }
 
-// GA4 tab strip: the exploration as a tab, the period and the segment as pills on its right
+// header of the canvas: the visualization icon and the title, the period and the segment as pills
 .dataExplorerCanvas__header {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: 12px;
   min-height: 48px;
   margin-bottom: 0;
-  padding: 0 16px 0 12px;
+  padding: 8px 16px 8px 20px;
   border-bottom: 1px solid @de-border;
-  background: @de-sunken;
-  border-top-right-radius: @de-radius;
 }
 
 .dataExplorerCanvas__tab {
@@ -887,12 +880,6 @@ html.dataExplorer-panel-open {
   gap: 10px;
   min-width: 0;
   max-width: 100%;
-  margin-bottom: -1px;
-  padding: 9px 18px 9px 10px;
-  border: 1px solid @de-border;
-  border-bottom-color: @de-surface;
-  border-radius: 8px 8px 0 0;
-  background: @de-surface;
 }
 
 .dataExplorerCanvas__tabIcon {
@@ -935,9 +922,9 @@ html.dataExplorer-panel-open {
   gap: 6px;
   height: 28px;
   padding: 0 12px;
-  border: 1px solid @de-border-strong;
+  border: 1px solid transparent;
   border-radius: 14px;
-  background: @de-surface;
+  background: @de-hover;
   color: @de-text;
   font: inherit;
   font-size: 12px;
