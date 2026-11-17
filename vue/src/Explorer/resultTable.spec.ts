@@ -74,6 +74,19 @@ describe('resultTable', () => {
     });
   });
 
+  it('never sums a distinct count into the others slice', () => {
+    const rows = [
+      { label: 'a', nb_uniq_visitors: 1 },
+      { label: 'b', nb_uniq_visitors: 5 },
+      { label: 'c', nb_uniq_visitors: 3 },
+    ];
+
+    expect(chartSlice(rows, 'nb_uniq_visitors', 2, 'Others', false)).toEqual({
+      labels: ['b', 'c'],
+      values: [5, 3],
+    });
+  });
+
   it('reads an evolution keyed by period', () => {
     const result = {
       'Mar 1': { nb_visits: 2, nb_actions: 4 },

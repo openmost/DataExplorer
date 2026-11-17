@@ -58,6 +58,14 @@
         />
 
         <Field
+          v-if="form.placement === 'sites' && isSuperUser"
+          uicontrol="text"
+          name="dataExplorerSaveSitesSearch"
+          v-model="siteSearch"
+          :title="translate('DataExplorer_SaveSitesSearch')"
+        />
+
+        <Field
           v-if="form.placement === 'sites'"
           uicontrol="multiselect"
           name="dataExplorerSaveSites"
@@ -151,6 +159,9 @@ import type {
 const DEFAULT_CATEGORY = 'DataExplorer_DataExplorer';
 const NEW_SUBCATEGORY = '__dataexplorer_new__';
 const DEFAULT_ORDER = 100;
+// super users can write to every website: the list is searched on demand, never loaded whole
+const SITE_SEARCH_LIMIT = 50;
+const SITE_SEARCH_DELAY_MS = 300;
 
 type Placement = 'site' | 'sites' | 'all';
 
@@ -262,10 +273,70 @@ export default defineComponent({
       return options;
     });
 
-    const siteOptions = computed(() => props.writableSites.map((site) => ({
-      key: String(site.id),
-      value: site.name,
-    })));
+    const siteNames = reactive<Record<string, string>>({});
+    const foundSites = ref<string[]>([]);
+    const siteSearch = ref('');
+    let siteSearchTimer: ReturnType<typeof setTimeout>|null = null;
+    let siteSearchRun = 0;
+
+    function rememberSites(sites: { idsite?: unknown, id?: unknown, name?: unknown }[]): string[] {
+      return sites.map((site) => {
+        const id = String(site.idsite !== undefined ? site.idsite : site.id);
+        siteNames[id] = String(site.name);
+        return id;
+      });
+    }
+
+    function searchSites(): void {
+      siteSearchRun += 1;
+      const run = siteSearchRun;
+      AjaxHelper.fetch<{ idsite: number, name: string }[]>(
+        {
+          method: 'SitesManager.getPatternMatchSites',
+          pattern: siteSearch.value,
+          limit: SITE_SEARCH_LIMIT,
+        },
+        { createErrorNotification: false },
+      ).then((result) => {
+        if (run === siteSearchRun) {
+          foundSites.value = rememberSites(Array.isArray(result) ? result : []);
+        }
+      }).catch((e: Error) => {
+        error.value = e.message;
+      });
+    }
+
+    // names of selected sites outside the search results (an opened report)
+    function loadSelectedSiteNames(): void {
+      form.sites.filter((id) => !siteNames[id]).forEach((id) => {
+        AjaxHelper.fetch<{ idsite: number, name: string }>(
+          { method: 'SitesManager.getSiteFromId', idSite: id },
+          { createErrorNotification: false },
+        ).then((site) => {
+          rememberSites([site]);
+        }).catch(() => {
+          siteNames[id] = id;
+        });
+      });
+    }
+
+    watch(siteSearch, () => {
+      if (siteSearchTimer) {
+        clearTimeout(siteSearchTimer);
+      }
+      siteSearchTimer = setTimeout(searchSites, SITE_SEARCH_DELAY_MS);
+    });
+
+    const siteOptions = computed(() => {
+      if (!props.isSuperUser) {
+        return props.writableSites.map((site) => ({
+          key: String(site.id),
+          value: site.name,
+        }));
+      }
+      const ids = form.sites.concat(foundSites.value.filter((id) => form.sites.indexOf(id) === -1));
+      return ids.map((id) => ({ key: id, value: siteNames[id] || id }));
+    });
 
     const categoryOptions = computed(() => categories.value.map((category) => ({
       key: category.id,
@@ -340,7 +411,12 @@ export default defineComponent({
 
     watch(() => props.modelValue, (open) => {
       if (open) {
-        loadCategories().then(prefill);
+        loadCategories().then(prefill).then(() => {
+          if (props.isSuperUser) {
+            loadSelectedSiteNames();
+            searchSites();
+          }
+        });
       }
     }, { immediate: true });
 
@@ -412,6 +488,7 @@ export default defineComponent({
       reportTypeLabel,
       placementOptions,
       siteOptions,
+      siteSearch,
       categoryOptions,
       subcategoryOptions,
       newSubcategoryKey: NEW_SUBCATEGORY,

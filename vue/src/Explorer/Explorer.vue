@@ -360,6 +360,16 @@ export default defineComponent({
       return map;
     });
 
+    // an "Others" slice is the sum of its rows: never for a distinct count that the rows share
+    function addsUpAcrossRows(metricId: string): boolean {
+      const metric = metricsById.value[metricId];
+      const dimension = dimensionsById.value[requestDefinition.value.rows[0]];
+      if (!metric || !dimension) {
+        return true;
+      }
+      return (metric.additiveScopes || []).indexOf(dimension.scope) !== -1;
+    }
+
     const scopeLabel = (scope: string) => translate(`DataExplorer_Scope_${scope}`);
 
     // the catalogue can hold several items with the same name, the scope tells them apart
@@ -528,7 +538,13 @@ export default defineComponent({
     ));
 
     const slice = computed<ChartSlice|null>(() => (state.values.length
-      ? chartSlice(tableRows.value, state.values[0], CHART_TOP_ROWS, translate('General_Others'))
+      ? chartSlice(
+        tableRows.value,
+        state.values[0],
+        CHART_TOP_ROWS,
+        translate('General_Others'),
+        addsUpAcrossRows(state.values[0]),
+      )
       : null));
 
     const evolution = computed(() => evolutionResult.value);

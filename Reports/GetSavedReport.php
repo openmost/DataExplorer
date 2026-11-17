@@ -56,6 +56,8 @@ class GetSavedReport extends Report
     private $metricNames = [];
     /** @var string[]|null result columns of a raw SQL report, null when only known once it ran */
     private $sqlColumns;
+    /** @var string[] metrics that do not add up across the rows of the first row dimension */
+    private $nonAdditiveMetrics = [];
     /** @var array<string, string> pivot columns of the period the metadata is built for */
     private $pivotColumns = [];
 
@@ -99,6 +101,7 @@ class GetSavedReport extends Report
         $this->dimension = null;
         $this->metrics = [];
         $this->metricNames = [];
+        $this->nonAdditiveMetrics = [];
         // core adds its visit ratios to every report by default, as zero columns here
         $this->processedMetrics = [];
         $this->sqlColumns = null;
@@ -253,6 +256,7 @@ class GetSavedReport extends Report
         $view->requestConfig->request_parameters_to_modify[self::PARAMETER] = $idReport;
         $view->config->custom_parameters[self::PARAMETER] = $idReport;
         $view->config->custom_parameters['dataExplorerReportType'] = $this->getReportType();
+        $view->config->custom_parameters['dataExplorerNonAdditive'] = $this->nonAdditiveMetrics;
         $view->config->addTranslations($this->metricNames);
 
         if ($this->getReportType() !== ReportDefinition::REPORT_TYPE_TABLE) {
@@ -350,8 +354,13 @@ class GetSavedReport extends Report
         foreach ($resolved['metrics'] as $metric) {
             $this->metrics[] = $metric->id;
             $this->metricNames[$metric->id] = $metric->name;
+            $first = $resolved['rows'][0] ?? null;
+            if ($first !== null && !in_array($first->scope, $metric->additiveScopes(), true)) {
+                $this->nonAdditiveMetrics[] = $metric->id;
+            }
             if (SavedReport::isNotSummableAcrossDays($metric)) {
                 $this->metricNames['sum_daily_' . $metric->id] = $metric->name . $dailySum;
+                $this->nonAdditiveMetrics[] = 'sum_daily_' . $metric->id;
             }
         }
 

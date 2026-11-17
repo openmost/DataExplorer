@@ -36,6 +36,32 @@ final class MetricEntry
     }
 
     /**
+     * Scopes of the row dimensions across whose rows the metric adds up (an "Others" total is the sum of its
+     * rows). A visit has one value of each visit dimension and an action one value of each action and visit
+     * dimension, so distinct visits and distinct actions add up there; other distinct counts, maximums and
+     * minimums never do.
+     *
+     * @return string[]
+     */
+    public function additiveScopes(): array
+    {
+        if ($this->aggregation === 'sum') {
+            return ['visit', 'action', 'conversion'];
+        }
+        if ($this->aggregation !== 'uniq') {
+            return [];
+        }
+        if (preg_match('/\.idvisit\)$/i', $this->sql)) {
+            return ['visit'];
+        }
+        if (preg_match('/\.idlink_va\)$/i', $this->sql)) {
+            return ['visit', 'action'];
+        }
+
+        return [];
+    }
+
+    /**
      * The SQL expression is deliberately left out, it never leaves the server.
      */
     public function toArray(): array
@@ -47,6 +73,7 @@ final class MetricEntry
             'scope' => $this->scope,
             'aggregation' => $this->aggregation,
             'isNumeric' => $this->isNumeric,
+            'additiveScopes' => $this->additiveScopes(),
         ];
     }
 }

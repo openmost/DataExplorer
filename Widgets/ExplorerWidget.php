@@ -14,6 +14,7 @@ namespace Piwik\Plugins\DataExplorer\Widgets;
 use Piwik\Access;
 use Piwik\Common;
 use Piwik\Piwik;
+use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
 use Piwik\Site;
 use Piwik\Url;
@@ -34,18 +35,19 @@ class ExplorerWidget extends Widget
         $config->setIsWide();
 
         $idSite = Common::getRequestVar('idSite', 0, 'int');
-        $config->setIsEnabled($idSite > 0 && Piwik::isUserHasViewAccess($idSite));
+        $config->setIsEnabled($idSite > 0 && !Piwik::isUserIsAnonymous() && Piwik::isUserHasViewAccess($idSite));
     }
 
     public function render()
     {
         $idSite = Common::getRequestVar('idSite', 0, 'int');
-        Piwik::checkUserHasViewAccess($idSite);
+        (new ReportPermissions())->checkCanExplore($idSite);
 
         $isSuperUser = Piwik::hasUserSuperUserAccess();
 
+        // a super user can write to every website: the save dialog searches them on demand
         $writableSites = [];
-        foreach (Access::getInstance()->getSitesIdWithAtLeastWriteAccess() as $id) {
+        foreach ($isSuperUser ? [] : Access::getInstance()->getSitesIdWithAtLeastWriteAccess() as $id) {
             $writableSites[] = ['id' => (int) $id, 'name' => Common::unsanitizeInputValue(Site::getNameFor((int) $id))];
         }
         usort($writableSites, fn (array $a, array $b) => $a['id'] <=> $b['id']);

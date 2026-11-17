@@ -24,6 +24,7 @@ export interface MetricItem {
   aggregation: string;
   isNumeric: boolean;
   allowedScopes: Scope[];
+  additiveScopes: Scope[];
 }
 
 export interface CatalogGroup<T> {

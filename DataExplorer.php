@@ -111,6 +111,7 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_PlacementSites',
         'DataExplorer_PlacementAll',
         'DataExplorer_SaveSites',
+        'DataExplorer_SaveSitesSearch',
         'DataExplorer_SaveCategory',
         'DataExplorer_SaveSubcategory',
         'DataExplorer_SaveNewSubcategoryOption',

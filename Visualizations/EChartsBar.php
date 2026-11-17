@@ -19,7 +19,8 @@ use Piwik\Plugins\DataExplorer\Charts\ChartVisualization;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 
 /**
- * First metric of a DataExplorer table, top rows plus "Others".
+ * First metric of a DataExplorer table, top rows plus "Others" when the metric can be summed across rows: a
+ * distinct count, a maximum or a minimum shows the top rows only.
  */
 class EChartsBar extends ChartVisualization
 {
@@ -61,6 +62,17 @@ class EChartsBar extends ChartVisualization
             $rows[] = ['label' => (string) $row->getColumn('label'), 'value' => self::number($row->getColumn($metric)) ?? 0];
         }
         usort($rows, fn (array $a, array $b) => $b['value'] <=> $a['value']);
+
+        $nonAdditive = (array) ($this->config->custom_parameters['dataExplorerNonAdditive'] ?? []);
+        if (in_array($metric, $nonAdditive, true)) {
+            $rows = array_slice($rows, 0, self::TOP_ROWS);
+
+            return [
+                'labels' => array_column($rows, 'label'),
+                'values' => array_column($rows, 'value'),
+                'metricName' => $this->translate($metric),
+            ];
+        }
 
         $others = 0;
         $hasOthers = false;

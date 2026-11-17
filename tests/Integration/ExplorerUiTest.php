@@ -137,7 +137,7 @@ class ExplorerUiTest extends IntegrationTestCase
         $this->assertArrayNotHasKey('sql-status', $props);
         $this->assertStringContainsString('module=DataExplorer', $props['setup-url']);
         $this->assertStringContainsString('action=setup', $props['setup-url']);
-        $this->assertCount(2, $props['writable-sites']);
+        $this->assertSame([], $props['writable-sites'], 'the save dialog searches the websites of a super user on demand');
     }
 
     public function test_explorerWidget_isRefusedWithoutViewAccess(): void

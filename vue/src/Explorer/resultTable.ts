@@ -126,13 +126,15 @@ export function flattenRows(rows: ApiRow[], depth: number, columns: ResultColumn
 
 /**
  * First metric of the first row dimension for the bar and pie charts: the largest rows, the rest
- * summed into one "others" slice.
+ * summed into one "others" slice when the metric is additive. A distinct count (unique visitors)
+ * cannot be summed across rows, so it shows the largest rows only.
  */
 export function chartSlice(
   rows: ApiRow[],
   metric: string,
   top: number,
   othersLabel: string,
+  additive = true,
 ): ChartSlice {
   const sorted = rows
     .map((row) => ({ label: String(row.label ?? ''), value: toNumber(row[metric]) }))
@@ -140,7 +142,7 @@ export function chartSlice(
 
   const kept = sorted.slice(0, top);
   const rest = sorted.slice(top);
-  if (rest.length) {
+  if (additive && rest.length) {
     kept.push({ label: othersLabel, value: rest.reduce((sum, row) => sum + row.value, 0) });
   }
 

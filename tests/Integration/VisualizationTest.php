@@ -16,6 +16,7 @@ use Piwik\Common;
 use Piwik\Config;
 use Piwik\Db;
 use Piwik\FrontController;
+use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Sql\ReadOnlyConnection;
@@ -166,6 +167,26 @@ class VisualizationTest extends IntegrationTestCase
         $this->assertSame(['France', 'United States', 'Germany'], $props['labels']);
         $this->assertEquals([3, 2, 1], $props['values']);
         $this->assertNotSame('', $props['metric-name']);
+    }
+
+    public function test_barView_othersSlice_onlyForMetricsThatAddUpAcrossRows(): void
+    {
+        $original = Config::getInstance()->DataExplorer;
+        Config::getInstance()->DataExplorer = ['datatable_archiving_maximum_rows_dataexplorer_dimensions_1' => 1];
+        try {
+            $visits = $this->save('table', ['rows' => ['UserCountry.Country'], 'metrics' => ['nb_visits']]);
+            $visitors = $this->save('table', ['rows' => ['UserCountry.Country'], 'metrics' => ['nb_uniq_visitors']]);
+
+            $visitsProps = $this->props($this->render($visits, 'week', '2024-02-26', 'DataExplorerBar'), 'DataExplorer.EChartsBar');
+            $visitorsProps = $this->props($this->render($visitors, 'week', '2024-02-26', 'DataExplorerBar'), 'DataExplorer.EChartsBar');
+        } finally {
+            Config::getInstance()->DataExplorer = $original;
+        }
+
+        $others = Piwik::translate('General_Others');
+        $this->assertSame(['France', $others], $visitsProps['labels'], 'distinct visits add up across countries');
+        $this->assertEquals([3, 3], $visitsProps['values']);
+        $this->assertSame(['France'], $visitorsProps['labels'], 'distinct visitors are shared by countries');
     }
 
     public function test_pieView_rendersTheEChartsPie(): void
