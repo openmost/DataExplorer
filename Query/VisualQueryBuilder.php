@@ -133,13 +133,16 @@ class VisualQueryBuilder
      *        - limit: maximum number of rows returned, 0 for none
      *        - rankPerParent: keep at most this many rows per parent (the first labels - 1 values), ranked by the
      *          first metric, plus one more row per parent that still has rows, so the caller knows it overflows
+     * @param array|null $resolved resolve() of the definition for the site of $aggregator, when the caller has it
      * @return array{sql: string, bind: array}
      * @throws \InvalidArgumentException with a translated message
      */
-    public function buildQuery(ReportDefinition $definition, LogAggregator $aggregator, array $spec): array
+    public function buildQuery(ReportDefinition $definition, LogAggregator $aggregator, array $spec, ?array $resolved = null): array
     {
-        $sites = $aggregator->getSites();
-        $resolved = $this->resolve($definition, (int) reset($sites));
+        if ($resolved === null) {
+            $sites = $aggregator->getSites();
+            $resolved = $this->resolve($definition, (int) reset($sites));
+        }
         $scope = $spec['scope'] ?? $resolved['scopes'][0];
 
         $metrics = array_filter($resolved['metrics'], fn (MetricEntry $m) => $m->scope === $scope);

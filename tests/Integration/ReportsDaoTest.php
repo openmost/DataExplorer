@@ -9,6 +9,7 @@
 
 namespace Piwik\Plugins\DataExplorer\tests\Integration;
 
+use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Tests\Framework\TestCase\IntegrationTestCase;
@@ -109,6 +110,17 @@ class ReportsDaoTest extends IntegrationTestCase
         $this->assertNotNull($row);
         $this->assertFalse($row['placement']->isAllWebsites());
         $this->assertSame([], $row['placement']->getSiteIds());
+    }
+
+    public function testDeletedUser_losesTheAuthorshipOfItsReports(): void
+    {
+        $mine = $this->dao->insert($this->row(), Placement::fromArray(['sites' => [1]]));
+        $other = $this->dao->insert(['created_by' => 'bob'] + $this->row(), Placement::fromArray(['sites' => [1]]));
+
+        Piwik::postEvent('UsersManager.deleteUser', ['admin']);
+
+        $this->assertSame('', $this->dao->get($mine)['created_by'], 'a login created again must not inherit the reports');
+        $this->assertSame('bob', $this->dao->get($other)['created_by']);
     }
 
     public function testOrdering(): void

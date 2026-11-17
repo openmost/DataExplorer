@@ -50,8 +50,6 @@ class SavedReport extends RecordBuilder
 {
     private const RECORD_PREFIX = 'DataExplorer_report_';
 
-    private const AGGREGATION_OPS = ['sum' => 'sum', 'uniq' => 'sum', 'max' => 'max', 'min' => 'min'];
-
     /** @var array */
     private $report;
     /** @var VisualQueryBuilder */
@@ -116,7 +114,7 @@ class SavedReport extends RecordBuilder
         $ops = [];
         $renamed = [];
         foreach ($metrics as $metric) {
-            $ops[$metric->id] = self::AGGREGATION_OPS[$metric->aggregation] ?? 'sum';
+            $ops[$metric->id] = $metric->aggregationOperation();
             if ($this->isNotSummableAcrossDays($metric)) {
                 $renamed[$metric->id] = 'sum_daily_' . $metric->id;
             }
@@ -299,13 +297,8 @@ class SavedReport extends RecordBuilder
     {
         if ($this->definition === false) {
             $this->definition = null;
-            $raw = is_array($this->report['definition'] ?? null) ? $this->report['definition'] : [];
             try {
-                $this->definition = ReportDefinition::fromArray(array_merge($raw, [
-                    'name' => (string) ($this->report['name'] ?? ''),
-                    'type' => (string) ($this->report['type'] ?? ''),
-                    'report_type' => (string) ($this->report['report_type'] ?? ''),
-                ]));
+                $this->definition = ReportDefinition::fromReport($this->report);
             } catch (\Throwable $e) {
                 $this->warn('invalid definition', $e);
             }

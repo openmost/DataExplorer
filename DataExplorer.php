@@ -160,6 +160,7 @@ class DataExplorer extends \Piwik\Plugin
             'Template.beforeContent' => 'renderOpenmostCommunication',
             'Db.getTablesInstalled' => 'getTablesInstalled',
             'SitesManager.deleteSite.end' => 'onSiteDeleted',
+            'UsersManager.deleteUser' => 'onUserDeleted',
             'Archiver.addRecordBuilders' => 'addRecordBuilders',
             'Report.addReports' => 'addReports',
             // after the other plugins, to see the subcategories they add
@@ -190,6 +191,11 @@ class DataExplorer extends \Piwik\Plugin
     public function onSiteDeleted($idSite)
     {
         (new ReportsDao())->removeSite((int) $idSite);
+    }
+
+    public function onUserDeleted($login)
+    {
+        (new ReportsDao())->clearAuthor((string) $login);
     }
 
     /**

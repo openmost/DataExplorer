@@ -211,6 +211,15 @@ class ReportsDao
     /**
      * A report left with no site stays stored but unplaced.
      */
+    /**
+     * The reports of a deleted user lose their author, so a login created again later does not inherit them.
+     */
+    public function clearAuthor(string $login): void
+    {
+        Db::query('UPDATE ' . self::reportTable() . ' SET `created_by` = \'\' WHERE `created_by` = ?', [$login]);
+        self::clearCache();
+    }
+
     public function removeSite(int $idSite): void
     {
         Db::query('DELETE FROM ' . self::siteTable() . ' WHERE `idsite` = ?', [$idSite]);

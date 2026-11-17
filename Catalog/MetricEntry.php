@@ -27,6 +27,15 @@ final class MetricEntry
     }
 
     /**
+     * DataTable aggregation operation of the metric: a distinct count is summed like core does across rows and
+     * periods, the real distinct count of a merged period is only known from the logs.
+     */
+    public function aggregationOperation(): string
+    {
+        return ['sum' => 'sum', 'uniq' => 'sum', 'max' => 'max', 'min' => 'min'][$this->aggregation] ?? 'sum';
+    }
+
+    /**
      * The SQL expression is deliberately left out, it never leaves the server.
      */
     public function toArray(): array

@@ -49,8 +49,6 @@ class VisualQueryRunner
     /** label of the NULL / empty value in archived tables, formatted at display time */
     public const ARCHIVED_NOT_DEFINED = '__dataexplorer_not_defined__';
 
-    private const AGGREGATION_OPS = ['sum' => 'sum', 'uniq' => 'sum', 'max' => 'max', 'min' => 'min'];
-
     /** @var VisualQueryBuilder */
     private $builder;
     /** @var callable(): float */
@@ -62,6 +60,8 @@ class VisualQueryRunner
     private $definition;
     /** @var LogAggregator */
     private $aggregator;
+    /** @var array resolution of the definition by the builder, done once per run */
+    private $resolved;
     /** @var \Piwik\Db\AdapterInterface */
     private $db;
     /** @var float|null null when the run has no time budget */
@@ -173,6 +173,7 @@ class VisualQueryRunner
     private function execute(ReportDefinition $definition, array $resolved, LogAggregator $aggregator, int $idSite, int $mainCap, int $subCap): DataTable
     {
         $this->definition = $definition;
+        $this->resolved = $resolved;
         $this->aggregator = $aggregator;
         $this->mainCap = $mainCap;
         $this->subCap = $subCap;
@@ -437,7 +438,7 @@ class VisualQueryRunner
     private function fetch(array $spec): array
     {
         $spec['limit'] = min(max(1, (int) $spec['limit']), Configuration::getSqlRowLimit());
-        $query = $this->builder->buildQuery($this->definition, $this->aggregator, $spec);
+        $query = $this->builder->buildQuery($this->definition, $this->aggregator, $spec, $this->resolved);
 
         if ($this->deadline !== null) {
             $remaining = (int) floor(($this->deadline - ($this->clock)()) * 1000);
@@ -543,7 +544,7 @@ class VisualQueryRunner
     {
         $ops = [];
         foreach ($metrics as $metric) {
-            $op = self::AGGREGATION_OPS[$metric->aggregation] ?? 'sum';
+            $op = $metric->aggregationOperation();
             $ops[$metric->id] = $op;
             foreach ($pivotLabels as $label) {
                 $ops[$metric->id . ' | ' . $label] = $op;

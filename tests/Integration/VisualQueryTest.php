@@ -363,13 +363,13 @@ class VisualQueryTest extends IntegrationTestCase
             /** @var int */
             public $statements = 0;
 
-            public function buildQuery(ReportDefinition $definition, \Piwik\DataAccess\LogAggregator $aggregator, array $spec): array
+            public function buildQuery(ReportDefinition $definition, \Piwik\DataAccess\LogAggregator $aggregator, array $spec, ?array $resolved = null): array
             {
                 $this->statements++;
                 $tuples = count($spec['include'][1] ?? []) + count($spec['exclude'][1] ?? []);
                 $this->largest = max($this->largest, $tuples);
 
-                return parent::buildQuery($definition, $aggregator, $spec);
+                return parent::buildQuery($definition, $aggregator, $spec, $resolved);
             }
         };
         $chunked = (new VisualQueryRunner($spy))->run($definition, self::$fixture->idSite, 'range', self::RANGE, '');

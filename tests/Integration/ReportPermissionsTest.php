@@ -146,6 +146,16 @@ class ReportPermissionsTest extends IntegrationTestCase
         $this->assertTrue(true);
     }
 
+    public function test_edit_reportWithoutAuthor_needsAnAdmin(): void
+    {
+        $this->as([1], [1], [], '');
+        $this->assertDenied(function () { $this->permissions->checkCanEdit($this->report([1], 'visual', '')); });
+
+        $this->as([1], [], [1], 'bob');
+        $this->permissions->checkCanEdit($this->report([1], 'visual', ''));
+        $this->assertTrue(true);
+    }
+
     public function test_edit_allWebsitesAndUnplacedSuperUserOnly(): void
     {
         $this->as([1], [1], [1]);

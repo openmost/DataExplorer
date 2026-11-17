@@ -70,7 +70,8 @@ class ReportPermissions
             return;
         }
 
-        $isAuthor = $report['created_by'] === Piwik::getCurrentUserLogin();
+        // '' marks a report whose author was deleted
+        $isAuthor = $report['created_by'] !== '' && $report['created_by'] === Piwik::getCurrentUserLogin();
         if ($isAuthor && Piwik::isUserHasWriteAccess($siteIds)) {
             return;
         }
