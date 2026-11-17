@@ -42,6 +42,34 @@ class SqlGuardTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * @dataProvider placeholderPositions
+     */
+    public function test_placeholderPositions(string $sql, bool $accepted): void
+    {
+        try {
+            SqlGuard::validate($sql, self::PREFIX, self::DB);
+            $this->assertTrue($accepted, 'accepted but expected refused');
+        } catch (RejectedQueryException $e) {
+            $this->assertFalse($accepted, 'refused but expected accepted: ' . $e->getMessage());
+        }
+    }
+
+    public function placeholderPositions(): array
+    {
+        $where = ' FROM matomo_log_visit v WHERE v.idsite = {idsite}';
+
+        return [
+            'inside an aggregate' => ['SELECT SUM(v.visit_last_action_time >= {date_start}) AS n' . $where, true],
+            'inside a CASE' => ['SELECT CASE WHEN v.idsite = {idsite} THEN 1 ELSE 0 END AS c' . $where, true],
+            'wrapped in parentheses' => ['SELECT ({date_start}) AS d' . $where, true],
+            'in HAVING' => ['SELECT COUNT(*) AS n' . $where . ' HAVING MIN(v.visit_last_action_time) >= {date_start}', true],
+            'bare select column' => ['SELECT {date_start}' . $where, false],
+            'bare GROUP BY' => ['SELECT COUNT(*)' . $where . ' GROUP BY {date_start}', false],
+            'unbalanced parentheses around a union' => ['SELECT 1) t UNION SELECT 1' . $where . ' (SELECT 1', false],
+        ];
+    }
+
     public function test_acceptsAGroupedSelect(): void
     {
         $query = SqlGuard::validate('SELECT idsite, COUNT(*) FROM matomo_log_visit GROUP BY idsite', self::PREFIX, self::DB);

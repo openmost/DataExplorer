@@ -7,9 +7,9 @@ Explore your Matomo data the way you would in GA4 Explorations, then save the re
 ### Features
 
 - **Free-form explorer**: drag dimensions, metrics and segments into rows, columns, values and filters, and see the result as you build it. The preview and the saved report follow the same row limits, so a saved report shows what you previewed.
-- **Visualizations**: table, line chart, bar chart, pie chart and KPI card. A table can compare one saved segment, and shows a totals row.
+- **Visualizations**: table, line chart, bar chart, pie chart and KPI card. A table shows a totals row, and any report can apply one saved segment as a filter.
 - **Raw SQL** for super users: a SQL editor with a table and column browser, a validity check before running, CSV export, and placeholders for the site and the period. Queries run with a read-only database user that you create.
-- **Saved reports in the menu**: a saved report becomes a page of the Matomo reporting menu, in the category and subcategory you pick, for one website, a list of websites or all websites. It also works as a dashboard widget, in the API, in exports and in scheduled reports like any other report.
+- **Saved reports in the menu**: a saved report becomes a page of the Matomo reporting menu, in the category and subcategory you pick, for one website, a list of websites or all websites. It also works as a dashboard widget, in the API, in exports and in scheduled reports like any other report. A raw SQL report can be scheduled when every column of its select list has a name (`AS alias` or a plain column), `*` and unnamed expressions are only known once the query ran.
 - **Roles**: users with view access open the saved reports and explore the visual explorer (the anonymous user only opens saved reports), users with write access save reports on the websites they can write to, admins edit or delete any report of their websites, and only super users run raw SQL and save a report for all websites.
 - Translated into 12 languages.
 
@@ -40,7 +40,7 @@ The 11 tables that raw SQL can read are `log_visit`, `log_link_visit_action`, `l
 
 ### Configuration
 
-All keys go in a `[DataExplorer]` section of `config/config.ini.php`. At install, only the row cap keys and `dataexplorer_sql_row_limit` are written there, with their current values. Every other key is optional and uses its default when absent.
+All keys go in a `[DataExplorer]` section of `config/config.ini.php`. At install, only the row cap keys and `dataexplorer_sql_row_limit` are written there, with their current values. The per-dimension keys `_dimensions_N` are written as concrete numbers, so a later edit of a `_default` key does not change them: edit the `_dimensions_N` keys directly. Every other key is optional and uses its default when absent.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -61,18 +61,20 @@ All keys go in a `[DataExplorer]` section of `config/config.ini.php`. At install
 | `readonly_*` | none | Connection of the read-only user, see above |
 | `readonly_charset`, `readonly_collation`, `readonly_adapter` | follow `[database]` | Advanced, optional: set only if the read-only connection needs different values |
 
-Raising the row caps or the number of dimensions makes the archives bigger and slower. A higher number of dimensions multiplies the subtables of each report.
+Raising the row caps or the number of dimensions makes the archives bigger and slower. A higher number of dimensions multiplies the subtables of each report. Lowering `dataexplorer_max_dimensions` disables the saved reports that use more row dimensions: they leave the menu and stop being archived until the value is raised again.
 
 ### Archiving
 
-Saved visual reports are archived by `core:archive` like the core reports, so they open fast and work with segments, periods, the API and scheduled reports. When you save a report, the last `invalidation_months` months of history are invalidated and rebuilt by the next archiving run. Saving a report on an instance that relies only on browser-triggered archiving fills its history on the next full archiving run, not instantly.
+Saved visual reports are archived by `core:archive` like the core reports, so they open fast and work with segments, periods, the API and scheduled reports. When you save a report that computes something new (dimensions, metrics, filters, segment, visualization), the last `invalidation_months` months of history are invalidated and rebuilt by the next archiving run. A rename or a move in the menu keeps the history, and placing a report on more websites only builds the history of the added websites. Saving a report on an instance that relies only on browser-triggered archiving fills its history on the next full archiving run, not instantly.
 
 Raw SQL reports are not archived: they run live on the read-only connection, with the time limit, the row limit and the cache above.
+
+Each raw SQL run is logged at the `INFO` level (query hash, user, site, status, duration, row count, never the values) and triggers the `DataExplorer.rawSqlExecuted` event. Set `log_level = INFO` in the `[log]` section to see these lines, or let an activity log plugin listen to the event.
 
 ### Limits
 
 - Raw SQL accepts a strict subset of SELECT. `WITH` (common table expressions) is refused, and so are statements other than one SELECT, and some valid MySQL forms that the guard cannot prove safe. The refusal message points at the part of the query it could not accept.
-- The placeholders `{idsite}`, `{date_start}` and `{date_end}` work in `WHERE`, `ON` and `HAVING` conditions. They are not yet accepted in the select list.
+- The placeholders `{idsite}`, `{date_start}` and `{date_end}` work in `WHERE`, `ON` and `HAVING` conditions and inside select expressions, for example `SUM(v.visit_last_action_time >= {date_start})` or `CASE WHEN v.idsite = {idsite} THEN 1 END`. A bare placeholder as a whole select column or in `GROUP BY` is refused: wrap it in parentheses, `({date_start}) AS start`.
 - A query that is not provably limited to the website of the report is flagged as a warning in the editor. It cannot be saved on a site, and a saved one is not run, until every per-site table is filtered with `{idsite}`.
 - Only the 11 tables listed above can be read. Archive tables and plugin tables are not readable.
 - A report has at most 10 metrics, and a KPI card exactly one.

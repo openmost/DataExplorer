@@ -150,8 +150,10 @@ final class RawSqlRunner
     /**
      * The SQL to run, rebuilt from the guard's tokens: each placeholder becomes "?" (one written inside a string or
      * a comment is never bound), and the rows are capped at $cap. Without a LIMIT of its own the query gets
-     * " LIMIT <cap>" appended, a top-level LIMIT with literal numbers is lowered to the cap. Only another LIMIT
-     * form is wrapped in a derived table, which would lose the order on MariaDB and refuse duplicate column names.
+     * " LIMIT <cap>" appended, a top-level LIMIT with literal numbers is lowered to the cap. Any other row count
+     * (LIMIT -1, LIMIT 0x10) is wrapped in a derived table as a fail-safe: MySQL and MariaDB refuse
+     * these forms anyway (error 1064), so the wrapper, which would lose the order on MariaDB and refuse duplicate
+     * column names, never changes the result of a query that runs.
      *
      * @return array{0: string, 1: string[]} the SQL and the placeholder of each "?" in order
      */
