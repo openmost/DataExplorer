@@ -8,6 +8,7 @@
 import {
   chartSeries,
   chartSlice,
+  treeRows,
   evolutionSeries,
   flattenRows,
   resultColumns,
@@ -136,5 +137,24 @@ describe('resultTable', () => {
       { metric: 'nb_actions', data: [600, 150, 9] },
       { metric: 'nb_uniq_visitors', data: [120, 50, null] },
     ]);
+  });
+
+  it('keeps the parents and their own values for the hierarchical view', () => {
+    const rows = [
+      {
+        label: 'Desktop',
+        nb_visits: 5,
+        subtable: [{ label: 'Chrome', nb_visits: 3 }, { label: 'Firefox', nb_visits: 2 }],
+      },
+      { label: 'Smartphone', nb_visits: 1, subtable: [{ label: 'Safari', nb_visits: 1 }] },
+    ];
+    const columns = [{ key: 'nb_visits', metric: 'nb_visits', pivot: null }];
+
+    const tree = treeRows(rows, 2, columns);
+
+    expect(tree.map((row) => [row.label, row.values.nb_visits, row.children.length]))
+      .toEqual([['Desktop', 5, 2], ['Smartphone', 1, 1]]);
+    expect(tree[0].children.map((row) => row.label)).toEqual(['Chrome', 'Firefox']);
+    expect(tree[0].children[0].children).toEqual([]);
   });
 });

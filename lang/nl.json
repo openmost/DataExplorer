@@ -201,7 +201,10 @@
         "FilterMatchLabel": "Filters combineren",
         "FilterConditions": "Voorwaarde",
         "FilterApply": "Toepassen",
-        "FilterEdit": "Filter op %s bewerken"
+        "FilterEdit": "Filter op %s bewerken",
+        "TableView": "Rijen",
+        "TableViewFlat": "Plat",
+        "TableViewHierarchical": "Hiërarchisch"
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",

@@ -75,6 +75,9 @@ export type FilterOperator = 'equals' | 'not_equals' | 'contains' | 'starts_with
 // the filters all apply (AND) or any of them is enough (OR)
 export type FilterMatch = 'all' | 'any';
 
+// a table of several row dimensions: one row per combination, or parents that open their children
+export type TableView = 'flat' | 'hierarchical';
+
 export interface Filter {
   dimension: string;
   operator: FilterOperator;
@@ -93,6 +96,7 @@ export interface ExplorationState {
   values: string[];
   filters: Filter[];
   filterMatch: FilterMatch;
+  tableView: TableView;
   visualization: Visualization;
   // definition of the applied segment, '' for none (one segment in v1)
   segment: string;
@@ -106,6 +110,7 @@ export interface VisualDefinition {
   metrics: string[];
   filters: Filter[];
   filter_match?: FilterMatch;
+  table_view?: TableView;
   segment: string;
   // the view a saved table report opens with
   chart?: '' | 'bar' | 'pie';

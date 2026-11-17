@@ -201,7 +201,10 @@
         "FilterMatchLabel": "Łączenie filtrów",
         "FilterConditions": "Warunek",
         "FilterApply": "Zastosuj",
-        "FilterEdit": "Edytuj filtr: %s"
+        "FilterEdit": "Edytuj filtr: %s",
+        "TableView": "Wiersze",
+        "TableViewFlat": "Płaski",
+        "TableViewHierarchical": "Hierarchiczny"
     },
     "OpenmostCommunication": {
         "Dismiss": "Odrzuć",

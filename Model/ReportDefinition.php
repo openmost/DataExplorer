@@ -37,6 +37,9 @@ class ReportDefinition
     public const FILTER_MATCH_ALL = 'all';
     public const FILTER_MATCH_ANY = 'any';
 
+    public const TABLE_VIEW_FLAT = 'flat';
+    public const TABLE_VIEW_HIERARCHICAL = 'hierarchical';
+
     /** @var string */
     private $name;
     /** @var string */
@@ -61,6 +64,8 @@ class ReportDefinition
     private $chart = '';
     /** @var string */
     private $filterMatch = self::FILTER_MATCH_ALL;
+    /** @var string */
+    private $tableView = self::TABLE_VIEW_FLAT;
 
     private function __construct()
     {
@@ -104,6 +109,9 @@ class ReportDefinition
             : self::FILTER_MATCH_ALL;
         $def->segment = self::string($raw, 'segment', '');
         $def->sql = trim(self::string($raw, 'sql', ''));
+        $def->tableView = self::string($raw, 'table_view', self::TABLE_VIEW_FLAT) === self::TABLE_VIEW_HIERARCHICAL
+            ? self::TABLE_VIEW_HIERARCHICAL
+            : self::TABLE_VIEW_FLAT;
         $chart = self::string($raw, 'chart', '');
         $def->chart = $def->reportType === self::REPORT_TYPE_TABLE && in_array($chart, self::CHARTS, true) ? $chart : '';
 
@@ -297,6 +305,11 @@ class ReportDefinition
         return $this->filterMatch;
     }
 
+    public function getTableView(): string
+    {
+        return $this->tableView;
+    }
+
     public function getSql(): string
     {
         return $this->sql;
@@ -327,6 +340,7 @@ class ReportDefinition
             'segment' => $this->segment,
             'sql' => $this->sql,
             'chart' => $this->chart,
+            'table_view' => $this->tableView,
         ];
     }
 }

@@ -113,6 +113,13 @@ class ReportDefinitionTest extends TestCase
         $this->assertSame('any', ReportDefinition::fromArray($this->valid(['filters' => $two, 'filter_match' => 'any']))->toArray()['filter_match']);
     }
 
+    public function testTableView_defaultsToFlat(): void
+    {
+        $this->assertSame('flat', ReportDefinition::fromArray($this->valid())->getTableView());
+        $this->assertSame('hierarchical', ReportDefinition::fromArray($this->valid(['table_view' => 'hierarchical']))->getTableView());
+        $this->assertSame('flat', ReportDefinition::fromArray($this->valid(['table_view' => 'tree']))->getTableView());
+    }
+
     public function testValidEvolutionAndKpiCard(): void
     {
         $evo = ReportDefinition::fromArray($this->valid(['report_type' => 'evolution', 'rows' => [], 'metrics' => ['a', 'b']]));

@@ -124,6 +124,40 @@ export function flattenRows(rows: ApiRow[], depth: number, columns: ResultColumn
   return result;
 }
 
+export interface TreeRow {
+  key: string;
+  label: string;
+  values: Record<string, number>;
+  children: TreeRow[];
+}
+
+/**
+ * The rows of a table of several row dimensions as a tree for the hierarchical view: each parent
+ * keeps its own values (the total of its children), its children are the rows of the next level.
+ */
+export function treeRows(rows: ApiRow[], depth: number, columns: ResultColumn[]): TreeRow[] {
+  const build = (list: ApiRow[], level: number, parentKey: string): TreeRow[] => list.map(
+    (row, index) => {
+      const key = `${parentKey}/${index}`;
+      const values: Record<string, number> = {};
+      columns.forEach((column) => {
+        values[column.key] = toNumber(row[column.key]);
+      });
+      const children = level + 1 < depth && Array.isArray(row.subtable)
+        ? build(row.subtable, level + 1, key)
+        : [];
+      return {
+        key,
+        label: typeof row.label === 'undefined' ? '' : String(row.label),
+        values,
+        children,
+      };
+    },
+  );
+
+  return build(rows, 0, '');
+}
+
 /**
  * First metric of the first row dimension for the bar and pie charts: the largest rows, the rest
  * summed into one "others" slice when the metric is additive. A distinct count (unique visitors)

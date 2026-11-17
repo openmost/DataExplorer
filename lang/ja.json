@@ -201,7 +201,10 @@
         "FilterMatchLabel": "フィルタの組み合わせ",
         "FilterConditions": "条件",
         "FilterApply": "適用",
-        "FilterEdit": "%s のフィルタを編集"
+        "FilterEdit": "%s のフィルタを編集",
+        "TableView": "行",
+        "TableViewFlat": "フラット",
+        "TableViewHierarchical": "階層"
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",

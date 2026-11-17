@@ -887,6 +887,25 @@ html.dataExplorer-panel-open {
   .matomo-form-field > .col:empty {
     display: none;
   }
+
+  // the column is narrow: the fields and buttons at the density of the rest of the panel
+  .matomo-form-field .input-field input,
+  .matomo-form-field .select-wrapper input.select-dropdown {
+    height: 32px;
+    margin-bottom: 0;
+    font-size: 13px;
+    line-height: 32px;
+  }
+
+  .dataExplorerFilter__actions {
+    .btn,
+    .btn-flat {
+      height: 30px;
+      padding: 0 12px;
+      font-size: 12px;
+      line-height: 30px;
+    }
+  }
 }
 
 // canvas
@@ -1414,4 +1433,30 @@ button.dataExplorerCanvas__period {
 
 .dataExplorerCanvas__status:not(:empty) {
   padding-top: 16px;
+}
+
+// hierarchical view of the result table: a "+" opens the rows of the next dimension
+.dataExplorerResult__treeLabel {
+  white-space: nowrap;
+}
+
+.dataExplorerResult__toggle {
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: @de-text-lighter;
+  font-size: 11px;
+  vertical-align: middle;
+  cursor: pointer;
+
+  &:hover {
+    color: @de-text-strong;
+  }
+}
+
+.dataExplorerResult tr[class^="level"]:not(.level0) .dataExplorerResult__treeLabel > span:last-child {
+  color: @de-text-light;
 }

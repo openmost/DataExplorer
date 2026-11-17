@@ -201,7 +201,10 @@
         "FilterMatchLabel": "組合篩選條件",
         "FilterConditions": "條件",
         "FilterApply": "套用",
-        "FilterEdit": "編輯 %s 的篩選條件"
+        "FilterEdit": "編輯 %s 的篩選條件",
+        "TableView": "列",
+        "TableViewFlat": "平鋪",
+        "TableViewHierarchical": "階層"
     },
     "OpenmostCommunication": {
         "Dismiss": "關閉",

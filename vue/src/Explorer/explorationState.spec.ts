@@ -29,6 +29,7 @@ function exploration(): ExplorationState {
     values: ['nb_visits', 'nb_actions'],
     filters: [{ dimension: 'Actions.PageTitle', operator: 'contains', value: 'Élan "100%" & <b>' }],
     filterMatch: 'any',
+    tableView: 'hierarchical',
     visualization: 'bar',
     segment: 'browserCode==FF',
   };
@@ -76,6 +77,7 @@ describe('explorationState', () => {
       visualization: 'table',
       segment: '',
       filterMatch: 'all',
+      tableView: 'flat',
     });
   });
 
@@ -105,6 +107,7 @@ describe('explorationState', () => {
       metrics: ['nb_visits', 'nb_actions'],
       filters: [{ dimension: 'Actions.PageTitle', operator: 'contains', value: 'Élan "100%" & <b>' }],
       filter_match: 'any',
+      table_view: 'hierarchical',
       segment: 'browserCode==FF',
     });
 

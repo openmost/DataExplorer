@@ -136,6 +136,30 @@ class TranslationsTest extends TestCase
         }
     }
 
+    public function test_everyKeyTheVueCodeTranslates_isSentToTheClient(): void
+    {
+        $source = (string) file_get_contents(self::root() . '/DataExplorer.php');
+        $this->assertSame(1, preg_match('/CLIENT_SIDE_TRANSLATION_KEYS = \[(.*?)\];/s', $source, $block));
+        preg_match_all("/'([A-Za-z]+_[A-Za-z0-9_]+)'/", $block[1], $listed);
+
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(self::root() . '/vue/src'));
+        $missing = [];
+        foreach ($files as $file) {
+            $name = $file->getFilename();
+            if (!preg_match('/\.(vue|ts)$/', $name) || strpos($name, '.spec.') !== false) {
+                continue;
+            }
+            preg_match_all("/translate\(\s*'([A-Za-z]+_[A-Za-z0-9_]+)'/", (string) file_get_contents($file->getPathname()), $matches);
+            foreach ($matches[1] as $key) {
+                if (!in_array($key, $listed[1], true)) {
+                    $missing[$key] = $name;
+                }
+            }
+        }
+
+        $this->assertSame([], $missing, 'translated in Vue but missing from CLIENT_SIDE_TRANSLATION_KEYS');
+    }
+
     /**
      * @return array<string, string> literal key => first file using it
      */

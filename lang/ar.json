@@ -201,7 +201,10 @@
         "FilterMatchLabel": "دمج عوامل التصفية",
         "FilterConditions": "الشرط",
         "FilterApply": "تطبيق",
-        "FilterEdit": "تعديل عامل التصفية على %s"
+        "FilterEdit": "تعديل عامل التصفية على %s",
+        "TableView": "الصفوف",
+        "TableViewFlat": "مسطح",
+        "TableViewHierarchical": "هرمي"
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

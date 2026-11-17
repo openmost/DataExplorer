@@ -116,7 +116,9 @@
           @add="addToZone"
           @remove="removeFromZone"
           :filter-match="state.filterMatch"
+          :table-view="state.tableView"
           @set-filter-match="state.filterMatch = $event"
+          @set-table-view="state.tableView = $event"
           @update-filter="updateFilter"
           @remove-filter="removeFilter"
         />
@@ -126,6 +128,8 @@
           :segment-text="segmentText"
           @open-period-selector="openPeriodSelector"
           :visualization="state.visualization"
+          :table-view="state.tableView"
+          :tree="resultTree"
           :loading="loading"
           :error="runError"
           :hint="hint"
@@ -225,6 +229,7 @@ import {
   chartSlice,
   evolutionSeries,
   flattenRows,
+  treeRows,
   resultColumns,
   totalValue,
 } from './resultTable';
@@ -233,6 +238,7 @@ import type {
   EvolutionSeries,
   ResultColumn,
   ResultRow,
+  TreeRow,
 } from './resultTable';
 import type {
   ApiRow,
@@ -571,6 +577,12 @@ export default defineComponent({
     const resultColumnsList = computed<ResultColumn[]>(() => resultColumns(
       tableRows.value,
       requestDefinition.value.metrics,
+    ));
+
+    const resultTree = computed<TreeRow[]>(() => treeRows(
+      tableRows.value,
+      requestDefinition.value.rows.length,
+      resultColumnsList.value,
     ));
 
     const resultRows = computed<ResultRow[]>(() => flattenRows(
@@ -1056,6 +1068,7 @@ export default defineComponent({
     });
 
     return {
+      resultTree,
       periodText,
       segmentText,
       openPeriodSelector,

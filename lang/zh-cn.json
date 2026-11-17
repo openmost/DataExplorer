@@ -201,7 +201,10 @@
         "FilterMatchLabel": "组合筛选条件",
         "FilterConditions": "条件",
         "FilterApply": "应用",
-        "FilterEdit": "编辑 %s 的筛选条件"
+        "FilterEdit": "编辑 %s 的筛选条件",
+        "TableView": "行",
+        "TableViewFlat": "平铺",
+        "TableViewHierarchical": "层级"
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",

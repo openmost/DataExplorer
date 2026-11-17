@@ -120,7 +120,7 @@
               <thead>
                 <tr v-if="hasPivot">
                   <th
-                    :colspan="dimensionNames.length"
+                    :colspan="labelHeaders.length"
                     class="dataExplorerResult__corner"
                   ></th>
                   <th
@@ -133,7 +133,7 @@
                 </tr>
                 <tr>
                   <th
-                    v-for="(name, index) in dimensionNames"
+                    v-for="(name, index) in labelHeaders"
                     :key="`d${index}`"
                     scope="col"
                     class="sortable label"
@@ -168,7 +168,39 @@
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody v-if="isHierarchical">
+                <tr
+                  v-for="node in visibleTree"
+                  :key="node.row.key"
+                  :class="`level${node.depth}`"
+                >
+                  <td
+                    class="label first dataExplorerResult__treeLabel"
+                    :style="{ paddingLeft: `${16 + node.depth * 20}px` }"
+                  >
+                    <button
+                      v-if="node.row.children.length"
+                      type="button"
+                      class="dataExplorerResult__toggle"
+                      :aria-expanded="isOpen(node.row.key) ? 'true' : 'false'"
+                      :aria-label="node.row.label"
+                      @click="toggleNode(node.row.key)"
+                    >
+                      <span
+                        :class="isOpen(node.row.key) ? 'icon-minus' : 'icon-plus'"
+                        aria-hidden="true"
+                      ></span>
+                    </button>
+                    <span>{{ node.row.label }}</span>
+                  </td>
+                  <td
+                    v-for="column in columns"
+                    :key="column.key"
+                    class="column dataExplorerResult__metric"
+                  >{{ format(node.row.values[column.key]) }}</td>
+                </tr>
+              </tbody>
+              <tbody v-else>
                 <tr
                   v-for="(row, rowIndex) in sortedRows"
                   :key="rowIndex"
@@ -254,6 +286,7 @@ import {
   computed,
   defineComponent,
   PropType,
+  reactive,
   ref,
 } from 'vue';
 import {
@@ -272,6 +305,7 @@ import type {
   EvolutionSeries,
   ResultColumn,
   ResultRow,
+  TreeRow,
 } from './resultTable';
 import { VISUALIZATION_ICONS } from './explorationState';
 import {
@@ -282,7 +316,7 @@ import {
   tableData,
   toDelimited,
 } from './exportData';
-import type { Visualization } from '../types';
+import type { TableView, Visualization } from '../types';
 
 export interface KpiView {
   metricName: string;
@@ -340,6 +374,14 @@ export default defineComponent({
     },
     dimensionNames: {
       type: Array as PropType<string[]>,
+      default: () => [],
+    },
+    tableView: {
+      type: String as PropType<TableView>,
+      default: 'flat',
+    },
+    tree: {
+      type: Array as PropType<TreeRow[]>,
       default: () => [],
     },
     columns: {
@@ -415,6 +457,51 @@ export default defineComponent({
         }
         return direction * ((a.values[key] || 0) - (b.values[key] || 0));
       });
+    });
+
+    const isHierarchical = computed(() => props.tableView === 'hierarchical'
+      && props.dimensionNames.length > 1);
+
+    // one label column in the hierarchical view, named after the dimensions from parent to child
+    const labelHeaders = computed(() => (isHierarchical.value
+      ? [props.dimensionNames.join(' > ')]
+      : props.dimensionNames));
+
+    const openNodes = reactive<Record<string, boolean>>({});
+
+    function isOpen(key: string): boolean {
+      return !!openNodes[key];
+    }
+
+    function toggleNode(key: string) {
+      openNodes[key] = !openNodes[key];
+    }
+
+    function sortSiblings(list: TreeRow[]): TreeRow[] {
+      if (!sortKey.value) {
+        return list;
+      }
+      const key = sortKey.value;
+      const direction = sortDescending.value ? -1 : 1;
+      const byLabel = /^d\d+$/.test(key) && !props.columns.some((column) => column.key === key);
+      return [...list].sort((a, b) => (byLabel
+        ? direction * a.label.localeCompare(b.label)
+        : direction * ((a.values[key] || 0) - (b.values[key] || 0))));
+    }
+
+    // the rows shown: the first level, and the children of every opened parent under it
+    const visibleTree = computed(() => {
+      const visible: { row: TreeRow, depth: number }[] = [];
+      const walk = (list: TreeRow[], depth: number) => {
+        sortSiblings(list).forEach((row) => {
+          visible.push({ row, depth });
+          if (row.children.length && openNodes[row.key]) {
+            walk(row.children, depth + 1);
+          }
+        });
+      };
+      walk(props.tree, 0);
+      return visible;
     });
 
     function sortBy(key: string) {
@@ -529,6 +616,11 @@ export default defineComponent({
     const tabIcon = computed(() => VISUALIZATION_ICONS[props.visualization as Visualization]);
 
     return {
+      isHierarchical,
+      labelHeaders,
+      isOpen,
+      toggleNode,
+      visibleTree,
       sortKey,
       exportOpen,
       exportButton,

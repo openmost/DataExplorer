@@ -15,6 +15,7 @@ use Piwik\Common;
 use Piwik\Columns\DimensionsProvider;
 use Piwik\DataTable;
 use Piwik\Piwik;
+use Piwik\Request;
 use Piwik\Plugin\Report;
 use Piwik\Plugin\ViewDataTable;
 use Piwik\ViewDataTable\Manager as ViewDataTableManager;
@@ -283,6 +284,23 @@ class GetSavedReport extends Report
         if ($this->isSql()) {
             // the rows keep the order of the query
             $view->config->enable_sort = false;
+        }
+
+        $definition = is_array($this->row['definition'] ?? null) ? $this->row['definition'] : [];
+        if (!$this->isSql() && count((array) ($definition['rows'] ?? [])) > 1) {
+            $view->config->show_flatten_table = true;
+            // the view the report was saved with, unless the URL asks for the other one
+            $request = Request::fromRequest();
+            if (($definition['table_view'] ?? 'flat') !== ReportDefinition::TABLE_VIEW_HIERARCHICAL
+                && $request->getStringParameter('flat', '') === ''
+            ) {
+                $view->requestConfig->flat = 1;
+                $view->config->custom_parameters['flat'] = 1;
+                if ($request->getStringParameter('show_dimensions', '') === '') {
+                    $view->requestConfig->show_dimensions = 1;
+                    $view->config->custom_parameters['show_dimensions'] = 1;
+                }
+            }
         }
 
         $isWidget = Common::getRequestVar('widget', 0, 'int');

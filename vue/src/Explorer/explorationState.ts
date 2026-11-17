@@ -54,6 +54,7 @@ export function defaultState(): ExplorationState {
     values: [],
     filters: [],
     filterMatch: 'all',
+    tableView: 'flat',
     visualization: 'table',
     segment: '',
   };
@@ -181,6 +182,7 @@ export function normalize(raw: unknown): ExplorationState {
   state.values = stringList(value.values);
   state.filters = filterList(value.filters);
   state.filterMatch = value.filterMatch === 'any' ? 'any' : 'all';
+  state.tableView = value.tableView === 'hierarchical' ? 'hierarchical' : 'flat';
   state.visualization = VISUALIZATIONS.includes(value.visualization as Visualization)
     ? value.visualization as Visualization
     : 'table';
@@ -241,6 +243,7 @@ export function toDefinition(state: ExplorationState): VisualDefinition {
     metrics: reportType === 'kpicard' ? state.values.slice(0, 1) : [...state.values],
     filters: state.filters.filter(isFilterComplete).map((filter) => ({ ...filter })),
     filter_match: state.filterMatch,
+    table_view: state.tableView,
     segment: state.segment,
   };
 }
@@ -267,6 +270,7 @@ export function fromDefinition(
     values: definition.metrics,
     filters: definition.filters,
     filterMatch: definition.filter_match,
+    tableView: definition.table_view,
     segment: definition.segment,
     visualization,
   });

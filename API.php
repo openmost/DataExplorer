@@ -637,8 +637,8 @@ class API extends \Piwik\Plugin\API
         } catch (\InvalidArgumentException $e) {
             return true;
         }
-        // the chart a table opens with is read when the report renders, never archived
-        unset($before['name'], $after['name'], $before['chart'], $after['chart']);
+        // the chart and the table view are read when the report renders, never archived
+        unset($before['name'], $after['name'], $before['chart'], $after['chart'], $before['table_view'], $after['table_view']);
 
         return $before !== $after;
     }

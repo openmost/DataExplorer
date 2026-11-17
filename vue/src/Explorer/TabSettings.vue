@@ -31,6 +31,28 @@
           <span :class="option.icon" aria-hidden="true"></span>
         </button>
       </div>
+      <div
+        v-if="visualization === 'table' && rowItems.length > 1"
+        class="dataExplorerSettings__tableView"
+      >
+        <h4 id="dataExplorerTableViewTitle">{{ translate('DataExplorer_TableView') }}</h4>
+        <div
+          class="dataExplorerSegmented"
+          role="radiogroup"
+          aria-labelledby="dataExplorerTableViewTitle"
+        >
+          <button
+            v-for="view in tableViews"
+            :key="view.id"
+            type="button"
+            role="radio"
+            class="dataExplorerSegmented__button"
+            :class="{ 'is-active': tableView === view.id }"
+            :aria-checked="tableView === view.id ? 'true' : 'false'"
+            @click="$emit('setTableView', view.id)"
+          >{{ view.label }}</button>
+        </div>
+      </div>
     </div>
 
     <DropZone
@@ -154,6 +176,7 @@ import {
 import type {
   CatalogLimits,
   FilterMatch,
+  TableView,
   FilterView,
   Visualization,
   ZoneItem,
@@ -201,6 +224,10 @@ export default defineComponent({
       type: String as PropType<FilterMatch>,
       default: 'all',
     },
+    tableView: {
+      type: String as PropType<TableView>,
+      default: 'flat',
+    },
     dimensionOptions: {
       type: Array as PropType<ZoneItem[]>,
       required: true,
@@ -221,6 +248,7 @@ export default defineComponent({
     'updateFilter',
     'removeFilter',
     'setFilterMatch',
+    'setTableView',
   ],
   setup(props) {
     const visualizations = VISUALIZATIONS.map((id) => ({
@@ -249,7 +277,13 @@ export default defineComponent({
       { id: 'any' as FilterMatch, label: translate('DataExplorer_FilterMatchAny') },
     ];
 
+    const tableViews = [
+      { id: 'flat' as TableView, label: translate('DataExplorer_TableViewFlat') },
+      { id: 'hierarchical' as TableView, label: translate('DataExplorer_TableViewHierarchical') },
+    ];
+
     return {
+      tableViews,
       filterMatches,
       visualizations,
       hasRows,

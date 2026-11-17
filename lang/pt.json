@@ -201,7 +201,10 @@
         "FilterMatchLabel": "Combinar os filtros",
         "FilterConditions": "Condição",
         "FilterApply": "Aplicar",
-        "FilterEdit": "Editar o filtro de %s"
+        "FilterEdit": "Editar o filtro de %s",
+        "TableView": "Linhas",
+        "TableViewFlat": "Plano",
+        "TableViewHierarchical": "Hierárquico"
     },
     "OpenmostCommunication": {
         "Dismiss": "Dispensar",
