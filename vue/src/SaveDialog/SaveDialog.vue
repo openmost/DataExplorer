@@ -292,8 +292,11 @@ export default defineComponent({
       const run = siteSearchRun;
       AjaxHelper.fetch<{ idsite: number, name: string }[]>(
         {
-          method: 'SitesManager.getPatternMatchSites',
-          pattern: siteSearch.value,
+          // getPatternMatchSites refuses an empty pattern (HTTP 400): the dialog lists
+          // the sites before any search
+          method: 'SitesManager.getSitesWithMinimumAccess',
+          permission: 'write',
+          pattern: siteSearch.value.trim(),
           limit: SITE_SEARCH_LIMIT,
         },
         { createErrorNotification: false },
