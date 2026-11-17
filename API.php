@@ -33,6 +33,7 @@ use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
+use Piwik\Plugins\DataExplorer\Query\CustomReportExport;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
 use Piwik\Plugins\DataExplorer\Sql\ParsedQuery;
 use Piwik\Plugins\DataExplorer\Sql\RawSqlRunner;
@@ -132,6 +133,77 @@ class API extends \Piwik\Plugin\API
         }
 
         return (new VisualQueryRunner())->run($validated, $idSite, $period, $date, $segment);
+    }
+
+    /**
+     * The parameters of CustomReports.addCustomReport for an exploration: report type, dimension and metric ids,
+     * and the stored segment plus the filters as one segment definition. Label filters of coded dimensions
+     * become the stored values they match on the site and period. "unsupported" names what a custom report
+     * cannot hold.
+     *
+     * @unsanitized
+     * @param int $idSite
+     * @param string $period
+     * @param string $date
+     * @param string $definition JSON of the visual definition
+     * @return array
+     */
+    public function getCustomReportParameters(int $idSite, string $period, string $date, string $definition): array
+    {
+        (new ReportPermissions())->checkCanExplore($idSite);
+
+        $raw = json_decode($definition, true);
+        if (!is_array($raw)) {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorDefinitionInvalid'));
+        }
+        $raw['type'] = ReportDefinition::TYPE_VISUAL;
+        if (!isset($raw['name']) || !is_string($raw['name']) || trim($raw['name']) === '') {
+            $raw['name'] = 'preview';
+        }
+        $validated = ReportDefinition::fromArray($raw);
+
+        $filters = (new VisualQueryRunner())->storedFilters($validated, $idSite, $period, $date);
+        $export = new CustomReportExport();
+        $parameters = $export->convert($validated, $filters, $idSite);
+
+        if (!\Piwik\Plugin\Manager::getInstance()->isPluginActivated('CustomReports')) {
+            return $parameters;
+        }
+
+        $resolved = (new VisualQueryBuilder())->resolve($validated, $idSite);
+        $metricNames = [];
+        foreach ($resolved['metrics'] as $metric) {
+            $metricNames[$metric->id] = $metric->name;
+        }
+        $dimensionNames = [];
+        foreach ($resolved['rows'] as $dimension) {
+            $dimensionNames[$dimension->id] = $dimension->name;
+        }
+
+        return $export->mapToCatalogue(
+            $parameters,
+            $metricNames,
+            $dimensionNames,
+            $this->customReportsCatalogue('CustomReports.getAvailableMetrics', 'metrics', $idSite),
+            $this->customReportsCatalogue('CustomReports.getAvailableDimensions', 'dimensions', $idSite)
+        );
+    }
+
+    /**
+     * @return array<string, string> id => name of a Custom Reports catalogue
+     */
+    private function customReportsCatalogue(string $method, string $key, int $idSite): array
+    {
+        $catalogue = [];
+        foreach ((array) \Piwik\API\Request::processRequest($method, ['idSite' => $idSite, 'filter_limit' => -1, 'format' => 'original'], []) as $category) {
+            foreach ((array) ($category[$key] ?? []) as $entry) {
+                if (isset($entry['uniqueId'])) {
+                    $catalogue[(string) $entry['uniqueId']] = (string) ($entry['name'] ?? $entry['uniqueId']);
+                }
+            }
+        }
+
+        return $catalogue;
     }
 
     /**

@@ -202,9 +202,13 @@
         "FilterConditions": "Condition",
         "FilterApply": "Apply",
         "FilterEdit": "Edit the filter on %s",
-        "TableView": "Rows",
+        "TableView": "Table layout",
         "TableViewFlat": "Flat",
-        "TableViewHierarchical": "Hierarchical"
+        "TableViewHierarchical": "Hierarchical",
+        "SaveAsCustomReport": "Save as Custom Report",
+        "CustomReportHelp": "Creates a report of the Custom Reports plugin with these dimensions, metrics, segment and filters. You then edit it in Custom Reports.",
+        "CustomReportUnsupported": "Not carried over: %s.",
+        "CustomReportCreated": "Custom report \"%s\" created. It is in the Custom Reports menu."
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

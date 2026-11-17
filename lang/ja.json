@@ -202,9 +202,13 @@
         "FilterConditions": "条件",
         "FilterApply": "適用",
         "FilterEdit": "%s のフィルタを編集",
-        "TableView": "行",
+        "TableView": "表の表示",
         "TableViewFlat": "フラット",
-        "TableViewHierarchical": "階層"
+        "TableViewHierarchical": "階層",
+        "SaveAsCustomReport": "Custom Report として保存",
+        "CustomReportHelp": "これらのディメンション、指標、セグメント、フィルタで Custom Reports プラグインのレポートを作成します。その後は Custom Reports で編集します。",
+        "CustomReportUnsupported": "引き継がれない項目: %s。",
+        "CustomReportCreated": "カスタムレポート「%s」を作成しました。Custom Reports メニューにあります。"
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",

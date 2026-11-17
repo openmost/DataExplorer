@@ -202,9 +202,13 @@
         "FilterConditions": "條件",
         "FilterApply": "套用",
         "FilterEdit": "編輯 %s 的篩選條件",
-        "TableView": "列",
+        "TableView": "表格版面",
         "TableViewFlat": "平鋪",
-        "TableViewHierarchical": "階層"
+        "TableViewHierarchical": "階層",
+        "SaveAsCustomReport": "儲存為 Custom Report",
+        "CustomReportHelp": "使用這些維度、指標、區段和篩選條件建立 Custom Reports 外掛的報表。之後在 Custom Reports 中編輯。",
+        "CustomReportUnsupported": "未轉入: %s。",
+        "CustomReportCreated": "已建立自訂報表「%s」。它位於 Custom Reports 選單中。"
     },
     "OpenmostCommunication": {
         "Dismiss": "關閉",

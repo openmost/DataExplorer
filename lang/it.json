@@ -202,9 +202,13 @@
         "FilterConditions": "Condizione",
         "FilterApply": "Applica",
         "FilterEdit": "Modifica il filtro su %s",
-        "TableView": "Righe",
+        "TableView": "Visualizzazione della tabella",
         "TableViewFlat": "Piatta",
-        "TableViewHierarchical": "Gerarchica"
+        "TableViewHierarchical": "Gerarchica",
+        "SaveAsCustomReport": "Salva come Custom Report",
+        "CustomReportHelp": "Crea un report del plugin Custom Reports con queste dimensioni, metriche, segmento e filtri. Poi lo modifichi in Custom Reports.",
+        "CustomReportUnsupported": "Non ripreso: %s.",
+        "CustomReportCreated": "Custom report «%s» creato. Si trova nel menu Custom Reports."
     },
     "OpenmostCommunication": {
         "Dismiss": "Ignora",

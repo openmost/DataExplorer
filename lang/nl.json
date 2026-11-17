@@ -202,9 +202,13 @@
         "FilterConditions": "Voorwaarde",
         "FilterApply": "Toepassen",
         "FilterEdit": "Filter op %s bewerken",
-        "TableView": "Rijen",
+        "TableView": "Tabelweergave",
         "TableViewFlat": "Plat",
-        "TableViewHierarchical": "Hiërarchisch"
+        "TableViewHierarchical": "Hiërarchisch",
+        "SaveAsCustomReport": "Opslaan als Custom Report",
+        "CustomReportHelp": "Maakt een rapport van de plugin Custom Reports met deze dimensies, metrieken, dit segment en deze filters. Daarna bewerkt u het in Custom Reports.",
+        "CustomReportUnsupported": "Niet overgenomen: %s.",
+        "CustomReportCreated": "Custom report \"%s\" gemaakt. Het staat in het menu Custom Reports."
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",

@@ -202,9 +202,13 @@
         "FilterConditions": "الشرط",
         "FilterApply": "تطبيق",
         "FilterEdit": "تعديل عامل التصفية على %s",
-        "TableView": "الصفوف",
+        "TableView": "عرض الجدول",
         "TableViewFlat": "مسطح",
-        "TableViewHierarchical": "هرمي"
+        "TableViewHierarchical": "هرمي",
+        "SaveAsCustomReport": "حفظ كـ Custom Report",
+        "CustomReportHelp": "ينشئ تقريرًا في إضافة Custom Reports بهذه الأبعاد والمقاييس والمقطع وعوامل التصفية. ثم تعدّله في Custom Reports.",
+        "CustomReportUnsupported": "لم يُنقل: %s.",
+        "CustomReportCreated": "تم إنشاء التقرير المخصص \"%s\". ستجده في قائمة Custom Reports."
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

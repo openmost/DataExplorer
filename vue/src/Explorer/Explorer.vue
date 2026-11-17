@@ -33,23 +33,16 @@
         v-if="activeTab === 'explore'"
         class="dataExplorer__reports"
       >
-        <label
-          for="dataExplorerOpenReport"
-          class="dataExplorer__reportsLabel"
-        >{{ translate('DataExplorer_OpenReport') }}</label>
-        <select
-          id="dataExplorerOpenReport"
-          class="browser-default"
-          :value="editing ? String(editing.idreport) : ''"
-          @change="onPickReport($event)"
-        >
-          <option value="">{{ translate('DataExplorer_NewExploration') }}</option>
-          <option
-            v-for="report in openableReports"
-            :key="report.idreport"
-            :value="String(report.idreport)"
-          >{{ report.name }}</option>
-        </select>
+        <span class="dataExplorer__reportsLabel">{{ translate('DataExplorer_OpenReport') }}</span>
+        <Field
+          uicontrol="select"
+          name="dataExplorerOpenReport"
+          :full-width="true"
+          :options="reportOptions"
+          :model-value="editing ? String(editing.idreport) : ''"
+          :ui-control-attributes="{ 'aria-label': translate('DataExplorer_OpenReport') }"
+          @update:model-value="onPickReport($event)"
+        />
       </div>
 
       <button
@@ -62,6 +55,13 @@
       >{{ editing && editing.editable && editing.type === 'visual'
         ? translate('DataExplorer_EditReport')
         : translate('DataExplorer_SaveReport') }}</button>
+      <button
+        v-if="customReports && activeTab === 'explore'"
+        type="button"
+        class="btn-flat dataExplorer__saveCustomReport"
+        :disabled="!isRunnable"
+        @click="customReportOpen = true"
+      >{{ translate('DataExplorer_SaveAsCustomReport') }}</button>
     </div>
 
     <div aria-live="polite">
@@ -178,6 +178,14 @@
       @saved="onSaved"
       @closed="onSaveClosed"
     />
+    <CustomReportDialog
+      v-if="customReports"
+      v-model="customReportOpen"
+      :definition="definition"
+      :default-name="editing ? editing.name : ''"
+      @created="onCustomReportCreated"
+      @failed="onCustomReportFailed"
+    />
   </div>
 </template>
 
@@ -204,11 +212,13 @@ import {
   ReportingMenuStore,
   translate,
 } from 'CoreHome';
+import { Field } from 'CorePluginsAdmin';
 import Canvas from './Canvas.vue';
 import TabSettings from './TabSettings.vue';
 import VariablesPanel from './VariablesPanel.vue';
 import RawSqlEditor from '../RawSql/RawSqlEditor.vue';
 import SaveDialog from '../SaveDialog/SaveDialog.vue';
+import CustomReportDialog from '../CustomReport/CustomReportDialog.vue';
 import {
   clampToLimits,
   decode,
@@ -283,6 +293,8 @@ export default defineComponent({
     Notification,
     RawSqlEditor,
     SaveDialog,
+    CustomReportDialog,
+    Field,
     TabSettings,
     VariablesPanel,
   },
@@ -302,6 +314,11 @@ export default defineComponent({
     setupUrl: {
       type: String,
       default: '',
+    },
+    // the Custom Reports plugin is activated and the user can write: the exploration can become one
+    customReports: {
+      type: Boolean,
+      default: false,
     },
   },
   setup(props) {
@@ -328,7 +345,7 @@ export default defineComponent({
     const kpiResult = ref<KpiResult|null>(null);
 
     const notice = ref('');
-    const noticeContext = ref<'success'|'warning'>('success');
+    const noticeContext = ref<'success'|'warning'|'error'>('success');
 
     const saveOpen = ref(false);
     const saveType = ref<'visual'|'sql'>('visual');
@@ -821,8 +838,29 @@ export default defineComponent({
       });
     }
 
-    function onPickReport(event: Event) {
-      const id = parseInt((event.target as HTMLSelectElement).value, 10);
+    const customReportOpen = ref(false);
+
+    function onCustomReportCreated(event: { idCustomReport: number, name: string }) {
+      noticeContext.value = 'success';
+      notice.value = translate('DataExplorer_CustomReportCreated', event.name);
+      ReportingMenuStore.reloadMenuItems();
+    }
+
+    function onCustomReportFailed(message: string) {
+      noticeContext.value = 'error';
+      notice.value = message;
+    }
+
+    const reportOptions = computed(() => [
+      { key: '', value: translate('DataExplorer_NewExploration') },
+      ...openableReports.value.map((report) => ({
+        key: String(report.idreport),
+        value: report.name,
+      })),
+    ]);
+
+    function onPickReport(value: string) {
+      const id = parseInt(String(value), 10);
       const report = reports.value.find((item) => item.idreport === id) || null;
       notice.value = '';
       if (!report) {
@@ -1068,6 +1106,11 @@ export default defineComponent({
     });
 
     return {
+      definition,
+      customReportOpen,
+      onCustomReportCreated,
+      onCustomReportFailed,
+      reportOptions,
       resultTree,
       periodText,
       segmentText,

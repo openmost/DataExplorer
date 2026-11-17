@@ -202,9 +202,13 @@
         "FilterConditions": "Warunek",
         "FilterApply": "Zastosuj",
         "FilterEdit": "Edytuj filtr: %s",
-        "TableView": "Wiersze",
+        "TableView": "Układ tabeli",
         "TableViewFlat": "Płaski",
-        "TableViewHierarchical": "Hierarchiczny"
+        "TableViewHierarchical": "Hierarchiczny",
+        "SaveAsCustomReport": "Zapisz jako Custom Report",
+        "CustomReportHelp": "Tworzy raport wtyczki Custom Reports z tymi wymiarami, metrykami, segmentem i filtrami. Następnie edytujesz go w Custom Reports.",
+        "CustomReportUnsupported": "Nie przeniesiono: %s.",
+        "CustomReportCreated": "Utworzono custom report „%s”. Znajduje się w menu Custom Reports."
     },
     "OpenmostCommunication": {
         "Dismiss": "Odrzuć",

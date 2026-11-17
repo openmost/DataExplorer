@@ -1460,3 +1460,36 @@ button.dataExplorerCanvas__period {
 .dataExplorerResult tr[class^="level"]:not(.level0) .dataExplorerResult__treeLabel > span:last-child {
   color: @de-text-light;
 }
+
+// report picker of the toolbar: the Matomo select, inline
+.dataExplorer__reports {
+  .matomo-form-field.row {
+    min-width: 260px;
+    margin: 0;
+  }
+
+  .matomo-form-field > .col {
+    padding: 0;
+  }
+
+  .matomo-form-field .input-field {
+    margin: 0;
+  }
+
+  .matomo-form-field > .col:empty {
+    display: none;
+  }
+}
+
+.dataExplorer__saveCustomReport {
+  margin-left: 8px;
+}
+
+.dataExplorerCustomReport__help {
+  margin-bottom: 12px;
+}
+
+.dataExplorerCustomReport__warning {
+  margin: 8px 0 12px;
+  color: @de-warning;
+}

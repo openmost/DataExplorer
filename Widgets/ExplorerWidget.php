@@ -57,6 +57,8 @@ class ExplorerWidget extends Widget
                 'is-super-user' => $isSuperUser,
                 'can-save' => Piwik::isUserHasWriteAccess($idSite),
                 'writable-sites' => $writableSites,
+                'custom-reports' => Piwik::isUserHasWriteAccess($idSite)
+                    && \Piwik\Plugin\Manager::getInstance()->isPluginActivated('CustomReports'),
                 'setup-url' => $isSuperUser ? 'index.php?' . Url::getQueryStringFromParameters([
                     'module' => 'DataExplorer',
                     'action' => 'setup',

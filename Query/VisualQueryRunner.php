@@ -105,6 +105,24 @@ class VisualQueryRunner
     }
 
     /**
+     * The filters of a definition with the label filters of coded dimensions turned into the stored values they
+     * match on the site and period, as run() applies them ("in" / "not_in" lists).
+     *
+     * @return array[] resolved filters: dimension (DimensionEntry), operator, value
+     */
+    public function storedFilters(ReportDefinition $definition, int $idSite, string $period, string $date): array
+    {
+        $resolved = $this->builder->resolve($definition, $idSite);
+        $this->definition = $definition;
+        $this->resolved = $resolved;
+        $this->aggregator = $this->aggregator($idSite, $period, $date, $definition->getSegment());
+        $this->db = Db::getReader();
+        $this->deadline = null;
+
+        return $this->resolveLabelFilters($resolved, $idSite)['filters'];
+    }
+
+    /**
      * Runs a definition without row dimensions once per period, all of them within one time budget: the days of a
      * range or the requested periods, or the periods ending at a single period, at most raw_sql_max_points runs
      * (the most recent), like raw SQL evolutions.

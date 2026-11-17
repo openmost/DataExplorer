@@ -202,9 +202,13 @@
         "FilterConditions": "条件",
         "FilterApply": "应用",
         "FilterEdit": "编辑 %s 的筛选条件",
-        "TableView": "行",
+        "TableView": "表格布局",
         "TableViewFlat": "平铺",
-        "TableViewHierarchical": "层级"
+        "TableViewHierarchical": "层级",
+        "SaveAsCustomReport": "保存为 Custom Report",
+        "CustomReportHelp": "使用这些维度、指标、分段和筛选条件创建 Custom Reports 插件的报表。之后在 Custom Reports 中编辑。",
+        "CustomReportUnsupported": "未转入: %s。",
+        "CustomReportCreated": "已创建自定义报表“%s”。它位于 Custom Reports 菜单中。"
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",

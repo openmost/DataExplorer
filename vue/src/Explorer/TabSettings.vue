@@ -31,10 +31,13 @@
           <span :class="option.icon" aria-hidden="true"></span>
         </button>
       </div>
-      <div
-        v-if="visualization === 'table' && rowItems.length > 1"
-        class="dataExplorerSettings__tableView"
-      >
+    </div>
+
+    <div
+      v-if="visualization === 'table' && rowItems.length > 1"
+      class="dataExplorerSettings__section"
+    >
+      <div class="dataExplorerSettings__tableView">
         <h4 id="dataExplorerTableViewTitle">{{ translate('DataExplorer_TableView') }}</h4>
         <div
           class="dataExplorerSegmented"

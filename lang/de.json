@@ -202,9 +202,13 @@
         "FilterConditions": "Bedingung",
         "FilterApply": "Anwenden",
         "FilterEdit": "Filter für %s bearbeiten",
-        "TableView": "Zeilen",
+        "TableView": "Tabellenansicht",
         "TableViewFlat": "Flach",
-        "TableViewHierarchical": "Hierarchisch"
+        "TableViewHierarchical": "Hierarchisch",
+        "SaveAsCustomReport": "Als Custom Report speichern",
+        "CustomReportHelp": "Erstellt einen Bericht des Plugins Custom Reports mit diesen Dimensionen, Metriken, dem Segment und den Filtern. Danach bearbeiten Sie ihn in Custom Reports.",
+        "CustomReportUnsupported": "Nicht übernommen: %s.",
+        "CustomReportCreated": "Custom Report „%s“ erstellt. Er befindet sich im Menü Custom Reports."
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",
