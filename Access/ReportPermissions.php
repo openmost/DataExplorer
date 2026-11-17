@@ -20,8 +20,12 @@ use Piwik\Plugins\DataExplorer\Model\Placement;
  */
 class ReportPermissions
 {
+    /**
+     * The explorer runs live queries on the logs, so a public (anonymous) view access is not enough.
+     */
     public function checkCanExplore(int $idSite): void
     {
+        Piwik::checkUserIsNotAnonymous();
         Piwik::checkUserHasViewAccess($idSite);
     }
 

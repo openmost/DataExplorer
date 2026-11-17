@@ -45,6 +45,7 @@
         "RawSqlNotReadOnly": "Surowy SQL jest wyłączony: użytkownik bazy danych tylko do odczytu może więcej niż czytać dozwolone tabele (%s). Pozostaw tylko SELECT na dozwolonych tabelach.",
         "RawSqlGrantTooWide": "Surowy SQL jest wyłączony: użytkownik bazy danych tylko do odczytu może czytać całą bazę (%s). Nadaj SELECT dla każdej tabeli osobno, jak pokazano na stronie konfiguracji.",
         "ErrorRawSqlTimeout": "Zapytanie trwało dłużej niż %s s. Skróć okres lub dodaj filtry.",
+        "ErrorSqlNotCachedYet": "Ten raport jest odświeżany, gdy otworzy go zalogowany użytkownik. Jego dane za ten okres nie są jeszcze dostępne.",
         "ErrorRawSqlFailed": "Zapytanie nie powiodło się: %s",
         "SqlWarningNotSiteScoped": "Tabela %s nie jest filtrowana przez idsite = {idsite}, tego zapytania nie można opublikować w witrynie.",
         "SetupMenu": "Data Explorer",

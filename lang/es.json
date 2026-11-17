@@ -45,6 +45,7 @@
         "RawSqlNotReadOnly": "El SQL directo está desactivado: el usuario de base de datos de solo lectura puede hacer más que leer las tablas permitidas (%s). Deje solo SELECT sobre las tablas permitidas.",
         "RawSqlGrantTooWide": "El SQL directo está desactivado: el usuario de base de datos de solo lectura puede leer toda la base de datos (%s). Conceda SELECT tabla por tabla, como se indica en la página de configuración.",
         "ErrorRawSqlTimeout": "La consulta tardó más de %s segundos. Acorte el periodo o añada filtros.",
+        "ErrorSqlNotCachedYet": "Este informe se actualiza cuando un usuario con sesión iniciada lo abre. Sus datos para este periodo aún no están disponibles.",
         "ErrorRawSqlFailed": "La consulta ha fallado: %s",
         "SqlWarningNotSiteScoped": "La tabla %s no está filtrada por idsite = {idsite}, esta consulta no se puede publicar en un sitio.",
         "SetupMenu": "Data Explorer",

@@ -45,6 +45,7 @@
         "RawSqlNotReadOnly": "生SQLは無効です: 読み取り専用のデータベースユーザーが許可されたテーブルの読み取り以上の権限を持っています (%s)。許可されたテーブルへの SELECT のみを残してください。",
         "RawSqlGrantTooWide": "生SQLは無効です: 読み取り専用のデータベースユーザーがデータベース全体を読み取れます (%s)。設定ページのとおり、テーブルごとに SELECT を付与してください。",
         "ErrorRawSqlTimeout": "クエリが %s 秒を超えました。期間を短くするか、フィルターを追加してください。",
+        "ErrorSqlNotCachedYet": "このレポートはログイン中のユーザーが開いたときに更新されます。この期間のデータはまだ利用できません。",
         "ErrorRawSqlFailed": "クエリが失敗しました: %s",
         "SqlWarningNotSiteScoped": "テーブル %s は idsite = {idsite} で絞り込まれていないため、このクエリはサイトに公開できません。",
         "SetupMenu": "Data Explorer",

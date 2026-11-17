@@ -45,6 +45,7 @@
         "RawSqlNotReadOnly": "Raw SQL ist deaktiviert: Der schreibgeschützte Datenbankbenutzer darf mehr als die erlaubten Tabellen lesen (%s). Behalten Sie nur SELECT auf den erlaubten Tabellen.",
         "RawSqlGrantTooWide": "Raw SQL ist deaktiviert: Der schreibgeschützte Datenbankbenutzer kann die gesamte Datenbank lesen (%s). Vergeben Sie SELECT Tabelle für Tabelle, wie auf der Einrichtungsseite gezeigt.",
         "ErrorRawSqlTimeout": "Die Abfrage hat länger als %s Sekunden gedauert. Verkürzen Sie den Zeitraum oder fügen Sie Filter hinzu.",
+        "ErrorSqlNotCachedYet": "Dieser Bericht wird aktualisiert, wenn ein angemeldeter Benutzer ihn öffnet. Seine Daten für diesen Zeitraum sind noch nicht verfügbar.",
         "ErrorRawSqlFailed": "Die Abfrage ist fehlgeschlagen: %s",
         "SqlWarningNotSiteScoped": "Die Tabelle %s ist nicht nach idsite = {idsite} gefiltert, diese Abfrage kann nicht auf einer Website veröffentlicht werden.",
         "SetupMenu": "Data Explorer",

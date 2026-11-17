@@ -10,7 +10,7 @@ Explore your Matomo data the way you would in GA4 Explorations, then save the re
 - **Visualizations**: table, line chart, bar chart, pie chart and KPI card. A table can compare one saved segment, and shows a totals row.
 - **Raw SQL** for super users: a SQL editor with a table and column browser, a validity check before running, CSV export, and placeholders for the site and the period. Queries run with a read-only database user that you create.
 - **Saved reports in the menu**: a saved report becomes a page of the Matomo reporting menu, in the category and subcategory you pick, for one website, a list of websites or all websites. It also works as a dashboard widget, in the API, in exports and in scheduled reports like any other report.
-- **Roles**: users with view access open the saved reports and explore the visual explorer, users with write access save reports on the websites they can write to, admins edit or delete any report of their websites, and only super users run raw SQL and save a report for all websites.
+- **Roles**: users with view access open the saved reports and explore the visual explorer (the anonymous user only opens saved reports), users with write access save reports on the websites they can write to, admins edit or delete any report of their websites, and only super users run raw SQL and save a report for all websites.
 - Translated into 12 languages.
 
 ### Requirements
@@ -80,7 +80,7 @@ Raw SQL reports are not archived: they run live on the read-only connection, wit
 
 ### FAQ
 
-**Can a user with view access see raw SQL reports?** Yes, a saved report is a report like the others: view access opens it. Only super users write or edit the SQL.
+**Can a user with view access see raw SQL reports?** Yes, a saved report is a report like the others: view access opens it. Only super users write or edit the SQL. The anonymous user (public dashboards) is served the cached result only: a raw SQL report shows its data once a signed-in user has opened it for the same period, so a public page never triggers a query on the database.
 
 **Does raw SQL see other websites?** A query is checked against the website of the report. When the guard cannot prove that every per-site table is filtered with `{idsite}`, the editor flags it and the query cannot be saved on a site or run as a saved report.
 

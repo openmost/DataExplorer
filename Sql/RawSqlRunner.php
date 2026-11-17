@@ -87,7 +87,8 @@ final class RawSqlRunner
             throw new RejectedQueryException(Piwik::translate('DataExplorer_SqlWarningNotSiteScoped', [$unproven]), $unproven);
         }
 
-        return $this->runChecked($sql, $parsed, $idSite, $period, $date, true, $maxSeconds);
+        // a public dashboard must not let anyone trigger queries on the database: anonymous viewers read the cache
+        return $this->runChecked($sql, $parsed, $idSite, $period, $date, true, $maxSeconds, Piwik::isUserIsAnonymous());
     }
 
     private function validate(string $sql): ParsedQuery
@@ -100,7 +101,7 @@ final class RawSqlRunner
         return SqlGuard::validate($sql, $config['tables_prefix'], $config['dbname']);
     }
 
-    private function runChecked(string $sql, ParsedQuery $parsed, int $idSite, string $period, string $date, bool $useCache, ?int $maxSeconds = null): DataTable
+    private function runChecked(string $sql, ParsedQuery $parsed, int $idSite, string $period, string $date, bool $useCache, ?int $maxSeconds = null, bool $cacheOnly = false): DataTable
     {
         [$executable, $placeholders] = self::prepare($parsed, Configuration::getRawSqlRowLimit());
         $values = ['{idsite}' => $idSite] + self::dateBounds($idSite, $period, $date);
@@ -116,6 +117,9 @@ final class RawSqlRunner
             if (is_array($rows)) {
                 return DataTable::makeFromSimpleArray($rows);
             }
+        }
+        if ($cacheOnly) {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorSqlNotCachedYet'));
         }
 
         $db = ($this->connect)();

@@ -45,6 +45,7 @@
         "RawSqlNotReadOnly": "Raw SQL is disabled: the read-only database user may do more than read the allowed tables (%s). Keep only SELECT on the allowed tables.",
         "RawSqlGrantTooWide": "Raw SQL is disabled: the read-only database user can read the whole database (%s). Grant SELECT table by table, as shown on the setup page.",
         "ErrorRawSqlTimeout": "The query took longer than %s seconds. Shorten the period or add filters.",
+        "ErrorSqlNotCachedYet": "This report is refreshed when a signed-in user opens it. Its data for this period is not available yet.",
         "ErrorRawSqlFailed": "The query failed: %s",
         "SqlWarningNotSiteScoped": "The table %s is not filtered by idsite = {idsite}, this query cannot be published on a site.",
         "SetupMenu": "Data Explorer",

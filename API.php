@@ -420,7 +420,7 @@ class API extends \Piwik\Plugin\API
      */
     public function getCategories(int $idSite): array
     {
-        Piwik::checkUserHasViewAccess($idSite);
+        (new ReportPermissions())->checkCanExplore($idSite);
 
         return $this->reportingCategories();
     }

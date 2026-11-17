@@ -75,11 +75,17 @@ class ReportPermissionsTest extends IntegrationTestCase
         $this->fail('NoAccessException expected');
     }
 
-    public function test_explore_viewAllowedAnonymousDenied(): void
+    public function test_explore_viewAllowed_otherSiteDenied(): void
     {
         $this->as([1]);
         $this->permissions->checkCanExplore(1);
         $this->assertDenied(function () { $this->permissions->checkCanExplore(2); });
+    }
+
+    public function test_explore_anonymousWithViewAccess_isDenied(): void
+    {
+        $this->as([1], [], [], 'anonymous');
+        $this->assertDenied(function () { $this->permissions->checkCanExplore(1); });
     }
 
     public function test_rawSql_superUserOnly(): void

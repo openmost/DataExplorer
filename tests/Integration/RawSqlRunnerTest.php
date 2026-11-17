@@ -20,6 +20,7 @@ use Piwik\Db\Adapter\Pdo\Mysql;
 use Piwik\NoAccessException;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\API;
+use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Sql\NotConfiguredException;
 use Piwik\Plugins\DataExplorer\Sql\NotReadOnlyException;
 use Piwik\Plugins\DataExplorer\Sql\RawSqlRunner;
@@ -205,6 +206,43 @@ class RawSqlRunnerTest extends IntegrationTestCase
         $runner->run($sql, 2, 'day', '2026-03-01', true);
         $runner->run($sql, 1, 'day', '2026-03-01');
         $this->assertSame(3, $connections, 'another site or no cache runs the query');
+    }
+
+    public function test_anonymousViewer_ofASavedReport_isServedFromTheCacheOnly(): void
+    {
+        $connections = 0;
+        $runner = new RawSqlRunner(function () use (&$connections) {
+            $connections++;
+
+            return ReadOnlyConnection::get();
+        });
+        $report = [
+            'idreport' => 1,
+            'type' => 'sql',
+            'report_type' => 'table',
+            'definition' => ['sql' => 'SELECT idsite FROM ' . Common::prefixTable('site') . ' WHERE idsite = {idsite}'],
+            'created_by' => 'root',
+            'deleted' => 0,
+            'placement' => Placement::fromArray(['sites' => [1]]),
+        ];
+
+        FakeAccess::clearAccess(false, [], [1], 'anonymous');
+        try {
+            $runner->runSaved($report, 1, 'day', '2026-03-01');
+            $this->fail('a cache miss must not run the query for an anonymous viewer');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame(Piwik::translate('DataExplorer_ErrorSqlNotCachedYet'), $e->getMessage());
+        }
+        $this->assertSame(0, $connections);
+
+        FakeAccess::clearAccess(false, [], [1], 'viewer');
+        $warm = $runner->runSaved($report, 1, 'day', '2026-03-01');
+        $this->assertSame(1, $connections);
+
+        FakeAccess::clearAccess(false, [], [1], 'anonymous');
+        $cached = $runner->runSaved($report, 1, 'day', '2026-03-01');
+        $this->assertSame(1, $connections);
+        $this->assertSame($this->rows($warm), $this->rows($cached));
     }
 
     public function test_sessionLimit_isRestored_andTheTransactionEnded(): void

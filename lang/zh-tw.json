@@ -45,6 +45,7 @@
         "RawSqlNotReadOnly": "原始 SQL 已停用：唯讀資料庫使用者的權限超出讀取允許的資料表 (%s)。請只保留對允許資料表的 SELECT 權限。",
         "RawSqlGrantTooWide": "原始 SQL 已停用：唯讀資料庫使用者可以讀取整個資料庫 (%s)。請依設定頁面所示逐表授予 SELECT 權限。",
         "ErrorRawSqlTimeout": "查詢耗時超過 %s 秒。請縮短期間或加入篩選條件。",
+        "ErrorSqlNotCachedYet": "此報表會在已登入的使用者開啟時重新整理。此期間的資料尚無法使用。",
         "ErrorRawSqlFailed": "查詢失敗：%s",
         "SqlWarningNotSiteScoped": "資料表 %s 未依 idsite = {idsite} 篩選，此查詢無法發布到網站。",
         "SetupMenu": "Data Explorer",

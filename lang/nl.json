@@ -45,6 +45,7 @@
         "RawSqlNotReadOnly": "Ruwe SQL is uitgeschakeld: de alleen-lezen databasegebruiker mag meer dan de toegestane tabellen lezen (%s). Houd alleen SELECT op de toegestane tabellen.",
         "RawSqlGrantTooWide": "Ruwe SQL is uitgeschakeld: de alleen-lezen databasegebruiker kan de hele database lezen (%s). Geef SELECT per tabel, zoals op de instellingenpagina staat.",
         "ErrorRawSqlTimeout": "De query duurde langer dan %s seconden. Verkort de periode of voeg filters toe.",
+        "ErrorSqlNotCachedYet": "Dit rapport wordt vernieuwd wanneer een aangemelde gebruiker het opent. De gegevens voor deze periode zijn nog niet beschikbaar.",
         "ErrorRawSqlFailed": "De query is mislukt: %s",
         "SqlWarningNotSiteScoped": "De tabel %s is niet gefilterd op idsite = {idsite}, deze query kan niet op een website worden gepubliceerd.",
         "SetupMenu": "Data Explorer",

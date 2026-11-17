@@ -45,6 +45,7 @@
         "RawSqlNotReadOnly": "Le SQL brut est désactivé : l'utilisateur de base de données en lecture seule peut faire plus que lire les tables autorisées (%s). Ne gardez que SELECT sur les tables autorisées.",
         "RawSqlGrantTooWide": "Le SQL brut est désactivé : l'utilisateur de base de données en lecture seule peut lire toute la base (%s). Accordez SELECT table par table, comme indiqué sur la page de configuration.",
         "ErrorRawSqlTimeout": "La requête a duré plus de %s secondes. Raccourcissez la période ou ajoutez des filtres.",
+        "ErrorSqlNotCachedYet": "Ce rapport est actualisé quand un utilisateur connecté l'ouvre. Ses données pour cette période ne sont pas encore disponibles.",
         "ErrorRawSqlFailed": "La requête a échoué : %s",
         "SqlWarningNotSiteScoped": "La table %s n'est pas filtrée par idsite = {idsite}, cette requête ne peut pas être publiée sur un site.",
         "SetupMenu": "Data Explorer",
