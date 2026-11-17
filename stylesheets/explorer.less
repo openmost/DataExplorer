@@ -1010,9 +1010,18 @@ button.dataExplorerCanvas__period {
   text-align: center;
 }
 
-.dataExplorerCanvas__table .dataTableScroller {
-  max-height: 640px;
-  overflow: auto;
+// the table fills the canvas down to its bottom and scrolls inside; absolutely placed, its rows do not
+// make the grid row taller than the other columns
+.dataExplorerCanvas__table {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 320px;
+
+  .dataTableScroller {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+  }
 }
 
 // result table: the report table of Matomo (table.dataTable), only the pivot header and the cell
