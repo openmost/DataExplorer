@@ -196,7 +196,9 @@
         "ManageDeleted": "El informe «%s» se ha eliminado.",
         "ManageAuthorDeleted": "Usuario eliminado",
         "Export": "Exportar datos",
-        "EditReport": "Editar el informe"
+        "EditReport": "Editar el informe",
+        "PieFirstMetricOnly": "El gráfico circular muestra solo la primera métrica.",
+        "PanelNoSegments": "Todavía no hay ningún segmento guardado. Cree uno con el editor de segmentos de Matomo."
     },
     "OpenmostCommunication": {
         "Dismiss": "Descartar",

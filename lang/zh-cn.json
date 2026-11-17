@@ -196,7 +196,9 @@
         "ManageDeleted": "报告“%s”已删除。",
         "ManageAuthorDeleted": "已删除的用户",
         "Export": "导出数据",
-        "EditReport": "编辑报表"
+        "EditReport": "编辑报表",
+        "PieFirstMetricOnly": "饼图仅显示第一个指标。",
+        "PanelNoSegments": "还没有已保存的分段。请使用 Matomo 分段编辑器创建一个。"
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",

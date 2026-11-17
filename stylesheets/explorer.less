@@ -682,6 +682,13 @@ html.dataExplorer-panel-open {
 .dataExplorerChip {
   .de-card();
 
+  // kept for the visualizations that show it, not shown by this one
+  &.is-inactive {
+    border-left-color: @de-border-strong;
+    background-image: repeating-linear-gradient(-45deg, transparent 0 6px, @de-hover 6px 12px);
+    color: @de-text-lighter;
+  }
+
   &.is-incompatible {
     border-left-color: @de-warning;
 

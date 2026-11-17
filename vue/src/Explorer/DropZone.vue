@@ -41,10 +41,14 @@
         :key="item.id"
         ref="chips"
         class="dataExplorerChip"
-        :class="{ 'is-incompatible': !!item.reason }"
+        :class="{
+          'is-incompatible': !!item.reason,
+          'is-inactive': isInactive(index),
+        }"
         :data-id="item.id"
         tabindex="0"
-        :title="item.reason || translate('DataExplorer_ChipRemoveHint')"
+        :title="item.reason
+          || (isInactive(index) ? inactiveReason : translate('DataExplorer_ChipRemoveHint'))"
         @keydown.delete.self.prevent="remove(item.id, index)"
       >
         <span
@@ -172,6 +176,15 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    // items after the first activeCount ones are kept but not shown by the visualization, 0 for all
+    activeCount: {
+      type: Number,
+      default: 0,
+    },
+    inactiveReason: {
+      type: String,
+      default: '',
+    },
     // a zone that lists its items elsewhere (filters) keeps accepting
     unlimited: {
       type: Boolean,
@@ -192,6 +205,10 @@ export default defineComponent({
     const isFull = computed(() => !props.unlimited
       && props.max > 0
       && props.items.length >= props.max);
+
+    function isInactive(index: number): boolean {
+      return props.activeCount > 0 && index >= props.activeCount;
+    }
 
     const isAccepting = computed(() => !!dragState.current
       && dragState.current.kind === props.accepts
@@ -256,6 +273,7 @@ export default defineComponent({
       slotButton,
       headingId,
       isFull,
+      isInactive,
       isAccepting,
       onDragOver,
       onDrop,

@@ -196,7 +196,9 @@
         "ManageDeleted": "Il report «%s» è stato eliminato.",
         "ManageAuthorDeleted": "Utente eliminato",
         "Export": "Esporta dati",
-        "EditReport": "Modifica il report"
+        "EditReport": "Modifica il report",
+        "PieFirstMetricOnly": "Il grafico a torta mostra solo la prima metrica.",
+        "PanelNoSegments": "Nessun segmento salvato. Creane uno con l'editor dei segmenti di Matomo."
     },
     "OpenmostCommunication": {
         "Dismiss": "Ignora",

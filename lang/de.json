@@ -196,7 +196,9 @@
         "ManageDeleted": "Der Bericht „%s“ wurde gelöscht.",
         "ManageAuthorDeleted": "Gelöschter Benutzer",
         "Export": "Daten exportieren",
-        "EditReport": "Bericht bearbeiten"
+        "EditReport": "Bericht bearbeiten",
+        "PieFirstMetricOnly": "Das Kreisdiagramm zeigt nur die erste Metrik.",
+        "PanelNoSegments": "Noch kein gespeichertes Segment. Erstellen Sie eines mit dem Segment-Editor von Matomo."
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",

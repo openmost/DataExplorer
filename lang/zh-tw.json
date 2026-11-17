@@ -196,7 +196,9 @@
         "ManageDeleted": "報告「%s」已刪除。",
         "ManageAuthorDeleted": "已刪除的使用者",
         "Export": "匯出資料",
-        "EditReport": "編輯報表"
+        "EditReport": "編輯報表",
+        "PieFirstMetricOnly": "圓餅圖僅顯示第一個指標。",
+        "PanelNoSegments": "尚無已儲存的區段。請使用 Matomo 區段編輯器建立一個。"
     },
     "OpenmostCommunication": {
         "Dismiss": "關閉",

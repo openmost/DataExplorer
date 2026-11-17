@@ -152,6 +152,45 @@ export function chartSlice(
   };
 }
 
+export interface ChartSeries {
+  metric: string;
+  data: (number|null)[];
+}
+
+/**
+ * One bar series per metric over the labels of chartSlice(): the rows kept by the first metric and,
+ * when the slice has one, "Others" as the sum of the remaining rows, null for a metric that does
+ * not add up across rows.
+ */
+export function chartSeries(
+  rows: ApiRow[],
+  slice: ChartSlice,
+  metrics: string[],
+  othersLabel: string,
+  additive: (metric: string) => boolean,
+): ChartSeries[] {
+  const hasOthers = slice.labels.length > 0 && slice.labels[slice.labels.length - 1] === othersLabel
+    && !rows.some((row) => String(row.label ?? '') === othersLabel);
+  const keptLabels = hasOthers ? slice.labels.slice(0, -1) : slice.labels;
+  const byLabel: Record<string, ApiRow> = {};
+  rows.forEach((row) => {
+    byLabel[String(row.label ?? '')] = row;
+  });
+  const rest = rows.filter((row) => keptLabels.indexOf(String(row.label ?? '')) === -1);
+
+  return metrics.map((metric) => {
+    const data: (number|null)[] = keptLabels.map((label) => toNumber(byLabel[label]
+      ? byLabel[label][metric]
+      : 0));
+    if (hasOthers) {
+      data.push(additive(metric)
+        ? rest.reduce((sum, row) => sum + toNumber(row[metric]), 0)
+        : null);
+    }
+    return { metric, data };
+  });
+}
+
 /**
  * One series per metric of an evolution result, keyed by period like the core API output of
  * several periods.

@@ -196,7 +196,9 @@
         "ManageDeleted": "Het rapport \"%s\" is verwijderd.",
         "ManageAuthorDeleted": "Verwijderde gebruiker",
         "Export": "Gegevens exporteren",
-        "EditReport": "Rapport bewerken"
+        "EditReport": "Rapport bewerken",
+        "PieFirstMetricOnly": "Het cirkeldiagram toont alleen de eerste metriek.",
+        "PanelNoSegments": "Nog geen opgeslagen segment. Maak er een met de segmenteditor van Matomo."
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",

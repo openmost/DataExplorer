@@ -132,6 +132,7 @@
           :rows="resultRows"
           :metric-names="metricNames"
           :slice="slice"
+          :bar-series="barSeries"
           :slice-metric-name="metricNames[state.values[0]] || ''"
           :evolution="evolution"
           :kpi="kpi"
@@ -218,6 +219,7 @@ import {
 } from './explorationState';
 import { distinctNames } from './catalogNames';
 import {
+  chartSeries,
   chartSlice,
   evolutionSeries,
   flattenRows,
@@ -594,6 +596,16 @@ export default defineComponent({
         addsUpAcrossRows(state.values[0]),
       )
       : null));
+
+    const barSeries = computed(() => (slice.value
+      ? chartSeries(
+        tableRows.value,
+        slice.value,
+        state.values,
+        translate('General_Others'),
+        addsUpAcrossRows,
+      ).map((line) => ({ name: metricNames.value[line.metric] || line.metric, data: line.data }))
+      : []));
 
     const evolution = computed(() => evolutionResult.value);
 
@@ -1083,6 +1095,7 @@ export default defineComponent({
       resultColumnsList,
       resultRows,
       slice,
+      barSeries,
       evolution,
       kpi,
       openableReports,

@@ -196,6 +196,7 @@
           :labels="slice.labels"
           :values="slice.values"
           :metric-name="sliceMetricName"
+          :series="barSeries"
         />
         <EChartsPie
           v-else
@@ -349,6 +350,10 @@ export default defineComponent({
     sliceMetricName: {
       type: String,
       default: '',
+    },
+    barSeries: {
+      type: Array as PropType<{ name: string, data: (number|null)[] }[]>,
+      default: () => [],
     },
     evolution: {
       type: Object as PropType<EvolutionSeries|null>,

@@ -7,6 +7,7 @@
 
 import {
   cellBucket,
+  chartSeries,
   chartSlice,
   columnMaxima,
   evolutionSeries,
@@ -138,5 +139,29 @@ describe('resultTable', () => {
     ];
 
     expect(columnMaxima(rows, columns)).toEqual({ nb_visits: 7, nb_actions: 9 });
+  });
+
+  it('draws one bar series per metric over the rows kept by the first metric', () => {
+    const rows = [
+      { label: 'Desktop', nb_visits: 159, nb_actions: 600, nb_uniq_visitors: 120 },
+      { label: 'Smartphone', nb_visits: 64, nb_actions: 150, nb_uniq_visitors: 50 },
+      { label: 'Tablet', nb_visits: 5, nb_actions: 9, nb_uniq_visitors: 4 },
+    ];
+    const slice = chartSlice(rows, 'nb_visits', 2, 'Others');
+
+    const series = chartSeries(
+      rows,
+      slice,
+      ['nb_visits', 'nb_actions', 'nb_uniq_visitors'],
+      'Others',
+      (metric) => metric !== 'nb_uniq_visitors',
+    );
+
+    expect(slice.labels).toEqual(['Desktop', 'Smartphone', 'Others']);
+    expect(series).toEqual([
+      { metric: 'nb_visits', data: [159, 64, 5] },
+      { metric: 'nb_actions', data: [600, 150, 9] },
+      { metric: 'nb_uniq_visitors', data: [120, 50, null] },
+    ]);
   });
 });

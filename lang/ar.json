@@ -196,7 +196,9 @@
         "ManageDeleted": "تم حذف التقرير \"%s\".",
         "ManageAuthorDeleted": "مستخدم محذوف",
         "Export": "تصدير البيانات",
-        "EditReport": "تعديل التقرير"
+        "EditReport": "تعديل التقرير",
+        "PieFirstMetricOnly": "يعرض المخطط الدائري المقياس الأول فقط.",
+        "PanelNoSegments": "لا يوجد مقطع محفوظ بعد. أنشئ واحدًا باستخدام محرر المقاطع في Matomo."
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

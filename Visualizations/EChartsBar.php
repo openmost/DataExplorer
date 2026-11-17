@@ -48,10 +48,14 @@ class EChartsBar extends ChartVisualization
         return 'EChartsBar';
     }
 
+    /**
+     * The top rows of the first metric, one series per metric, and "Others" for the metrics that add up across
+     * rows (a distinct count shared by the rows has no "Others" bar).
+     */
     protected function chartProps(DataTableInterface $dataTable): array
     {
         if (!$dataTable instanceof DataTable) {
-            return ['labels' => [], 'values' => [], 'metricName' => ''];
+            return ['labels' => [], 'values' => [], 'metricName' => '', 'series' => []];
         }
 
         $columns = $this->metricColumns($dataTable);
@@ -59,42 +63,44 @@ class EChartsBar extends ChartVisualization
 
         $rows = [];
         foreach ($dataTable->getRowsWithoutSummaryRow() as $row) {
-            $rows[] = ['label' => (string) $row->getColumn('label'), 'value' => self::number($row->getColumn($metric)) ?? 0];
+            $values = [];
+            foreach ($columns as $column) {
+                $values[$column] = self::number($row->getColumn($column)) ?? 0;
+            }
+            $rows[] = ['label' => (string) $row->getColumn('label'), 'values' => $values];
         }
-        usort($rows, fn (array $a, array $b) => $b['value'] <=> $a['value']);
+        usort($rows, fn (array $a, array $b) => ($b['values'][$metric] ?? 0) <=> ($a['values'][$metric] ?? 0));
 
-        $nonAdditive = (array) ($this->config->custom_parameters['dataExplorerNonAdditive'] ?? []);
-        if (in_array($metric, $nonAdditive, true)) {
-            $rows = array_slice($rows, 0, self::TOP_ROWS);
-
-            return [
-                'labels' => array_column($rows, 'label'),
-                'values' => array_column($rows, 'value'),
-                'metricName' => $this->translate($metric),
-            ];
-        }
-
-        $others = 0;
-        $hasOthers = false;
-        foreach (array_slice($rows, self::TOP_ROWS) as $row) {
-            $others += $row['value'];
-            $hasOthers = true;
-        }
+        $kept = array_slice($rows, 0, self::TOP_ROWS);
+        $rest = array_slice($rows, self::TOP_ROWS);
         $summary = $dataTable->getRowFromId(DataTable::ID_SUMMARY_ROW);
-        if ($summary) {
-            $others += self::number($summary->getColumn($metric)) ?? 0;
-            $hasOthers = true;
+        $nonAdditive = (array) ($this->config->custom_parameters['dataExplorerNonAdditive'] ?? []);
+        $showOthers = ($rest || $summary) && !in_array($metric, $nonAdditive, true);
+
+        $labels = array_column($kept, 'label');
+        if ($showOthers) {
+            $labels[] = Piwik::translate('General_Others');
         }
 
-        $rows = array_slice($rows, 0, self::TOP_ROWS);
-        if ($hasOthers) {
-            $rows[] = ['label' => Piwik::translate('General_Others'), 'value' => $others];
+        $series = [];
+        foreach ($columns as $column) {
+            $data = array_map(fn (array $row) => $row['values'][$column], $kept);
+            if ($showOthers) {
+                if (in_array($column, $nonAdditive, true)) {
+                    $data[] = null;
+                } else {
+                    $others = array_sum(array_map(fn (array $row) => $row['values'][$column], $rest));
+                    $data[] = $others + ($summary ? (self::number($summary->getColumn($column)) ?? 0) : 0);
+                }
+            }
+            $series[] = ['name' => $this->translate($column), 'data' => $data];
         }
 
         return [
-            'labels' => array_column($rows, 'label'),
-            'values' => array_column($rows, 'value'),
-            'metricName' => $this->translate($metric),
+            'labels' => $labels,
+            'values' => $series[0]['data'] ?? [],
+            'metricName' => $series[0]['name'] ?? '',
+            'series' => $series,
         ];
     }
 }

@@ -167,6 +167,10 @@ class VisualizationTest extends IntegrationTestCase
         $this->assertSame(['France', 'United States', 'Germany'], $props['labels']);
         $this->assertEquals([3, 2, 1], $props['values']);
         $this->assertNotSame('', $props['metric-name']);
+        $this->assertCount(2, $props['series'], 'one bar series per metric');
+        $this->assertEquals([3, 2, 1], $props['series'][0]['data']);
+        $this->assertSame($props['metric-name'], $props['series'][0]['name']);
+        $this->assertCount(3, $props['series'][1]['data']);
     }
 
     public function test_barView_othersSlice_onlyForMetricsThatAddUpAcrossRows(): void

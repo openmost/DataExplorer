@@ -103,6 +103,8 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_RemoveFromZone',
         'DataExplorer_RowsNotUsedByVisualization',
         'DataExplorer_KpiFirstMetricOnly',
+        'DataExplorer_PieFirstMetricOnly',
+        'DataExplorer_PanelNoSegments',
         'DataExplorer_FilterOperatorLabel',
         'DataExplorer_FilterOperator_equals',
         'DataExplorer_FilterOperator_not_equals',

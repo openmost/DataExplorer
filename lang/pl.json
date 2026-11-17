@@ -196,7 +196,9 @@
         "ManageDeleted": "Raport „%s” został usunięty.",
         "ManageAuthorDeleted": "Usunięty użytkownik",
         "Export": "Eksportuj dane",
-        "EditReport": "Edytuj raport"
+        "EditReport": "Edytuj raport",
+        "PieFirstMetricOnly": "Wykres kołowy pokazuje tylko pierwszą metrykę.",
+        "PanelNoSegments": "Brak zapisanych segmentów. Utwórz segment w edytorze segmentów Matomo."
     },
     "OpenmostCommunication": {
         "Dismiss": "Odrzuć",

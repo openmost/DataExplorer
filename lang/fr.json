@@ -196,7 +196,9 @@
         "ManageDeleted": "Le rapport « %s » a été supprimé.",
         "ManageAuthorDeleted": "Utilisateur supprimé",
         "Export": "Exporter les données",
-        "EditReport": "Modifier le rapport"
+        "EditReport": "Modifier le rapport",
+        "PieFirstMetricOnly": "Le camembert n'affiche que la première métrique.",
+        "PanelNoSegments": "Aucun segment enregistré pour l'instant. Créez-en un avec l'éditeur de segments de Matomo."
     },
     "OpenmostCommunication": {
         "Dismiss": "Masquer",

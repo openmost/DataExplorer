@@ -75,6 +75,7 @@
       :title="activeSection ? activeSection.addLabel : ''"
       :groups="activeSection ? activeSection.groups : []"
       :added="activeSection ? activeSection.added : []"
+      :empty-text="activeSection ? activeSection.catalogueEmptyText : ''"
       @add="activeSection && $emit('addVariable', activeSection.kind, $event)"
       @remove="activeSection && $emit('removeVariable', activeSection.kind, $event)"
     />
@@ -137,6 +138,7 @@ export default defineComponent({
         title: translate('DataExplorer_Dimensions'),
         addLabel: translate('DataExplorer_AddDimensions'),
         emptyText: translate('DataExplorer_NoDimensions'),
+        catalogueEmptyText: '',
         useHint: translate('DataExplorer_DimensionUseHint'),
         items: props.dimensions,
         groups: props.dimensionGroups,
@@ -147,6 +149,7 @@ export default defineComponent({
         title: translate('DataExplorer_Metrics'),
         addLabel: translate('DataExplorer_AddMetrics'),
         emptyText: translate('DataExplorer_NoMetrics'),
+        catalogueEmptyText: '',
         useHint: translate('DataExplorer_MetricUseHint'),
         items: props.metrics,
         groups: props.metricGroups,
@@ -157,6 +160,7 @@ export default defineComponent({
         title: translate('DataExplorer_Segments'),
         addLabel: translate('DataExplorer_AddSegments'),
         emptyText: translate('DataExplorer_NoSegments'),
+        catalogueEmptyText: translate('DataExplorer_PanelNoSegments'),
         useHint: translate('DataExplorer_SegmentUseHint'),
         items: props.segments,
         groups: props.segmentGroups,

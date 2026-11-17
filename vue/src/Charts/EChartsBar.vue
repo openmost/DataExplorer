@@ -24,7 +24,7 @@ import {
 import useEChart, { chartTheme } from './useEChart';
 
 /**
- * First metric of a table, top rows plus "Others" (DataExplorerBar visualization).
+ * Top rows of a table by its first metric plus "Others", one bar per metric (DataExplorerBar).
  */
 export default defineComponent({
   name: 'EChartsBar',
@@ -41,6 +41,11 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    // one series per metric, grouped bars; when empty the chart shows values only
+    series: {
+      type: Array as PropType<{ name: string, data: (number|null)[] }[]>,
+      default: () => [],
+    },
   },
   setup(props) {
     const chart = ref<HTMLElement|null>(null);
@@ -56,7 +61,7 @@ export default defineComponent({
           left: 8,
           right: 16,
           top: 16,
-          bottom: 8,
+          bottom: props.series.length > 1 ? 36 : 8,
           containLabel: true,
         },
         xAxis: {
@@ -74,11 +79,13 @@ export default defineComponent({
           axisLabel: { color: theme.textLight },
           splitLine: { lineStyle: { color: theme.border } },
         },
-        series: [{
-          name: props.metricName,
-          type: 'bar',
-          data: props.values,
-        }],
+        legend: props.series.length > 1
+          ? { bottom: 0, textStyle: { color: theme.textLight } }
+          : undefined,
+        series: (props.series.length
+          ? props.series
+          : [{ name: props.metricName, data: props.values }]
+        ).map((line) => ({ name: line.name, type: 'bar', data: line.data })),
       };
     });
 

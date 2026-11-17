@@ -196,7 +196,9 @@
         "ManageDeleted": "The report \"%s\" was deleted.",
         "ManageAuthorDeleted": "Deleted user",
         "Export": "Export data",
-        "EditReport": "Edit report"
+        "EditReport": "Edit report",
+        "PieFirstMetricOnly": "The pie chart shows the first metric only.",
+        "PanelNoSegments": "No saved segment yet. Create one with the Matomo segment editor."
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

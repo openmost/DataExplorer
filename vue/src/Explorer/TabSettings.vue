@@ -106,15 +106,17 @@
       :items="valueItems"
       :options="metricOptions"
       :max="maxValues"
+      :active-count="activeValues"
+      :inactive-reason="inactiveValueReason"
       :placeholder="translate('DataExplorer_DropMetric')"
       :empty-menu-text="translate('DataExplorer_NoMetrics')"
       @add="$emit('add', 'values', $event)"
       @remove="$emit('remove', 'values', $event)"
     />
     <div
-      v-if="visualization === 'kpicard' && valueItems.length > 1"
+      v-if="inactiveValueReason && valueItems.length > 1"
       class="dataExplorerSettings__hint"
-    >{{ translate('DataExplorer_KpiFirstMetricOnly') }}</div>
+    >{{ inactiveValueReason }}</div>
 
     <DropZone
       zone="filters"
@@ -228,13 +230,25 @@ export default defineComponent({
 
     const hasRows = computed(() => hasRowDimensions(props.visualization));
 
-    const maxValues = computed(() => props.limits.maxMetrics);
+    // the pie and the KPI card show one metric: one more can't be added, those already there stay
+    // (hatched) for the visualizations that show them all
+    const singleValue = computed(() => props.visualization === 'pie' || props.visualization === 'kpicard');
+    const maxValues = computed(() => (singleValue.value ? 1 : props.limits.maxMetrics));
+    const activeValues = computed(() => (singleValue.value ? 1 : 0));
+    const inactiveValueReason = computed(() => {
+      if (props.visualization === 'pie') {
+        return translate('DataExplorer_PieFirstMetricOnly');
+      }
+      return props.visualization === 'kpicard' ? translate('DataExplorer_KpiFirstMetricOnly') : '';
+    });
 
     return {
       visualizations,
       cellTypes: CELL_TYPES,
       hasRows,
       maxValues,
+      activeValues,
+      inactiveValueReason,
     };
   },
 });

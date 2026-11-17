@@ -115,7 +115,9 @@
           <div
             v-if="!filteredGroups.length"
             class="dataExplorerPanel__empty"
-          >{{ translate('DataExplorer_PickerNoMatch') }}</div>
+          >{{ query.trim() || !emptyText
+            ? translate('DataExplorer_PickerNoMatch')
+            : emptyText }}</div>
         </div>
       </section>
     </Transition>
@@ -179,6 +181,11 @@ export default defineComponent({
     added: {
       type: Array as PropType<string[]>,
       default: () => [],
+    },
+    // shown when the catalogue itself is empty, before any search
+    emptyText: {
+      type: String,
+      default: '',
     },
   },
   emits: ['add', 'remove'],
