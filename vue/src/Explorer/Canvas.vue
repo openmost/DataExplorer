@@ -15,6 +15,20 @@
       <ActivityIndicator :loading="loading" />
     </div>
 
+    <p
+      v-if="periodText"
+      class="dataExplorerCanvas__context"
+    >
+      <button
+        type="button"
+        class="dataExplorerCanvas__period"
+        :title="translate('General_ChooseDate', periodText)"
+        @click="$emit('openPeriodSelector')"
+      >{{ periodText }}</button>
+      <span aria-hidden="true"> · </span>
+      <span>{{ segmentText }}</span>
+    </p>
+
     <div
       class="dataExplorerCanvas__status"
       aria-live="polite"
@@ -30,7 +44,11 @@
       >{{ hint }}</p>
     </div>
 
-    <template v-if="!error && !hint">
+    <div
+      v-if="!error && !hint"
+      class="dataExplorerCanvas__result"
+      :class="{ 'is-stale': loading }"
+    >
       <div
         v-if="visualization === 'table'"
         class="dataExplorerCanvas__table"
@@ -154,7 +172,7 @@
           :sparkline-labels="kpi.sparklineLabels"
         />
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -210,6 +228,15 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    // the period and segment of the result, the period opens the native selector
+    periodText: {
+      type: String,
+      default: '',
+    },
+    segmentText: {
+      type: String,
+      default: '',
+    },
     visualization: {
       type: String as PropType<Visualization>,
       required: true,
@@ -263,6 +290,7 @@ export default defineComponent({
       default: null,
     },
   },
+  emits: ['openPeriodSelector'],
   setup(props) {
     // '' keeps the server order (ranked by the first metric)
     const sortKey = ref('');

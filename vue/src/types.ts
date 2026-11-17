@@ -55,6 +55,8 @@ export type VariableKind = 'dimension' | 'metric' | 'segment';
 export interface PickerItem {
   id: string;
   name: string;
+  // why the item does not fit the current exploration, empty when it does
+  reason?: string;
 }
 
 export interface PickerGroup {

@@ -53,14 +53,37 @@
             aria-live="polite"
           >{{ translate('DataExplorer_PanelAddedCount', added.length) }}</p>
         </div>
-        <div class="dataExplorerPanel__body">
+        <div
+          ref="body"
+          class="dataExplorerPanel__body"
+          @keydown="onBodyKeydown"
+        >
           <section
-            v-for="group in filteredGroups"
+            v-for="(group, groupIndex) in filteredGroups"
             :key="group.category"
             class="dataExplorerPanel__group"
           >
-            <h3 class="dataExplorerPanel__category">{{ group.category }}</h3>
-            <ul>
+            <h3 class="dataExplorerPanel__category">
+              <button
+                type="button"
+                class="dataExplorerPanel__categoryToggle"
+                data-nav="true"
+                :aria-expanded="isExpanded(group.category) ? 'true' : 'false'"
+                :aria-controls="`dataExplorerPanelGroup-${groupIndex}`"
+                @click="toggleCategory(group.category)"
+              >
+                <span class="dataExplorerPanel__categoryName">{{ group.category }}</span>
+                <span class="dataExplorerPanel__categoryCount">{{ group.items.length }}</span>
+                <span
+                  class="dataExplorerPanel__chevron icon-chevron-down"
+                  aria-hidden="true"
+                ></span>
+              </button>
+            </h3>
+            <ul
+              v-show="isExpanded(group.category)"
+              :id="`dataExplorerPanelGroup-${groupIndex}`"
+            >
               <li
                 v-for="item in group.items"
                 :key="item.id"
@@ -68,17 +91,25 @@
                 <button
                   type="button"
                   class="dataExplorerPanel__item"
-                  :class="{ 'is-added': added.includes(item.id) }"
+                  :class="{ 'is-added': added.includes(item.id), 'is-incompatible': !!item.reason }"
                   :data-id="item.id"
+                  data-nav="true"
+                  :title="item.reason || undefined"
                   :aria-pressed="added.includes(item.id) ? 'true' : 'false'"
+                  :aria-describedby="item.reason ? reasonId(item.id) : undefined"
                   @click="toggle(item.id)"
                 >
+                  <span class="dataExplorerPanel__name">{{ item.name }}</span>
                   <span
-                    class="dataExplorerPanel__check"
-                    :class="added.includes(item.id) ? 'icon-ok' : 'icon-add'"
+                    v-if="added.includes(item.id)"
+                    class="dataExplorerPanel__check icon-ok"
                     aria-hidden="true"
                   ></span>
-                  <span class="dataExplorerPanel__name">{{ item.name }}</span>
+                  <span
+                    v-if="item.reason"
+                    :id="reasonId(item.id)"
+                    class="dataExplorerVisuallyHidden"
+                  >{{ item.reason }}</span>
                 </button>
               </li>
             </ul>
@@ -100,6 +131,7 @@ import {
   nextTick,
   onBeforeUnmount,
   PropType,
+  reactive,
   ref,
   watch,
 } from 'vue';
@@ -138,11 +170,62 @@ export default defineComponent({
   emits: ['add', 'remove'],
   setup(props, { emit }) {
     const panel = ref<HTMLElement|null>(null);
+    const body = ref<HTMLElement|null>(null);
     const search = ref<HTMLInputElement|null>(null);
     const query = ref('');
     const titleId = 'dataExplorerPanelTitle';
+    const expanded = reactive<Record<string, boolean>>({});
 
     const isOpen = computed(() => catalogueState.open);
+
+    // a search shows every category with a match, opened
+    function isExpanded(category: string): boolean {
+      return query.value.trim() !== '' || !!expanded[category];
+    }
+
+    function toggleCategory(category: string) {
+      expanded[category] = !isExpanded(category);
+    }
+
+    // on open, only the categories already used in the exploration are expanded
+    function resetExpanded() {
+      Object.keys(expanded).forEach((category) => {
+        delete expanded[category];
+      });
+      props.groups.forEach((group) => {
+        if (group.items.some((item) => props.added.includes(item.id))) {
+          expanded[group.category] = true;
+        }
+      });
+    }
+
+    function reasonId(id: string): string {
+      return `dataExplorerPanelReason-${id.replace(/[^\w-]/g, '_')}`;
+    }
+
+    // arrow keys move between the category headers and the visible items
+    function onBodyKeydown(event: KeyboardEvent) {
+      const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
+      if (keys.indexOf(event.key) === -1 || !body.value) {
+        return;
+      }
+      const rows = Array.from(body.value.querySelectorAll<HTMLElement>('[data-nav="true"]'))
+        .filter((row) => row.offsetParent !== null);
+      if (!rows.length) {
+        return;
+      }
+      event.preventDefault();
+      const current = rows.indexOf(document.activeElement as HTMLElement);
+      let next = 0;
+      if (event.key === 'End') {
+        next = rows.length - 1;
+      } else if (event.key === 'ArrowDown') {
+        next = current === -1 ? 0 : Math.min(current + 1, rows.length - 1);
+      } else if (event.key === 'ArrowUp') {
+        next = current <= 0 ? 0 : current - 1;
+      }
+      rows[next].focus();
+    }
 
     const filteredGroups = computed(() => {
       const needle = query.value.trim().toLowerCase();
@@ -213,6 +296,7 @@ export default defineComponent({
       document.documentElement.classList.toggle(PAGE_SCROLL_LOCK_CLASS, open);
       if (open) {
         query.value = '';
+        resetExpanded();
         document.addEventListener('keydown', onDocumentKeydown);
         nextTick(() => {
           if (search.value) {
@@ -233,11 +317,16 @@ export default defineComponent({
 
     return {
       panel,
+      body,
       search,
       query,
       titleId,
       isOpen,
       filteredGroups,
+      isExpanded,
+      toggleCategory,
+      reasonId,
+      onBodyKeydown,
       toggle,
       close,
       onPanelKeydown,

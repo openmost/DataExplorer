@@ -1,19 +1,26 @@
 @import "codeTheme.less";
 
-// Explorer page (vue/src/Explorer, RawSql, SaveDialog): three columns like GA4 Explorations,
-// colors from the Matomo theme so dark mode and custom themes apply.
+// Explorer page (vue/src/Explorer, RawSql, SaveDialog): three columns like GA4 Explorations on one
+// flat surface. Every color comes from the Matomo theme variables (Matomo 5.10 or higher), which
+// switch with the dark mode and custom themes; the state colors (no theme variable before 5.14.1)
+// come from the Morpheus palette. Grey tints only mark states (hover, selected, drag over).
 
-@de-border: ~"var(--theme-color-border-light, #dddddd)";
-@de-text: ~"var(--theme-color-text, #212121)";
-@de-text-light: ~"var(--theme-color-text-light, #444444)";
-@de-text-lighter: ~"var(--theme-color-text-lighter, #666666)";
-@de-brand: ~"var(--theme-color-brand, #43a047)";
-@de-surface: ~"var(--theme-color-background-base, #ffffff)";
-@de-raised: ~"var(--theme-color-background-contrast, #f5f5f5)";
-@de-warning: ~"var(--theme-color-warning, #f57c00)";
-@de-danger: ~"var(--theme-color-danger, #c0322e)";
-@de-success: ~"var(--theme-color-success, #43a047)";
-@de-focus: ~"var(--theme-color-focus-ring, #0d47a1)";
+@de-surface: ~"var(--theme-color-background-contrast)";
+@de-sunken: ~"var(--theme-color-background-base)";
+@de-text: ~"var(--theme-color-text)";
+@de-text-strong: ~"var(--theme-color-text-highContrast)";
+@de-text-light: ~"var(--theme-color-text-light)";
+@de-text-lighter: ~"var(--theme-color-text-lighter)";
+@de-border: ~"var(--theme-color-border)";
+@de-brand: ~"var(--theme-color-brand)";
+@de-focus: ~"var(--theme-color-focus-ring)";
+@de-hover: ~"color-mix(in srgb, var(--theme-color-text) 6%, transparent)";
+@de-selected: ~"color-mix(in srgb, var(--theme-color-brand) 10%, var(--theme-color-background-contrast))";
+@de-shadow: ~"color-mix(in srgb, var(--theme-color-text-highContrast) 22%, transparent)";
+@de-backdrop: ~"color-mix(in srgb, var(--theme-color-text-highContrast) 32%, transparent)";
+@de-warning: @color-orange-brand;
+@de-danger: @color-red-matomo;
+@de-success: @color-green-matomo;
 
 .dataExplorer {
   color: @de-text;
@@ -79,24 +86,34 @@
 
 .dataExplorer button:focus-visible,
 .dataExplorer [tabindex="0"]:focus-visible,
+.dataExplorerPanel button:focus-visible,
 .dataExplorerSaveDialog button:focus-visible {
   outline: 2px solid @de-focus;
   outline-offset: 1px;
 }
 
+// one surface, the columns only separated by a 1px line, the exploration about two thirds wide
 .dataExplorer__columns {
   display: grid;
-  grid-template-columns: minmax(200px, 240px) minmax(240px, 300px) minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(0, 4fr);
+  align-items: stretch;
+  border: 1px solid @de-border;
+  border-radius: 4px;
+  background: @de-surface;
+}
+
+.dataExplorerColumn + .dataExplorerColumn {
+  border-left: 1px solid @de-border;
 }
 
 @media (max-width: 1100px) {
   .dataExplorer__columns {
-    grid-template-columns: minmax(200px, 1fr) minmax(240px, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 
     .dataExplorerCanvas {
       grid-column: 1 / -1;
+      border-left: 0;
+      border-top: 1px solid @de-border;
     }
   }
 }
@@ -104,22 +121,54 @@
 @media (max-width: 700px) {
   .dataExplorer__columns {
     grid-template-columns: minmax(0, 1fr);
+
+    .dataExplorerColumn + .dataExplorerColumn {
+      border-left: 0;
+      border-top: 1px solid @de-border;
+    }
   }
 }
 
 .dataExplorerColumn {
   position: relative;
-  border: 1px solid @de-border;
-  border-radius: 4px;
-  background: @de-surface;
-  padding: 12px;
   min-width: 0;
+  padding-bottom: 16px;
 }
 
 .dataExplorerColumn__title {
+  margin: 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid @de-border;
+  color: @de-text-strong;
   font-size: 15px;
   font-weight: 500;
-  margin: 0 0 12px 0;
+}
+
+// sections inside a column, separated by a 1px line
+.dataExplorerVariables__section,
+.dataExplorerSettings__section {
+  padding: 12px 16px;
+}
+
+.dataExplorerVariables__section + .dataExplorerVariables__section,
+.dataExplorerSettings__section + .dataExplorerSettings__section {
+  border-top: 1px solid @de-border;
+}
+
+.dataExplorerSettings > .dataExplorerDropZone {
+  margin: 12px 16px 0;
+}
+
+// the canvas keeps about a 4:3 aspect so the charts are not squeezed, a long table makes it taller
+.dataExplorerCanvas {
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 4 / 3;
+
+  > :not(.dataExplorerCanvas__header) {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
 }
 
 .dataExplorerIconButton {
@@ -136,9 +185,6 @@
 }
 
 // variables column
-.dataExplorerVariables__section + .dataExplorerVariables__section {
-  margin-top: 16px;
-}
 
 .dataExplorerVariables__header {
   display: flex;
@@ -172,14 +218,16 @@
   gap: 4px;
   padding: 4px 6px;
   margin-bottom: 2px;
-  border: 1px solid @de-border;
   border-radius: 3px;
-  background: @de-raised;
   cursor: grab;
   font-size: 13px;
 
+  &:hover {
+    background: @de-hover;
+  }
+
   &.is-used {
-    border-left: 3px solid @de-brand;
+    background: @de-selected;
   }
 
   &.is-incompatible {
@@ -206,7 +254,7 @@ html.dataExplorer-panel-open {
   bottom: 0;
   left: 0;
   z-index: 999;
-  background: rgba(0, 0, 0, .32);
+  background: @de-backdrop;
 }
 
 .dataExplorerPanel {
@@ -224,7 +272,7 @@ html.dataExplorer-panel-open {
   border-left: 1px solid @de-border;
   background: @de-surface;
   color: @de-text;
-  box-shadow: -12px 0 32px -12px rgba(0, 0, 0, .25);
+  box-shadow: -12px 0 32px -12px @de-shadow;
   font-size: 14px;
   text-align: left;
 }
@@ -289,13 +337,60 @@ html.dataExplorer-panel-open {
   }
 }
 
+.dataExplorerPanel__group {
+  border-bottom: 1px solid @de-border;
+}
+
 .dataExplorerPanel__category {
-  margin: 12px 0 4px 0;
+  margin: 0;
   padding: 0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
-  text-transform: uppercase;
-  color: @de-text-light;
+  text-transform: none;
+}
+
+.dataExplorerPanel__categoryToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 4px;
+  border: 0;
+  background: none;
+  color: @de-text-strong;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: @de-hover;
+  }
+
+  &[aria-expanded="true"] .dataExplorerPanel__chevron {
+    transform: rotate(180deg);
+  }
+}
+
+.dataExplorerPanel__categoryName {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dataExplorerPanel__categoryCount {
+  color: @de-text-lighter;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.dataExplorerPanel__chevron {
+  color: @de-text-lighter;
+  font-size: 12px;
+  transition: transform .15s ease;
+}
+
+.dataExplorerPanel__group ul {
+  padding-bottom: 6px;
 }
 
 .dataExplorerPanel__item {
@@ -303,25 +398,25 @@ html.dataExplorer-panel-open {
   align-items: center;
   gap: 8px;
   width: 100%;
-  text-align: left;
-  background: none;
+  padding: 7px 8px 7px 16px;
   border: 0;
   border-radius: 3px;
-  padding: 6px 8px;
-  cursor: pointer;
+  background: none;
   color: @de-text;
   font-size: 13px;
+  text-align: left;
+  cursor: pointer;
 
   &:hover {
-    background: @de-raised;
+    background: @de-hover;
   }
 
   &.is-added {
-    background: @de-raised;
+    background: @de-selected;
+  }
 
-    .dataExplorerPanel__check {
-      color: @de-brand;
-    }
+  &.is-incompatible {
+    color: @de-text-lighter;
   }
 }
 
@@ -329,6 +424,12 @@ html.dataExplorer-panel-open {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.dataExplorerPanel__check {
+  flex-shrink: 0;
+  color: @de-brand;
+  font-size: 12px;
 }
 
 .dataExplorerPanel__empty {
@@ -357,6 +458,7 @@ html.dataExplorer-panel-open {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dataExplorerPanel__chevron,
   .dataExplorerPanel-enter-active,
   .dataExplorerPanel-leave-active,
   .dataExplorerPanelBackdrop-enter-active,
@@ -367,8 +469,6 @@ html.dataExplorer-panel-open {
 
 // tab settings column
 .dataExplorerSettings__section {
-  margin-bottom: 12px;
-
   h4 {
     font-size: 13px;
     font-weight: 500;
@@ -414,7 +514,7 @@ html.dataExplorer-panel-open {
 
   &.is-over {
     border-style: solid;
-    background: @de-raised;
+    background: @de-hover;
   }
 
   &.is-disabled {
@@ -459,12 +559,11 @@ html.dataExplorer-panel-open {
   padding: 4px 6px;
   margin-bottom: 4px;
   border-radius: 3px;
-  background: @de-raised;
-  border: 1px solid @de-border;
+  background: @de-selected;
   font-size: 13px;
 
   &.is-incompatible {
-    border-color: @de-warning;
+    box-shadow: inset 3px 0 0 @de-warning;
 
     .icon-warning {
       color: @de-warning;
@@ -496,7 +595,7 @@ html.dataExplorer-panel-open {
   border: 1px solid @de-border;
   border-radius: 4px;
   background: @de-surface;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, .18);
+  box-shadow: 0 4px 16px @de-shadow;
 
   button {
     display: block;
@@ -510,7 +609,7 @@ html.dataExplorer-panel-open {
     font-size: 13px;
 
     &:hover:not(:disabled) {
-      background: @de-raised;
+      background: @de-hover;
     }
 
     &:disabled {
@@ -527,7 +626,7 @@ html.dataExplorer-panel-open {
 }
 
 .dataExplorerFilters {
-  margin: -6px 0 12px 0;
+  margin: 6px 16px 0;
   padding: 0;
   list-style: none;
 }
@@ -537,7 +636,6 @@ html.dataExplorer-panel-open {
   border-radius: 3px;
   padding: 6px;
   margin-bottom: 6px;
-  background: @de-raised;
 
   &.is-incompatible {
     border-color: @de-warning;
@@ -599,33 +697,72 @@ html.dataExplorer-panel-open {
     background-image: linear-gradient(to left, @de-cell-bar 0%, @de-cell-bar unit(@i * 10, %), transparent unit(@i * 10, %));
   }
 
-  @heat: unit((@i * 8), %);
+  // at most half the brand color, so the theme text stays readable on every bucket
+  @heat: unit((@i * 5), %);
 
   .dataExplorerResult .dataExplorerCell--heat-@{i} {
-    background-color: ~"color-mix(in srgb, var(--theme-color-brand, #43a047) @{heat}, transparent)";
+    background-color: ~"color-mix(in srgb, var(--theme-color-brand) @{heat}, transparent)";
   }
 
   .dataExplorerCellBuckets(@i - 1);
 }
 
-@de-cell-bar: ~"color-mix(in srgb, var(--theme-color-brand, #43a047) 28%, transparent)";
+@de-cell-bar: ~"color-mix(in srgb, var(--theme-color-brand) 28%, transparent)";
 
 .dataExplorerCellBuckets(10);
-
-.dataExplorerResult .dataExplorerCell--heat-8,
-.dataExplorerResult .dataExplorerCell--heat-9,
-.dataExplorerResult .dataExplorerCell--heat-10 {
-  color: #fff;
-}
 
 // canvas
 .dataExplorerCanvas__header {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 12px;
+  padding-right: 16px;
+  border-bottom: 1px solid @de-border;
 
   .dataExplorerColumn__title {
-    margin-bottom: 8px;
+    flex: 1;
+    border-bottom: 0;
+  }
+}
+
+.dataExplorerCanvas__context {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: @de-text-lighter;
+  font-size: 13px;
+}
+
+.dataExplorerCanvas__period {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+
+  &:hover {
+    color: @de-text;
+  }
+}
+
+// a new result loads over the previous one, dimmed, so the canvas never blanks or jumps
+.dataExplorerCanvas__result {
+  flex: 1;
+  min-height: 0;
+  transition: opacity .15s ease;
+
+  &.is-stale {
+    opacity: .45;
+    pointer-events: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dataExplorerCanvas__result {
+    transition: none;
   }
 }
 

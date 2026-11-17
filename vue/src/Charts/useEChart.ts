@@ -58,14 +58,15 @@ window.addEventListener('themeModeChange', () => {
   });
 });
 
-function cssVariable(style: CSSStyleDeclaration, name: string, fallback: string): string {
+function cssVariable(style: CSSStyleDeclaration, name: string, fallback = ''): string {
   const value = style.getPropertyValue(name).trim();
   return value || fallback;
 }
 
 /**
- * Colors of the active Matomo theme (light, dark or custom), read from its CSS variables with
- * the core defaults as fallback for Matomo versions that do not expose them.
+ * Colors of the active Matomo theme (light, dark or custom), read from its CSS variables (Matomo
+ * 5.10 or higher). Only the state colors, without a variable before Matomo 5.14.1, and the series
+ * of a theme without its own keep the core Morpheus values.
  */
 export function chartTheme(): ChartTheme {
   const style = window.getComputedStyle(document.documentElement);
@@ -78,10 +79,10 @@ export function chartTheme(): ChartTheme {
       base,
       ...FALLBACK_SERIES.filter((color) => color.toLowerCase() !== base.toLowerCase()),
     ],
-    text: cssVariable(style, '--theme-color-text', '#212121'),
-    textLight: cssVariable(style, '--theme-color-text-light', '#444444'),
-    border: cssVariable(style, '--theme-color-border-light', '#dddddd'),
-    background: cssVariable(style, '--theme-color-background-base', '#ffffff'),
+    text: cssVariable(style, '--theme-color-text'),
+    textLight: cssVariable(style, '--theme-color-text-lighter'),
+    border: cssVariable(style, '--theme-color-border'),
+    background: cssVariable(style, '--theme-color-background-contrast'),
     success: cssVariable(style, '--theme-color-success', '#43a047'),
     danger: cssVariable(style, '--theme-color-danger', '#c0322e'),
   };

@@ -117,6 +117,9 @@
         />
         <Canvas
           :title="canvasTitle"
+          :period-text="periodText"
+          :segment-text="segmentText"
+          @open-period-selector="openPeriodSelector"
           :visualization="state.visualization"
           :cell-type="state.cellType"
           :loading="loading"
@@ -188,6 +191,7 @@ import {
   MatomoUrl,
   Notification,
   NumberFormatter,
+  Periods,
   translate,
 } from 'CoreHome';
 import Canvas from './Canvas.vue';
@@ -360,14 +364,35 @@ export default defineComponent({
       return map;
     });
 
-    // an "Others" slice is the sum of its rows: never for a distinct count that the rows share
-    function addsUpAcrossRows(metricId: string): boolean {
-      const metric = metricsById.value[metricId];
-      const dimension = dimensionsById.value[requestDefinition.value.rows[0]];
-      if (!metric || !dimension) {
-        return true;
+    const periodText = computed(() => {
+      try {
+        return Periods.parse(period.value, date.value).getPrettyString();
+      } catch (e) {
+        return `${period.value} ${date.value}`;
       }
-      return (metric.additiveScopes || []).indexOf(dimension.scope) !== -1;
+    });
+
+    const segmentText = computed(() => {
+      if (!segment.value) {
+        return translate('SegmentEditor_DefaultAllVisits');
+      }
+      let decoded = segment.value;
+      try {
+        decoded = decodeURIComponent(segment.value);
+      } catch (e) {
+        // keeps the raw value
+      }
+      return segmentNames.value[segment.value] || segmentNames.value[decoded]
+        || translate('SegmentEditor_CustomSegment');
+    });
+
+    // the period line of the canvas opens the period selector of the page
+    function openPeriodSelector() {
+      const toggle = document.querySelector<HTMLElement>('#periodString #date');
+      if (toggle) {
+        toggle.click();
+        toggle.focus();
+      }
     }
 
     const scopeLabel = (scope: string) => translate(`DataExplorer_Scope_${scope}`);
@@ -384,20 +409,17 @@ export default defineComponent({
     function pickerGroups(
       groups: { category: string, items: PickerItem[] }[],
       labels: Record<string, string>,
+      reasonOf: (id: string) => string,
     ): PickerGroup[] {
       return groups.map((group) => ({
         category: group.category,
-        items: group.items.map(({ id, name }) => ({ id, name: labels[id] || name })),
+        items: group.items.map(({ id, name }) => ({
+          id,
+          name: labels[id] || name,
+          reason: reasonOf(id),
+        })),
       }));
     }
-
-    const dimensionGroups = computed(
-      () => pickerGroups(catalog.value ? catalog.value.dimensions : [], dimensionLabels.value),
-    );
-
-    const metricGroups = computed(
-      () => pickerGroups(catalog.value ? catalog.value.metrics : [], metricLabels.value),
-    );
 
     const segmentGroups = computed<PickerGroup[]>(() => {
       const items = (catalog.value ? catalog.value.segments : [])
@@ -441,6 +463,18 @@ export default defineComponent({
         .find((metric) => metric && !metric.allowedScopes.includes(dimension.scope));
       return conflict ? translate('DataExplorer_IncompatibleWithMetric', conflict.name) : '';
     }
+
+    const dimensionGroups = computed(() => pickerGroups(
+      catalog.value ? catalog.value.dimensions : [],
+      dimensionLabels.value,
+      dimensionReason,
+    ));
+
+    const metricGroups = computed(() => pickerGroups(
+      catalog.value ? catalog.value.metrics : [],
+      metricLabels.value,
+      metricReason,
+    ));
 
     const dimensionViews = computed<VariableView[]>(() => state.variables.dimensions.map((id) => ({
       id,
@@ -536,6 +570,16 @@ export default defineComponent({
       requestDefinition.value.rows.length,
       resultColumnsList.value,
     ));
+
+    // an "Others" slice is the sum of its rows: never for a distinct count that the rows share
+    function addsUpAcrossRows(metricId: string): boolean {
+      const metric = metricsById.value[metricId];
+      const dimension = dimensionsById.value[requestDefinition.value.rows[0]];
+      if (!metric || !dimension) {
+        return true;
+      }
+      return (metric.additiveScopes || []).indexOf(dimension.scope) !== -1;
+    }
 
     const slice = computed<ChartSlice|null>(() => (state.values.length
       ? chartSlice(
@@ -971,6 +1015,9 @@ export default defineComponent({
     });
 
     return {
+      periodText,
+      segmentText,
+      openPeriodSelector,
       idSite,
       period,
       date,
