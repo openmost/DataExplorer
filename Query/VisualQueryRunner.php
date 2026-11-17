@@ -258,18 +258,22 @@ class VisualQueryRunner
 
         for ($level = 0; $level < $depth && $parents; $level++) {
             $cap = $level === 0 ? $mainCap : $subCap;
-            $include = $level === 0 ? null : [$level, $parents];
-            $limit = min(count($parents) * ($cap + 1), Configuration::getSqlRowLimit());
             if ($level === 0) {
                 $limit = min($cap + 1, Configuration::getSqlRowLimit());
+                $rows = $this->fetch(['scope' => $primary, 'labels' => 1, 'include' => null, 'limit' => $limit]);
+                $overflow = count($rows) >= $limit;
+            } else {
+                // ranked per parent, so batches of parents return the rows of one statement
+                $rows = [];
+                $overflow = false;
+                foreach ($this->chunks($parents) as $chunk) {
+                    $limit = min(count($chunk) * ($cap + 1), Configuration::getSqlRowLimit());
+                    $fetched = $this->fetch(['scope' => $primary, 'labels' => $level + 1, 'include' => [$level, $chunk],
+                        'limit' => $limit, 'rankPerParent' => $cap]);
+                    $overflow = $overflow || count($fetched) >= $limit;
+                    array_push($rows, ...$fetched);
+                }
             }
-
-            $spec = ['scope' => $primary, 'labels' => $level + 1, 'include' => $include, 'limit' => $limit];
-            if ($level > 0) {
-                $spec['rankPerParent'] = $cap;
-            }
-            $rows = $this->fetch($spec);
-            $overflow = count($rows) >= $limit;
 
             $kept = [];
             foreach ($rows as $row) {
@@ -289,8 +293,9 @@ class VisualQueryRunner
             }
 
             foreach (array_slice($resolved['scopes'], 1) as $scope) {
-                $spec = ['scope' => $scope, 'labels' => $level + 1, 'include' => [$level + 1, $kept], 'limit' => count($kept) + 1];
-                foreach ($this->fetch($spec) as $row) {
+                $specOf = fn (array $chunk) => ['scope' => $scope, 'labels' => $level + 1, 'include' => [$level + 1, $chunk],
+                    'limit' => count($chunk) + 1];
+                foreach ($this->fetchChunked($kept, $specOf) as $row) {
                     $parsed = $this->parse($row);
                     $key = $this->key($parsed['values']);
                     if (isset($nodes[$level][$key])) {
@@ -301,9 +306,9 @@ class VisualQueryRunner
 
             if ($pivotIn) {
                 foreach ($resolved['scopes'] as $scope) {
-                    $spec = ['scope' => $scope, 'labels' => $level + 1, 'pivot' => true, 'pivotIn' => $pivotIn,
-                        'include' => [$level + 1, $kept], 'limit' => count($kept) * count($pivotIn) + 1];
-                    foreach ($this->fetch($spec) as $row) {
+                    $specOf = fn (array $chunk) => ['scope' => $scope, 'labels' => $level + 1, 'pivot' => true,
+                        'pivotIn' => $pivotIn, 'include' => [$level + 1, $chunk], 'limit' => count($chunk) * count($pivotIn) + 1];
+                    foreach ($this->fetchChunked($kept, $specOf) as $row) {
                         $parsed = $this->parse($row);
                         $key = $this->key($parsed['values']);
                         if (isset($nodes[$level][$key])) {
@@ -331,11 +336,56 @@ class VisualQueryRunner
      */
     private function collectOthers(array $scopes, int $level, array $parents, array $kept, array $pivotIn, array &$others): void
     {
-        $base = ['labels' => $level, 'exclude' => [$level + 1, $kept], 'limit' => count($parents) + 1];
-        if ($level > 0) {
-            $base['include'] = [$level, $parents];
+        foreach ($this->othersBatches($level, $parents, $kept) as [$batchParents, $batchKept]) {
+            $base = ['labels' => $level, 'exclude' => [$level + 1, $batchKept], 'limit' => count($batchParents) + 1];
+            if ($level > 0) {
+                $base['include'] = [$level, $batchParents];
+            }
+            $this->collectOthersOf($scopes, $base, count($batchParents), $pivotIn, $level, $others);
+        }
+    }
+
+    /**
+     * Parents grouped with their own kept rows, at most the chunk size of tuples per batch: the Others of a parent
+     * only exclude its own kept rows. A parent holding more kept rows than the chunk size forms a batch alone,
+     * bounded by the row cap.
+     *
+     * @return array[] [[parents, kept rows of these parents], ...]
+     */
+    private function othersBatches(int $level, array $parents, array $kept): array
+    {
+        if ($level === 0) {
+            return [[$parents, $kept]];
         }
 
+        $keptByParent = [];
+        foreach ($kept as $values) {
+            $keptByParent[$this->key(array_slice($values, 0, $level))][] = $values;
+        }
+
+        $size = Configuration::getTupleChunkSize();
+        $batches = [];
+        $batchParents = [];
+        $batchKept = [];
+        foreach ($parents as $parent) {
+            $own = $keptByParent[$this->key($parent)] ?? [];
+            if ($batchParents && count($batchParents) + count($batchKept) + 1 + count($own) > $size) {
+                $batches[] = [$batchParents, $batchKept];
+                $batchParents = [];
+                $batchKept = [];
+            }
+            $batchParents[] = $parent;
+            array_push($batchKept, ...$own);
+        }
+        if ($batchParents) {
+            $batches[] = [$batchParents, $batchKept];
+        }
+
+        return $batches;
+    }
+
+    private function collectOthersOf(array $scopes, array $base, int $parentCount, array $pivotIn, int $level, array &$others): void
+    {
         foreach ($scopes as $scope) {
             foreach ($this->fetch(['scope' => $scope] + $base) as $row) {
                 $parsed = $this->parse($row);
@@ -347,7 +397,7 @@ class VisualQueryRunner
             }
 
             if ($pivotIn) {
-                $spec = ['scope' => $scope, 'pivot' => true, 'pivotIn' => $pivotIn, 'limit' => (count($parents) * count($pivotIn)) + 1] + $base;
+                $spec = ['scope' => $scope, 'pivot' => true, 'pivotIn' => $pivotIn, 'limit' => ($parentCount * count($pivotIn)) + 1] + $base;
                 foreach ($this->fetch($spec) as $row) {
                     $parsed = $this->parse($row);
                     $parentKey = $this->key($parsed['values']);
@@ -356,6 +406,29 @@ class VisualQueryRunner
                 }
             }
         }
+    }
+
+    /**
+     * @return array[][] $tuples in batches of the chunk size
+     */
+    private function chunks(array $tuples): array
+    {
+        return array_chunk($tuples, Configuration::getTupleChunkSize());
+    }
+
+    /**
+     * One statement per batch of $tuples, rows merged.
+     *
+     * @param callable(array): array $specOf spec of the statement filtering on one batch
+     */
+    private function fetchChunked(array $tuples, callable $specOf): array
+    {
+        $rows = [];
+        foreach ($this->chunks($tuples) as $chunk) {
+            array_push($rows, ...$this->fetch($specOf($chunk)));
+        }
+
+        return $rows;
     }
 
     /**

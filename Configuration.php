@@ -24,6 +24,7 @@ class Configuration
     public const KEY_MAX_DIMENSIONS = 'dataexplorer_max_dimensions';
     public const KEY_SQL_MAX_LENGTH = 'dataexplorer_sql_max_length';
     public const KEY_SQL_MAX_SUBQUERIES = 'dataexplorer_sql_max_subqueries';
+    public const KEY_TUPLE_CHUNK_SIZE = 'dataexplorer_tuple_chunk_size';
 
     public const DEFAULT_MAX_DIMENSIONS = 3;
     public const MAX_DIMENSIONS_CEILING = 9;
@@ -39,6 +40,7 @@ class Configuration
     public const DEFAULT_RAW_SQL_MAX_POINTS = 30;
     public const DEFAULT_SQL_MAX_LENGTH = 65536;
     public const DEFAULT_SQL_MAX_SUBQUERIES = 50;
+    public const DEFAULT_TUPLE_CHUNK_SIZE = 1000;
 
     /**
      * Maximum number of row dimensions of an exploration, 1 to 9.
@@ -150,6 +152,15 @@ class Configuration
     public static function getRawSqlMaxPoints(): int
     {
         return self::getInt('raw_sql_max_points', self::DEFAULT_RAW_SQL_MAX_POINTS, 1);
+    }
+
+    /**
+     * Most label tuples one statement of the visual explorer filters on: deeper levels run in batches of parents,
+     * far below the 65,535 placeholders of a native prepared statement and max_allowed_packet.
+     */
+    public static function getTupleChunkSize(): int
+    {
+        return self::getInt(self::KEY_TUPLE_CHUNK_SIZE, self::DEFAULT_TUPLE_CHUNK_SIZE, 1);
     }
 
     public static function getInvalidationMonths(): int

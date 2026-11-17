@@ -50,6 +50,7 @@ All keys go in a `[DataExplorer]` section of `config/config.ini.php`. At install
 | `datatable_archiving_maximum_rows_subtable_dataexplorer_dimensions_N` | the default above | Same for subtables of reports with N row dimensions (2 to 9) |
 | `dataexplorer_max_dimensions` | 3 | Row dimensions allowed in a report, from 1 to 9 |
 | `dataexplorer_sql_row_limit` | core value (50000) | Hard cap on the rows one SQL statement of the visual explorer reads |
+| `dataexplorer_tuple_chunk_size` | 1000 | Most label combinations one SQL statement of the visual explorer filters on: deeper levels of a report run in batches of this size |
 | `raw_sql_row_limit` | 10000 | Rows a raw SQL query returns |
 | `max_execution_time_seconds` | 30 | Time limit of a raw SQL query |
 | `raw_sql_cache_ttl` | 300 | Seconds a raw SQL result is cached, 0 disables the cache |

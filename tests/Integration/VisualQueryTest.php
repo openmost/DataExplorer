@@ -340,6 +340,74 @@ class VisualQueryTest extends IntegrationTestCase
         $this->assertSame(['France' => 1, 'United States' => 1, $this->others() => 0], $this->column($table, 'nb_visits | Smartphone'));
     }
 
+    /**
+     * @dataProvider chunkedDefinitions
+     */
+    public function test_childLevels_areQueriedInChunks_withTheSameResult(array $definition): void
+    {
+        $caps = [
+            'datatable_archiving_maximum_rows_dataexplorer_dimensions_2' => 2,
+            'datatable_archiving_maximum_rows_dataexplorer_dimensions_3' => 2,
+            'datatable_archiving_maximum_rows_subtable_dataexplorer_dimensions_2' => 2,
+            'datatable_archiving_maximum_rows_subtable_dataexplorer_dimensions_3' => 2,
+        ];
+        $definition = ReportDefinition::fromArray($definition + ['name' => 'preview']);
+
+        Config::getInstance()->DataExplorer = $caps;
+        $whole = (new VisualQueryRunner())->run($definition, self::$fixture->idSite, 'range', self::RANGE, '');
+
+        Config::getInstance()->DataExplorer = $caps + ['dataexplorer_tuple_chunk_size' => 3];
+        $spy = new class extends VisualQueryBuilder {
+            /** @var int */
+            public $largest = 0;
+            /** @var int */
+            public $statements = 0;
+
+            public function buildQuery(ReportDefinition $definition, \Piwik\DataAccess\LogAggregator $aggregator, array $spec): array
+            {
+                $this->statements++;
+                $tuples = count($spec['include'][1] ?? []) + count($spec['exclude'][1] ?? []);
+                $this->largest = max($this->largest, $tuples);
+
+                return parent::buildQuery($definition, $aggregator, $spec);
+            }
+        };
+        $chunked = (new VisualQueryRunner($spy))->run($definition, self::$fixture->idSite, 'range', self::RANGE, '');
+
+        $this->assertLessThanOrEqual(3, $spy->largest, 'no statement may carry more tuples than the chunk size');
+        $this->assertEquals($this->tree($whole), $this->tree($chunked));
+        $this->assertNotEmpty($this->tree($whole));
+    }
+
+    public function chunkedDefinitions(): array
+    {
+        return [
+            'three dimensions, two scopes' => [['rows' => [self::COUNTRY, self::DEVICE, self::TITLE], 'metrics' => ['nb_visits', 'nb_actions']]],
+            'two dimensions with a pivot' => [['rows' => [self::COUNTRY, self::TITLE], 'column' => self::DEVICE, 'metrics' => ['nb_visits']]],
+        ];
+    }
+
+    /**
+     * Every row of the table and of its subtables, keyed by its label path.
+     */
+    private function tree(DataTable $table, string $path = ''): array
+    {
+        $result = [];
+        foreach ($table->getRows() as $row) {
+            $key = $path . '/' . $row->getColumn('label');
+            $columns = $row->getColumns();
+            ksort($columns);
+            $result[$key] = $columns;
+            $subtable = $row->getSubtable();
+            if ($subtable instanceof DataTable) {
+                $result += $this->tree($subtable, $key);
+            }
+        }
+        ksort($result);
+
+        return $result;
+    }
+
     public function test_nullAndEmptyValues_formOneNotDefinedRow(): void
     {
         $visits = Common::prefixTable('log_visit');
