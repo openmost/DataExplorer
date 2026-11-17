@@ -31,6 +31,14 @@ class DataExplorer extends \Piwik\Plugin
      * Translations used by the Vue explorer, raw SQL editor and save dialog.
      */
     private const CLIENT_SIDE_TRANSLATION_KEYS = [
+        'DataExplorer_SetupTitle',
+        'DataExplorer_SetupIntro',
+        'DataExplorer_SetupCreateUserTitle',
+        'DataExplorer_SetupCreateUserHelp',
+        'DataExplorer_SetupAnyHostHelp',
+        'DataExplorer_SetupNoTables',
+        'DataExplorer_SetupConfigTitle',
+        'DataExplorer_SetupConfigHelp',
         'DataExplorer_DataExplorer',
         'DataExplorer_KpiPreviousPeriod',
         'DataExplorer_Variables',

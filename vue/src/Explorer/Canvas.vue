@@ -11,23 +11,40 @@
     :aria-busy="loading ? 'true' : 'false'"
   >
     <div class="dataExplorerCanvas__header">
-      <h3 class="dataExplorerColumn__title">{{ title }}</h3>
+      <div class="dataExplorerCanvas__tab">
+        <span
+          class="dataExplorerCanvas__tabIcon"
+          :class="tabIcon"
+          aria-hidden="true"
+        ></span>
+        <h3 class="dataExplorerCanvas__title">{{ title }}</h3>
+      </div>
+      <div
+        v-if="periodText"
+        class="dataExplorerCanvas__context"
+      >
+        <button
+          type="button"
+          class="dataExplorerCanvas__pill dataExplorerCanvas__period"
+          :title="translate('General_ChooseDate', periodText)"
+          @click="$emit('openPeriodSelector')"
+        >
+          <span
+            class="icon-calendar"
+            aria-hidden="true"
+          ></span>
+          <span>{{ periodText }}</span>
+        </button>
+        <span class="dataExplorerCanvas__pill">
+          <span
+            class="icon-segment"
+            aria-hidden="true"
+          ></span>
+          <span>{{ segmentText }}</span>
+        </span>
+      </div>
       <ActivityIndicator :loading="loading" />
     </div>
-
-    <p
-      v-if="periodText"
-      class="dataExplorerCanvas__context"
-    >
-      <button
-        type="button"
-        class="dataExplorerCanvas__period"
-        :title="translate('General_ChooseDate', periodText)"
-        @click="$emit('openPeriodSelector')"
-      >{{ periodText }}</button>
-      <span aria-hidden="true"> · </span>
-      <span>{{ segmentText }}</span>
-    </p>
 
     <div
       class="dataExplorerCanvas__status"
@@ -38,10 +55,10 @@
         context="error"
         :noclear="true"
       >{{ error }}</Notification>
-      <p
+      <div
         v-else-if="hint"
         class="dataExplorerCanvas__hint"
-      >{{ hint }}</p>
+      >{{ hint }}</div>
     </div>
 
     <div
@@ -125,10 +142,10 @@
             </tr>
           </tbody>
         </table>
-        <p
+        <div
           v-else-if="!loading"
           class="dataExplorerCanvas__hint"
-        >{{ translate('CoreHome_ThereIsNoDataForThisReport') }}</p>
+        >{{ translate('CoreHome_ThereIsNoDataForThisReport') }}</div>
       </div>
 
       <div
@@ -200,6 +217,7 @@ import type {
   ResultRow,
 } from './resultTable';
 import { cellBucket, columnMaxima } from './resultTable';
+import { VISUALIZATION_ICONS } from './explorationState';
 import type { CellType, Visualization } from '../types';
 
 export interface KpiView {
@@ -383,7 +401,10 @@ export default defineComponent({
       }))
       : []));
 
+    const tabIcon = computed(() => VISUALIZATION_ICONS[props.visualization as Visualization]);
+
     return {
+      tabIcon,
       hasPivot,
       pivotGroups,
       sortedRows,

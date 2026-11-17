@@ -50,6 +50,10 @@
           @keydown.space.self.prevent="$emit('use', section.kind, item.id)"
           @keydown.delete.self.prevent="$emit('removeVariable', section.kind, item.id)"
         >
+          <span
+            class="dataExplorerGrip"
+            aria-hidden="true"
+          ></span>
           <span class="dataExplorerVariable__name">{{ item.name }}</span>
           <button
             type="button"

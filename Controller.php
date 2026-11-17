@@ -26,12 +26,14 @@ class Controller extends \Piwik\Plugin\ControllerAdmin
         $setup = new ReadOnlySetup();
 
         return $this->renderTemplate('setup', [
-            'status' => $setup->status(),
-            'sqlSnippet' => $setup->sqlSnippet(),
-            'iniBlock' => $setup->iniBlock(),
-            'missingGrantLines' => $setup->missingGrantLines(),
-            'isAnyHost' => $setup->isAnyHost(),
-            'hasTables' => $setup->tables() !== [],
+            'setupProps' => [
+                'status' => $setup->status(),
+                'sql-snippet' => $setup->sqlSnippet(),
+                'ini-block' => $setup->iniBlock(),
+                'missing-grant-lines' => $setup->missingGrantLines(),
+                'is-any-host' => $setup->isAnyHost(),
+                'has-tables' => $setup->tables() !== [],
+            ],
         ]);
     }
 }

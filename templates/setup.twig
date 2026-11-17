@@ -3,34 +3,5 @@
 {% set title %}{{ 'DataExplorer_SetupTitle'|translate }}{% endset %}
 
 {% block content %}
-<div vue-entry="CoreHome.ContentBlock" content-title="{{ 'DataExplorer_SetupTitle'|translate|e('html_attr') }}">
-    <p>{{ 'DataExplorer_SetupIntro'|translate }}</p>
-    {% if status.state == 'ready' %}
-        <div class="alert alert-success">{{ status.message }}</div>
-    {% elseif status.state == 'not_configured' %}
-        <div class="alert alert-info">{{ status.message }}</div>
-    {% elseif status.state == 'missing_grants' %}
-        <div class="alert alert-warning">{{ status.message }}</div>
-        <pre>{{ missingGrantLines|join("\n") }}</pre>
-    {% else %}
-        <div class="alert alert-danger">{{ status.message }}</div>
-    {% endif %}
-</div>
-
-<div vue-entry="CoreHome.ContentBlock" content-title="{{ 'DataExplorer_SetupCreateUserTitle'|translate|e('html_attr') }}">
-    <p>{{ 'DataExplorer_SetupCreateUserHelp'|translate }}</p>
-    {% if isAnyHost %}
-        <p>{{ 'DataExplorer_SetupAnyHostHelp'|translate }}</p>
-    {% endif %}
-    {% if hasTables %}
-        <pre>{{ sqlSnippet }}</pre>
-    {% else %}
-        <div class="alert alert-warning">{{ 'DataExplorer_SetupNoTables'|translate }}</div>
-    {% endif %}
-</div>
-
-<div vue-entry="CoreHome.ContentBlock" content-title="{{ 'DataExplorer_SetupConfigTitle'|translate|e('html_attr') }}">
-    <p>{{ 'DataExplorer_SetupConfigHelp'|translate }}</p>
-    <pre>{{ iniBlock }}</pre>
-</div>
+<div vue-entry="DataExplorer.ReadOnlySetup"{% for name, value in setupProps %} {{ name }}="{{ value|json_encode }}"{% endfor %}></div>
 {% endblock %}

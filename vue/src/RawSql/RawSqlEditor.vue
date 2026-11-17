@@ -16,12 +16,12 @@
         context="warning"
         :noclear="true"
       >{{ status ? status.message : '' }}</Notification>
-      <p>
+      <div>
         <a
           class="btn dataExplorerSql__setupLink"
           :href="setupUrl"
         >{{ translate('DataExplorer_SqlOpenSetup') }}</a>
-      </p>
+      </div>
     </ContentBlock>
 
     <div
@@ -40,7 +40,7 @@
           id="dataExplorerSqlEditorLabel"
           class="dataExplorerColumn__title"
         >{{ translate('DataExplorer_SqlEditor') }}</h3>
-        <p class="dataExplorerSql__help">{{ translate('DataExplorer_SqlEditorHelp') }}</p>
+        <div class="dataExplorerSql__help">{{ translate('DataExplorer_SqlEditorHelp') }}</div>
         <ActivityIndicator :loading="!editorReady" />
         <div
           ref="container"
@@ -51,10 +51,10 @@
           class="dataExplorerSql__validation"
           aria-live="polite"
         >
-          <p
+          <div
             v-if="validity === 'pending'"
             class="dataExplorerSql__checking"
-          >{{ translate('DataExplorer_SqlChecking') }}</p>
+          >{{ translate('DataExplorer_SqlChecking') }}</div>
           <ul
             v-else-if="problems.length"
             class="dataExplorerSql__problems"
@@ -71,13 +71,13 @@
               {{ problem.message }}
             </li>
           </ul>
-          <p
+          <div
             v-else-if="validity === 'valid'"
             class="dataExplorerSql__valid"
           >
             <span class="icon-ok" aria-hidden="true"></span>
             {{ translate('DataExplorer_SqlValid') }}
-          </p>
+          </div>
         </div>
 
         <div class="dataExplorerSql__actions">
@@ -113,14 +113,14 @@
             context="error"
             :noclear="true"
           >{{ runError }}</Notification>
-          <p
+          <div
             v-else-if="hasRun && !rows.length && !running"
             class="dataExplorerCanvas__hint"
-          >{{ translate('DataExplorer_SqlNoRows') }}</p>
-          <p
+          >{{ translate('DataExplorer_SqlNoRows') }}</div>
+          <div
             v-else-if="rows.length"
             class="dataExplorerSql__count"
-          >{{ translate('DataExplorer_SqlRowCount', rows.length) }}</p>
+          >{{ translate('DataExplorer_SqlRowCount', rows.length) }}</div>
         </div>
 
         <div

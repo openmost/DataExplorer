@@ -48,10 +48,10 @@
             :placeholder="translate('DataExplorer_PickerSearch')"
             :aria-label="translate('DataExplorer_PickerSearch')"
           />
-          <p
+          <div
             class="dataExplorerPanel__count"
             aria-live="polite"
-          >{{ translate('DataExplorer_PanelAddedCount', added.length) }}</p>
+          >{{ translate('DataExplorer_PanelAddedCount', added.length) }}</div>
         </div>
         <div
           ref="body"
@@ -114,10 +114,10 @@
               </li>
             </ul>
           </section>
-          <p
+          <div
             v-if="!filteredGroups.length"
             class="dataExplorerPanel__empty"
-          >{{ translate('DataExplorer_PickerNoMatch') }}</p>
+          >{{ translate('DataExplorer_PickerNoMatch') }}</div>
         </div>
       </section>
     </Transition>

@@ -19,6 +19,14 @@ import type {
 export const HASH_PARAM = 'exploration';
 export const REPORT_HASH_PARAM = 'idReport';
 
+export const VISUALIZATION_ICONS: Record<Visualization, string> = {
+  table: 'icon-table',
+  bar: 'icon-chart-bar',
+  pie: 'icon-chart-pie',
+  line: 'icon-chart-line',
+  kpicard: 'icon-hits',
+};
+
 export const VISUALIZATIONS: Visualization[] = ['table', 'bar', 'pie', 'line', 'kpicard'];
 
 export const CELL_TYPES: CellType[] = ['plain', 'bar', 'heatmap'];

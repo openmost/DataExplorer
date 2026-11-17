@@ -168,6 +168,25 @@ class ExplorerUiTest extends IntegrationTestCase
         $this->assertContains('DataExplorer_Rows', $keys);
         $this->assertContains('DataExplorer_SaveDialogTitle', $keys);
         $this->assertContains('DataExplorer_SqlRun', $keys);
+        $this->assertContains('DataExplorer_SetupConfigHelp', $keys);
+    }
+
+    public function test_setupPage_mountsTheVueComponent_withTheReadOnlyStatus(): void
+    {
+        FakeAccess::clearAccess(true);
+        $_GET = ['module' => 'DataExplorer', 'action' => 'setup', 'idSite' => '1', 'period' => 'day', 'date' => '2024-03-01'];
+
+        $html = (string) FrontController::getInstance()->fetchDispatch('DataExplorer', 'setup');
+
+        $this->assertSame(1, preg_match('/<div vue-entry="DataExplorer.ReadOnlySetup"([^>]*)>/', $html, $match));
+        preg_match_all('/ ([a-z-]+)="([^"]*)"/', $match[1], $attributes, PREG_SET_ORDER);
+        $props = [];
+        foreach ($attributes as [, $name, $value]) {
+            $props[$name] = json_decode(html_entity_decode($value, ENT_QUOTES), true);
+        }
+        $this->assertSame('not_configured', $props['status']['state']);
+        $this->assertStringContainsString('[DataExplorer]', $props['ini-block']);
+        $this->assertIsBool($props['has-tables']);
     }
 
     private function dispatch(): string

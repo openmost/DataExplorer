@@ -34,10 +34,10 @@
         <span class="icon-close" aria-hidden="true"></span>
       </button>
     </div>
-    <p
+    <div
       v-if="reason"
       class="dataExplorerFilter__reason"
-    >{{ reason }}</p>
+    >{{ reason }}</div>
     <div class="dataExplorerFilter__fields">
       <select
         class="browser-default dataExplorerFilter__operator"

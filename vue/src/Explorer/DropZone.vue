@@ -15,6 +15,7 @@
       'is-disabled': disabled,
     }"
     :data-zone="zone"
+    :data-kind="accepts"
     @dragover="onDragOver"
     @dragenter="onDragOver"
     @dragleave="isOver = false"
@@ -27,10 +28,10 @@
         class="dataExplorerDropZone__count"
       >{{ translate('DataExplorer_ZoneCount', items.length, max) }}</span>
     </div>
-    <p
+    <div
       v-if="disabled && disabledReason"
       class="dataExplorerDropZone__hint"
-    >{{ disabledReason }}</p>
+    >{{ disabledReason }}</div>
     <ul
       class="dataExplorerDropZone__chips"
       :aria-labelledby="headingId"
@@ -77,7 +78,13 @@
         class="dataExplorerDropZone__select"
         :aria-expanded="menuOpen ? 'true' : 'false'"
         @click="menuOpen = !menuOpen"
-      >{{ placeholder }}</button>
+      >
+        <span
+          class="icon-add"
+          aria-hidden="true"
+        ></span>
+        <span>{{ placeholder }}</span>
+      </button>
       <ul
         v-if="menuOpen"
         class="dataExplorerDropZone__menu"

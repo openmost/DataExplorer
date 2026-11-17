@@ -111,10 +111,10 @@
       @add="$emit('add', 'values', $event)"
       @remove="$emit('remove', 'values', $event)"
     />
-    <p
+    <div
       v-if="visualization === 'kpicard' && valueItems.length > 1"
       class="dataExplorerSettings__hint"
-    >{{ translate('DataExplorer_KpiFirstMetricOnly') }}</p>
+    >{{ translate('DataExplorer_KpiFirstMetricOnly') }}</div>
 
     <DropZone
       zone="filters"
@@ -149,7 +149,12 @@ import { computed, defineComponent, PropType } from 'vue';
 import { translate } from 'CoreHome';
 import DropZone from './DropZone.vue';
 import FilterRow from './FilterRow.vue';
-import { CELL_TYPES, hasRowDimensions, VISUALIZATIONS } from './explorationState';
+import {
+  CELL_TYPES,
+  hasRowDimensions,
+  VISUALIZATION_ICONS as ICONS,
+  VISUALIZATIONS,
+} from './explorationState';
 import type {
   CatalogLimits,
   CellType,
@@ -157,14 +162,6 @@ import type {
   Visualization,
   ZoneItem,
 } from '../types';
-
-const ICONS: Record<Visualization, string> = {
-  table: 'icon-table',
-  bar: 'icon-chart-bar',
-  pie: 'icon-chart-pie',
-  line: 'icon-chart-line',
-  kpicard: 'icon-hits',
-};
 
 /**
  * Middle column: visualization switcher and the drop zones of the exploration.

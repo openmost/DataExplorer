@@ -8,7 +8,7 @@
 <template>
   <div class="dataExplorerSchema">
     <h3 class="dataExplorerColumn__title">{{ translate('DataExplorer_SqlSchema') }}</h3>
-    <p class="dataExplorerSchema__help">{{ translate('DataExplorer_SqlSchemaHelp') }}</p>
+    <div class="dataExplorerSchema__help">{{ translate('DataExplorer_SqlSchemaHelp') }}</div>
     <input
       v-model="query"
       type="search"

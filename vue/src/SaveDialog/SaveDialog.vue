@@ -44,10 +44,10 @@
           :options="reportTypeOptions"
           :inline-help="translate('DataExplorer_SaveReportTypeHelp')"
         />
-        <p
+        <div
           v-else
           class="dataExplorerSaveDialog__reportType"
-        >{{ translate('DataExplorer_SavedAs', reportTypeLabel) }}</p>
+        >{{ translate('DataExplorer_SavedAs', reportTypeLabel) }}</div>
 
         <Field
           uicontrol="radio"
