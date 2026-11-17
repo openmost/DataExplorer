@@ -824,8 +824,25 @@ html.dataExplorer-panel-open {
 .dataExplorerFilter__fields {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 4px;
+  margin-top: 2px;
+
+  // the Matomo fields keep their look, without the spacing of a full-page form
+  .matomo-form-field.row {
+    margin: 0;
+  }
+
+  .matomo-form-field > .col {
+    padding: 0;
+  }
+
+  .matomo-form-field .input-field {
+    margin: 0;
+  }
+
+  .matomo-form-field > .col:empty {
+    display: none;
+  }
 }
 
 // cell types of the canvas table: bars and heat buckets
@@ -1066,7 +1083,9 @@ button.dataExplorerCanvas__period {
 .dataExplorerSql__layout {
   display: grid;
   grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
-  align-items: start;
+  align-items: stretch;
+  // the editor and the table list use the height of the screen, the results below add to it
+  min-height: ~"max(560px, calc(100vh - 320px))";
   border: 1px solid @de-border;
   border-radius: @de-radius;
   background: @de-surface;
@@ -1108,16 +1127,32 @@ button.dataExplorerCanvas__period {
   font-size: 13px;
 }
 
+.dataExplorerSql__main,
+.dataExplorerSchema {
+  display: flex;
+  flex-direction: column;
+}
+
+.dataExplorerSql__editor {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 360px;
+  max-height: 70vh;
+
+  > .cm-editor {
+    flex: 1;
+  }
+}
+
 .dataExplorerSql__codemirror {
-  min-height: 180px;
-  max-height: 480px;
+  min-height: 360px;
   overflow: hidden;
   border: 1px solid @de-border;
   border-radius: 8px;
   font-size: 13px;
 
   .cm-scroller {
-    min-height: 180px;
+    min-height: 360px;
   }
 
   &.cm-focused {
@@ -1173,13 +1208,17 @@ button.dataExplorerCanvas__period {
   font-size: 13px;
 }
 
-.dataExplorerSchema__search {
-  width: 100%;
+// the core search input is width 100%, here it sits between the column margins
+.dataExplorerSql__layout .dataExplorerSchema__search {
+  flex-shrink: 0;
+  width: auto;
   margin-bottom: 10px;
 }
 
 .dataExplorerSchema__tables {
-  max-height: 560px;
+  // a 0 basis: the list scrolls in the height the editor gives the row, it never makes the row taller
+  flex: 1 1 0;
+  min-height: 200px;
   overflow-y: auto;
   margin: 0;
   padding: 0;

@@ -29,7 +29,10 @@
         >{{ tab.label }}</button>
       </div>
 
-      <div class="dataExplorer__reports">
+      <div
+        v-if="activeTab === 'explore'"
+        class="dataExplorer__reports"
+      >
         <label
           for="dataExplorerOpenReport"
           class="dataExplorer__reportsLabel"
