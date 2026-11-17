@@ -194,6 +194,7 @@ import {
   Notification,
   NumberFormatter,
   Periods,
+  ReportingMenuStore,
   translate,
 } from 'CoreHome';
 import Canvas from './Canvas.vue';
@@ -958,6 +959,8 @@ export default defineComponent({
       notice.value = event.isNew
         ? translate('DataExplorer_ReportCreated')
         : translate('DataExplorer_ReportUpdated');
+      // the reporting menu is loaded once per page: without this the new page shows after a reload only
+      ReportingMenuStore.reloadMenuItems();
       loadReports().then(() => {
         const report = reports.value.find((item) => item.idreport === event.idReport);
         if (report) {

@@ -145,6 +145,7 @@ import {
   MatomoDialog,
   MatomoUrl,
   Notification,
+  ReportingMenuStore,
   translate,
 } from 'CoreHome';
 import { EXPLORE_SUBCATEGORY, REPORT_HASH_PARAM } from '../Explorer/explorationState';
@@ -289,6 +290,7 @@ export default defineComponent({
         { createErrorNotification: false },
       ).then(() => {
         notice.value = translate('DataExplorer_ManageDeleted', report.name);
+        ReportingMenuStore.reloadMenuItems();
         return load();
       }).catch((e: Error) => {
         error.value = e.message;
