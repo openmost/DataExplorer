@@ -3,8 +3,8 @@
 // Explorer page (vue/src/Explorer, RawSql, SaveDialog): three columns like GA4 Explorations on one
 // flat surface. Every color comes from the Matomo theme variables (Matomo 5.10 or higher), which
 // switch with the dark mode and custom themes; the state colors (no theme variable before 5.14.1)
-// come from the Morpheus palette. The accent is the theme link color. Buttons are the .btn of the
-// Matomo UI kit, only the fields and the plugin's own controls are styled here.
+// come from the Morpheus palette. The accent is the theme link color. Buttons, fields and search inputs
+// are the ones of the Matomo UI kit, only the plugin's own controls are styled here.
 
 @de-surface: ~"var(--theme-color-background-contrast)";
 @de-sunken: ~"var(--theme-color-background-base)";
@@ -46,32 +46,8 @@
   text-transform: uppercase;
 }
 
-// fields of the plugin surfaces; buttons keep the Morpheus .btn of the Matomo UI kit
+// focus ring of the plugin's own controls; buttons and fields keep the Matomo UI kit
 .de-controls() {
-  select.browser-default,
-  input.browser-default {
-    box-sizing: border-box;
-    height: @de-control-height;
-    padding: 0 10px;
-    border: 1px solid @de-border-strong;
-    border-radius: @de-radius-control;
-    background-color: @de-surface;
-    box-shadow: none;
-    color: @de-text;
-    font-size: 13px;
-    transition: border-color .12s ease;
-
-    &:hover {
-      border-color: @de-text-lighter;
-    }
-
-    &:focus {
-      border-color: @de-accent;
-      outline: 2px solid @de-accent-line;
-      outline-offset: 0;
-    }
-  }
-
   button:focus-visible,
   [tabindex="0"]:focus-visible {
     outline: 2px solid @de-focus;
@@ -361,6 +337,7 @@
 // catalogue side panel (CataloguePanel.vue), same layout as the Openmost AI insight panels
 html.dataExplorer-panel-open {
   overflow: hidden;
+  padding-right: var(--dataexplorer-scrollbar-width, 0);
 }
 
 .dataExplorerPanelBackdrop {
@@ -427,10 +404,6 @@ html.dataExplorer-panel-open {
 .dataExplorerPanel__search {
   flex-shrink: 0;
   padding: 14px 1.25rem 10px;
-
-  input {
-    width: 100%;
-  }
 }
 
 .dataExplorerPanel__count {
@@ -1364,11 +1337,6 @@ button.dataExplorerCanvas__period {
 
 .dataExplorerManage__search {
   margin-bottom: 12px;
-
-  input {
-    width: 100%;
-    max-width: 320px;
-  }
 }
 
 .dataExplorerManage {

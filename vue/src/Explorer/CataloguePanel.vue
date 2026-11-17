@@ -40,11 +40,9 @@
           </button>
         </header>
         <div class="dataExplorerPanel__search">
-          <input
+          <SearchInput
             ref="search"
             v-model="query"
-            type="search"
-            class="browser-default"
             :placeholder="translate('DataExplorer_PickerSearch')"
             :aria-label="translate('DataExplorer_PickerSearch')"
           />
@@ -135,6 +133,7 @@ import {
   ref,
   watch,
 } from 'vue';
+import { SearchInput } from 'CoreHome';
 import type { PickerGroup } from '../types';
 import { catalogueState, closeCatalogue, getReturnFocusTarget } from './catalogueStore';
 
@@ -145,6 +144,18 @@ const FOCUSABLE = [
 ].join(',');
 
 const PAGE_SCROLL_LOCK_CLASS = 'dataExplorer-panel-open';
+const SCROLLBAR_WIDTH_VAR = '--dataexplorer-scrollbar-width';
+
+// hiding the page scrollbar widens the page: its width is padded back so the columns do not move
+function lockPageScroll(lock: boolean) {
+  const root = document.documentElement;
+  if (lock) {
+    root.style.setProperty(SCROLLBAR_WIDTH_VAR, `${window.innerWidth - root.clientWidth}px`);
+  } else {
+    root.style.removeProperty(SCROLLBAR_WIDTH_VAR);
+  }
+  root.classList.toggle(PAGE_SCROLL_LOCK_CLASS, lock);
+}
 
 /**
  * Side panel of the "+" buttons: slides over the page from the right, searches the catalogue by
@@ -153,6 +164,9 @@ const PAGE_SCROLL_LOCK_CLASS = 'dataExplorer-panel-open';
  */
 export default defineComponent({
   name: 'CataloguePanel',
+  components: {
+    SearchInput,
+  },
   props: {
     title: {
       type: String,
@@ -171,7 +185,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const panel = ref<HTMLElement|null>(null);
     const body = ref<HTMLElement|null>(null);
-    const search = ref<HTMLInputElement|null>(null);
+    const search = ref<{ $el: HTMLElement }|null>(null);
     const query = ref('');
     const titleId = 'dataExplorerPanelTitle';
     const expanded = reactive<Record<string, boolean>>({});
@@ -293,14 +307,15 @@ export default defineComponent({
     }
 
     watch(isOpen, (open) => {
-      document.documentElement.classList.toggle(PAGE_SCROLL_LOCK_CLASS, open);
+      lockPageScroll(open);
       if (open) {
         query.value = '';
         resetExpanded();
         document.addEventListener('keydown', onDocumentKeydown);
         nextTick(() => {
-          if (search.value) {
-            search.value.focus();
+          const input = search.value ? search.value.$el.querySelector('input') : null;
+          if (input) {
+            input.focus();
           }
         });
         return;
@@ -311,7 +326,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       document.removeEventListener('keydown', onDocumentKeydown);
-      document.documentElement.classList.remove(PAGE_SCROLL_LOCK_CLASS);
+      lockPageScroll(false);
       closeCatalogue();
     });
 

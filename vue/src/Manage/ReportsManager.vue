@@ -21,12 +21,12 @@
     >{{ notice }}</Notification>
 
     <div class="dataExplorerManage__search">
-      <input
+      <Field
+        v-show="reports.length > 0"
         v-model="search"
-        type="text"
-        class="browser-default"
-        :placeholder="translate('DataExplorer_ManageSearch')"
-        :aria-label="translate('DataExplorer_ManageSearch')"
+        uicontrol="text"
+        name="dataExplorerManageSearch"
+        :title="translate('General_Search')"
       />
     </div>
 
@@ -145,6 +145,7 @@ import {
   ReportingMenuStore,
   translate,
 } from 'CoreHome';
+import { Field } from 'CorePluginsAdmin';
 import { EXPLORE_SUBCATEGORY, REPORT_HASH_PARAM } from '../Explorer/explorationState';
 import type { ReportCategory as CategoryOption, SavedReport } from '../types';
 
@@ -158,6 +159,7 @@ export default defineComponent({
   name: 'ReportsManager',
   components: {
     ActivityIndicator,
+    Field,
     MatomoDialog,
     Notification,
   },

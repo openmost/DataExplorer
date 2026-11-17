@@ -9,10 +9,9 @@
   <div class="dataExplorerSchema">
     <h3 class="dataExplorerColumn__title">{{ translate('DataExplorer_SqlSchema') }}</h3>
     <div class="dataExplorerSchema__help">{{ translate('DataExplorer_SqlSchemaHelp') }}</div>
-    <input
+    <SearchInput
       v-model="query"
-      type="search"
-      class="browser-default dataExplorerSchema__search"
+      class="dataExplorerSchema__search"
       :placeholder="translate('DataExplorer_SqlSchemaSearch')"
       :aria-label="translate('DataExplorer_SqlSchemaSearch')"
     />
@@ -58,7 +57,7 @@ import {
   PropType,
   ref,
 } from 'vue';
-import { ActivityIndicator } from 'CoreHome';
+import { ActivityIndicator, SearchInput } from 'CoreHome';
 
 /**
  * Tables raw SQL can read and their columns; a click inserts the name at the cursor.
@@ -67,6 +66,7 @@ export default defineComponent({
   name: 'SchemaBrowser',
   components: {
     ActivityIndicator,
+    SearchInput,
   },
   props: {
     schema: {
