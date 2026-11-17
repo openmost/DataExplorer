@@ -30,6 +30,9 @@ class ReportDefinition
     public const REPORT_TYPE_EVOLUTION = 'evolution';
     public const REPORT_TYPE_KPICARD = 'kpicard';
 
+    // how a table report opens, its footer still offers the other views
+    public const CHARTS = ['', 'bar', 'pie'];
+
     /** @var string */
     private $name;
     /** @var string */
@@ -50,6 +53,8 @@ class ReportDefinition
     private $segment;
     /** @var string */
     private $sql;
+    /** @var string */
+    private $chart = '';
 
     private function __construct()
     {
@@ -90,6 +95,8 @@ class ReportDefinition
         $def->filters = self::filters($raw['filters'] ?? []);
         $def->segment = self::string($raw, 'segment', '');
         $def->sql = trim(self::string($raw, 'sql', ''));
+        $chart = self::string($raw, 'chart', '');
+        $def->chart = $def->reportType === self::REPORT_TYPE_TABLE && in_array($chart, self::CHARTS, true) ? $chart : '';
 
         if ($def->type === self::TYPE_SQL) {
             if ($def->sql === '') {
@@ -271,6 +278,11 @@ class ReportDefinition
         return $this->segment;
     }
 
+    public function getChart(): string
+    {
+        return $this->chart;
+    }
+
     public function getSql(): string
     {
         return $this->sql;
@@ -299,6 +311,7 @@ class ReportDefinition
             'filters' => $this->filters,
             'segment' => $this->segment,
             'sql' => $this->sql,
+            'chart' => $this->chart,
         ];
     }
 }

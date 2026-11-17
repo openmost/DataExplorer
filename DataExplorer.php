@@ -49,6 +49,7 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_ManageAuthorDeleted',
         'DataExplorer_Export',
         'General_Id',
+        'DataExplorer_EditReport',
         'General_Date',
         'General_Name',
         'General_Actions',

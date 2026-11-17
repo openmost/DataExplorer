@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "Usunąć raport „%s”? Zniknie z menu wszystkich witryn, w których jest wyświetlany.",
         "ManageDeleted": "Raport „%s” został usunięty.",
         "ManageAuthorDeleted": "Usunięty użytkownik",
-        "Export": "Eksportuj dane"
+        "Export": "Eksportuj dane",
+        "EditReport": "Edytuj raport"
     },
     "OpenmostCommunication": {
         "Dismiss": "Odrzuć",

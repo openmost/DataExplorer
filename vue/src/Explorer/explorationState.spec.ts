@@ -11,6 +11,7 @@ import {
   defaultState,
   encode,
   fromDefinition,
+  isFilterComplete,
   toDefinition,
 } from './explorationState';
 import type { ExplorationState } from '../types';
@@ -158,5 +159,53 @@ describe('explorationState', () => {
 
   it('defaults an unknown cell type to plain', () => {
     expect(decode(encode({ ...defaultState(), cellType: 'sparkles' as 'plain' })).cellType).toBe('plain');
+  });
+
+  it('sends a filter once it has a value, a blank value is not a filter yet', () => {
+    expect(isFilterComplete({ dimension: 'UserCountry.Country', operator: 'equals', value: 'France' })).toBe(true);
+    expect(isFilterComplete({ dimension: 'UserCountry.Country', operator: 'equals', value: '  ' })).toBe(false);
+
+    const state = {
+      ...exploration(),
+      filters: [
+        { dimension: 'UserCountry.Country', operator: 'equals' as const, value: 'France' },
+        { dimension: 'DevicesDetection.DeviceType', operator: 'not_equals' as const, value: '' },
+      ],
+    };
+    expect(toDefinition(state).filters).toEqual([
+      { dimension: 'UserCountry.Country', operator: 'equals', value: 'France' },
+    ]);
+  });
+
+  it('keeps every filter operator and its value through the URL hash', () => {
+    const operators = ['equals', 'not_equals', 'contains', 'starts_with', 'regex', 'gt', 'lt'] as const;
+    const filters = operators.map((operator, index) => ({
+      dimension: 'Actions.PageTitle',
+      operator,
+      value: `v${index} & "x"`,
+    }));
+
+    expect(decode(encode({ ...exploration(), filters })).filters).toEqual(filters);
+  });
+
+  it('turns an unknown filter operator into equals and drops a filter without dimension', () => {
+    const decoded = fromDefinition({
+      rows: ['UserCountry.Country'],
+      metrics: ['nb_visits'],
+      filters: [
+        { dimension: 'UserCountry.Country', operator: 'like' as 'equals', value: 'fr' },
+        { dimension: '', operator: 'equals', value: 'x' },
+      ],
+    }, 'table');
+
+    expect(decoded.filters).toEqual([{ dimension: 'UserCountry.Country', operator: 'equals', value: 'fr' }]);
+  });
+
+  it('reopens a saved table report in the chart it was saved with', () => {
+    const definition = { rows: ['UserCountry.Country'], metrics: ['nb_visits'] };
+    expect(fromDefinition({ ...definition, chart: 'pie' }, 'table').visualization).toBe('pie');
+    expect(fromDefinition({ ...definition, chart: 'bar' }, 'table').visualization).toBe('bar');
+    expect(fromDefinition(definition, 'table').visualization).toBe('table');
+    expect(fromDefinition({ ...definition, chart: 'pie' }, 'evolution').visualization).toBe('line');
   });
 });

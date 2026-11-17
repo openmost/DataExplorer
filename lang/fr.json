@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "Supprimer le rapport « %s » ? Il disparaît du menu de tous les sites où il est affiché.",
         "ManageDeleted": "Le rapport « %s » a été supprimé.",
         "ManageAuthorDeleted": "Utilisateur supprimé",
-        "Export": "Exporter les données"
+        "Export": "Exporter les données",
+        "EditReport": "Modifier le rapport"
     },
     "OpenmostCommunication": {
         "Dismiss": "Masquer",

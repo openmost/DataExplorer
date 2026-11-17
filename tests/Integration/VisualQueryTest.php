@@ -182,6 +182,47 @@ class VisualQueryTest extends IntegrationTestCase
         $this->assertEquals(['France' => 2, 'United States' => 1, 'Germany' => 1], $this->column($lt, 'nb_visits'));
     }
 
+    public function test_filtersOnCodedDimensions_matchTheDisplayedLabel(): void
+    {
+        $countries = ['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']];
+        $byLabel = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'France']]]);
+        $byCode = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'fr']]]);
+        $this->assertSame(['France'], array_keys($this->column($byLabel, 'nb_visits')));
+        $this->assertEquals($this->column($byCode, 'nb_visits'), $this->column($byLabel, 'nb_visits'));
+
+        $contains = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'contains', 'value' => 'ERMAN']]]);
+        $this->assertSame(['Germany'], array_keys($this->column($contains, 'nb_visits')));
+
+        $notEquals = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'not_equals', 'value' => 'France']]]);
+        $this->assertEqualsCanonicalizing(['United States', 'Germany'], array_keys($this->column($notEquals, 'nb_visits')));
+
+        $none = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'Atlantis']]]);
+        $this->assertSame([], $this->column($none, 'nb_visits'));
+    }
+
+    public function test_deviceTypeFilter_byName_neverMatchesDesktop(): void
+    {
+        // compared as stored, MySQL casts "Smartphone" to 0, the id of Desktop
+        $table = $this->explore([
+            'rows' => [self::DEVICE],
+            'metrics' => ['nb_visits'],
+            'filters' => [['dimension' => self::DEVICE, 'operator' => 'equals', 'value' => 'smartphone']],
+        ]);
+
+        $this->assertSame(['Smartphone'], array_keys($this->column($table, 'nb_visits')));
+    }
+
+    public function test_urlFilter_ignoresTheProtocolAndWww(): void
+    {
+        $base = ['rows' => [self::URL], 'metrics' => ['nb_visits']];
+
+        $withProtocol = $this->column($this->explore($base + ['filters' => [['dimension' => self::URL, 'operator' => 'starts_with', 'value' => 'https://www.example.com/pri']]]), 'nb_visits');
+        $withoutProtocol = $this->column($this->explore($base + ['filters' => [['dimension' => self::URL, 'operator' => 'starts_with', 'value' => 'example.com/pri']]]), 'nb_visits');
+
+        $this->assertSame(2, $this->findBySuffix($withProtocol, '/pricing'));
+        $this->assertSame($withoutProtocol, $withProtocol);
+    }
+
     public function test_filterValues_areBoundParameters(): void
     {
         $definition = ReportDefinition::fromArray([

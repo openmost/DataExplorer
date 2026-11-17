@@ -49,6 +49,9 @@ class VisualQueryRunner
     /** label of the NULL / empty value in archived tables, formatted at display time */
     public const ARCHIVED_NOT_DEFINED = '__dataexplorer_not_defined__';
 
+    // above this many distinct values a filtered dimension is free text (URL, title), compared as stored
+    public const MAX_FILTER_VALUES = 2000;
+
     /** @var VisualQueryBuilder */
     private $builder;
     /** @var callable(): float */
@@ -184,6 +187,9 @@ class VisualQueryRunner
         $failure = null;
 
         try {
+            $resolved = $this->resolveLabelFilters($resolved, $idSite);
+            $this->resolved = $resolved;
+
             if (!$resolved['rows']) {
                 $totals = [];
                 foreach ($resolved['scopes'] as $scope) {
@@ -435,10 +441,10 @@ class VisualQueryRunner
     /**
      * Runs one statement inside the time left of the run, capped at the SQL row limit.
      */
-    private function fetch(array $spec): array
+    private function fetch(array $spec, ?array $resolved = null): array
     {
         $spec['limit'] = min(max(1, (int) $spec['limit']), Configuration::getSqlRowLimit());
-        $query = $this->builder->buildQuery($this->definition, $this->aggregator, $spec, $this->resolved);
+        $query = $this->builder->buildQuery($this->definition, $this->aggregator, $spec, $resolved ?? $this->resolved);
 
         if ($this->deadline !== null) {
             $remaining = (int) floor(($this->deadline - ($this->clock)()) * 1000);
@@ -552,6 +558,55 @@ class VisualQueryRunner
         }
 
         return $ops;
+    }
+
+    /**
+     * A filter compares what the user reads: "France", "Smartphone", "Chrome". The logs store a code or an id
+     * for those dimensions, so the filter becomes the list of stored values whose label, or the value itself,
+     * matches. Compared as stored, "Smartphone" would even match device type 0 (Desktop): MySQL casts the text to 0.
+     */
+    private function resolveLabelFilters(array $resolved, int $idSite): array
+    {
+        foreach ($resolved['filters'] as $index => $filter) {
+            if (!in_array($filter['operator'], ['equals', 'not_equals', 'contains', 'starts_with', 'regex'], true)) {
+                continue;
+            }
+
+            $rows = $this->fetch([
+                'scope' => $resolved['scopes'][0],
+                'labels' => 1,
+                'limit' => self::MAX_FILTER_VALUES + 1,
+            ], ['rows' => [$filter['dimension']], 'column' => null, 'filters' => []] + $resolved);
+            if (count($rows) > self::MAX_FILTER_VALUES) {
+                continue;
+            }
+
+            $matching = [];
+            $formatted = false;
+            $negate = $filter['operator'] === 'not_equals';
+            foreach ($rows as $row) {
+                $raw = $row['label_0'] ?? null;
+                if ($raw === null) {
+                    continue;
+                }
+                $label = $this->label($filter['dimension'], $raw, $idSite);
+                $formatted = $formatted || $label !== (string) $raw;
+                if (LabelFilter::matches($negate ? 'equals' : $filter['operator'], (string) $filter['value'], $label, (string) $raw)) {
+                    $matching[] = $raw;
+                }
+            }
+            if (!$formatted) {
+                continue;
+            }
+
+            $resolved['filters'][$index] = [
+                'dimension' => $filter['dimension'],
+                'operator' => $negate ? VisualQueryBuilder::OPERATOR_NOT_IN : VisualQueryBuilder::OPERATOR_IN,
+                'value' => $matching,
+            ];
+        }
+
+        return $resolved;
     }
 
     private function label(DimensionEntry $entry, $value, int $idSite): string

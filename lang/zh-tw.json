@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "刪除報告「%s」？它將從顯示它的所有網站的選單中消失。",
         "ManageDeleted": "報告「%s」已刪除。",
         "ManageAuthorDeleted": "已刪除的使用者",
-        "Export": "匯出資料"
+        "Export": "匯出資料",
+        "EditReport": "編輯報表"
     },
     "OpenmostCommunication": {
         "Dismiss": "關閉",

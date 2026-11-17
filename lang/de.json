@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "Den Bericht „%s“ löschen? Er verschwindet aus dem Menü aller Websites, auf denen er angezeigt wird.",
         "ManageDeleted": "Der Bericht „%s“ wurde gelöscht.",
         "ManageAuthorDeleted": "Gelöschter Benutzer",
-        "Export": "Daten exportieren"
+        "Export": "Daten exportieren",
+        "EditReport": "Bericht bearbeiten"
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",

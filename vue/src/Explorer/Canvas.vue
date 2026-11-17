@@ -58,7 +58,7 @@
           @click="exportOpen = !exportOpen"
         >
           <span
-            class="icon-export"
+            class="icon-download"
             aria-hidden="true"
           ></span>
         </button>

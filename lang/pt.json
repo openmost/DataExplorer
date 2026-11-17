@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "Eliminar o relatório «%s»? Desaparece do menu de todos os sites onde é mostrado.",
         "ManageDeleted": "O relatório «%s» foi eliminado.",
         "ManageAuthorDeleted": "Utilizador eliminado",
-        "Export": "Exportar dados"
+        "Export": "Exportar dados",
+        "EditReport": "Editar o relatório"
     },
     "OpenmostCommunication": {
         "Dismiss": "Dispensar",

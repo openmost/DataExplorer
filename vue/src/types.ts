@@ -104,6 +104,8 @@ export interface VisualDefinition {
   metrics: string[];
   filters: Filter[];
   segment: string;
+  // the view a saved table report opens with
+  chart?: '' | 'bar' | 'pie';
 }
 
 export interface SavedReport {

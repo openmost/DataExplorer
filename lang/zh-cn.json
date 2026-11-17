@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "删除报告“%s”？它将从显示它的所有网站的菜单中消失。",
         "ManageDeleted": "报告“%s”已删除。",
         "ManageAuthorDeleted": "已删除的用户",
-        "Export": "导出数据"
+        "Export": "导出数据",
+        "EditReport": "编辑报表"
     },
     "OpenmostCommunication": {
         "Dismiss": "关闭",

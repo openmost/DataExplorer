@@ -31,6 +31,8 @@ use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 class VisualQueryBuilder
 {
     public const OPERATORS = ['equals', 'not_equals', 'contains', 'starts_with', 'regex', 'gt', 'lt'];
+    public const OPERATOR_IN = 'in';
+    public const OPERATOR_NOT_IN = 'not_in';
 
     public const TABLE_BY_SCOPE = [
         'visit' => 'log_visit',
@@ -200,7 +202,9 @@ class VisualQueryBuilder
         $conditions = array_values(array_unique($conditions));
         $bind = [];
         foreach ($resolved['filters'] as $filter) {
-            [$conditions[], $bind[]] = $this->filterCondition($this->expression($filter['dimension'], $joins), $filter);
+            [$condition, $values] = $this->filterCondition($this->expression($filter['dimension'], $joins), $filter);
+            $conditions[] = $condition;
+            array_push($bind, ...$values);
         }
         if ($include) {
             $conditions[] = $this->tuplePredicate(array_slice($rowExpressions, 0, (int) $include[0]), $include[1], $bind);
@@ -422,7 +426,10 @@ class VisualQueryBuilder
     }
 
     /**
-     * @return array{0: string, 1: string|int|float}
+     * The condition and its bound values. "in" and "not_in" come from VisualQueryRunner, which turns a filter on
+     * a formatted dimension (country code, device type id...) into the raw values whose label matches.
+     *
+     * @return array{0: string, 1: array}
      */
     private function filterCondition(string $expression, array $filter): array
     {
@@ -430,19 +437,31 @@ class VisualQueryBuilder
 
         switch ($filter['operator']) {
             case 'equals':
-                return [$expression . ' = ?', $value];
+                return [$expression . ' = ?', [$value]];
             case 'not_equals':
-                return ['(' . $expression . ' IS NULL OR ' . $expression . ' <> ?)', $value];
+                return ['(' . $expression . ' IS NULL OR ' . $expression . ' <> ?)', [$value]];
             case 'contains':
-                return [$expression . ' LIKE ?', '%' . $this->escapeLike($value) . '%'];
+                return [$expression . ' LIKE ?', ['%' . $this->escapeLike($value) . '%']];
             case 'starts_with':
-                return [$expression . ' LIKE ?', $this->escapeLike($value) . '%'];
+                return [$expression . ' LIKE ?', [$this->escapeLike($value) . '%']];
             case 'regex':
-                return [$expression . ' REGEXP ?', $value];
+                return [$expression . ' REGEXP ?', [$value]];
             case 'gt':
-                return [$expression . ' > ?', $value];
+                return [$expression . ' > ?', [$value]];
             case 'lt':
-                return [$expression . ' < ?', $value];
+                return [$expression . ' < ?', [$value]];
+            case self::OPERATOR_IN:
+                if (!$value) {
+                    return ['1 = 0', []];
+                }
+
+                return [$expression . ' IN (' . implode(', ', array_fill(0, count($value), '?')) . ')', array_values($value)];
+            case self::OPERATOR_NOT_IN:
+                if (!$value) {
+                    return ['1 = 1', []];
+                }
+
+                return ['(' . $expression . ' IS NULL OR ' . $expression . ' NOT IN (' . implode(', ', array_fill(0, count($value), '?')) . '))', array_values($value)];
         }
 
         throw $this->error('DataExplorer_ErrorFilterOperatorInvalid', $filter['operator']);
@@ -481,6 +500,9 @@ class VisualQueryBuilder
         $value = Common::unsanitizeInputValue((string) $value);
         if ($dimension->type !== Dimension::TYPE_URL) {
             $value = Common::sanitizeInputValue($value);
+        } elseif ($operator !== 'regex') {
+            // log_action stores URLs without the protocol and "www.", which go to url_prefix, as the reports show them
+            $value = (string) preg_replace('~^(https?://)?(www\.)?~i', '', $value);
         }
 
         return ['dimension' => $dimension, 'operator' => $operator, 'value' => $value];

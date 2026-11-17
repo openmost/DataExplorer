@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "Delete the report \"%s\"? It disappears from the menu of every website it is shown on.",
         "ManageDeleted": "The report \"%s\" was deleted.",
         "ManageAuthorDeleted": "Deleted user",
-        "Export": "Export data"
+        "Export": "Export data",
+        "EditReport": "Edit report"
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",

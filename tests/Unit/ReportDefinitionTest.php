@@ -92,6 +92,15 @@ class ReportDefinitionTest extends TestCase
         $this->assertSame($def->toArray(), ReportDefinition::fromArray($def->toArray())->toArray());
     }
 
+    public function testChart_isKeptForTables_only(): void
+    {
+        $this->assertSame('pie', ReportDefinition::fromArray($this->valid(['chart' => 'pie']))->getChart());
+        $this->assertSame('bar', ReportDefinition::fromArray($this->valid(['chart' => 'bar']))->toArray()['chart']);
+        $this->assertSame('', ReportDefinition::fromArray($this->valid(['chart' => 'radar']))->getChart());
+        $this->assertSame('', ReportDefinition::fromArray($this->valid())->getChart());
+        $this->assertSame('', ReportDefinition::fromArray($this->valid(['report_type' => 'evolution', 'rows' => [], 'chart' => 'pie']))->getChart());
+    }
+
     public function testValidEvolutionAndKpiCard(): void
     {
         $evo = ReportDefinition::fromArray($this->valid(['report_type' => 'evolution', 'rows' => [], 'metrics' => ['a', 'b']]));

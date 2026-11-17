@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "حذف التقرير \"%s\"؟ سيختفي من قائمة كل موقع يُعرض عليه.",
         "ManageDeleted": "تم حذف التقرير \"%s\".",
         "ManageAuthorDeleted": "مستخدم محذوف",
-        "Export": "تصدير البيانات"
+        "Export": "تصدير البيانات",
+        "EditReport": "تعديل التقرير"
     },
     "OpenmostCommunication": {
         "Dismiss": "تجاهل",

@@ -56,7 +56,9 @@
         class="btn dataExplorer__save"
         :disabled="!isRunnable"
         @click="openSave('visual')"
-      >{{ translate('DataExplorer_SaveReport') }}</button>
+      >{{ editing && editing.editable && editing.type === 'visual'
+        ? translate('DataExplorer_EditReport')
+        : translate('DataExplorer_SaveReport') }}</button>
     </div>
 
     <div aria-live="polite">
@@ -939,6 +941,9 @@ export default defineComponent({
       }
       const def = { ...definition.value } as Record<string, unknown>;
       delete def.report_type;
+      def.chart = state.visualization === 'bar' || state.visualization === 'pie'
+        ? state.visualization
+        : '';
       return def;
     });
 

@@ -11,13 +11,16 @@ declare(strict_types=1);
 
 namespace Piwik\Plugins\DataExplorer\RecordBuilders;
 
+use Piwik\Archive;
 use Piwik\ArchiveProcessor;
 use Piwik\ArchiveProcessor\Parameters;
 use Piwik\ArchiveProcessor\Record;
 use Piwik\ArchiveProcessor\RecordBuilder;
+use Piwik\ArchiveProcessor\Rules;
 use Piwik\Container\StaticContainer;
 use Piwik\DataAccess\LogAggregator;
 use Piwik\Log\LoggerInterface;
+use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Catalog\MetricEntry;
 use Piwik\Plugins\DataExplorer\Configuration;
 use Piwik\Plugins\DataExplorer\Model\Placement;
@@ -49,6 +52,9 @@ use Piwik\SettingsPiwik;
 class SavedReport extends RecordBuilder
 {
     private const RECORD_PREFIX = 'DataExplorer_report_';
+
+    /** @var array{0: ArchiveProcessor, 1: ArchiveProcessor}|null the main processor and its sub-period processor */
+    private static $subPeriodProcessor = null;
 
     /** @var array */
     private $report;
@@ -160,7 +166,39 @@ class SavedReport extends RecordBuilder
             return;
         }
 
-        parent::buildForNonDayPeriod($archiveProcessor);
+        parent::buildForNonDayPeriod(self::subPeriodProcessor($archiveProcessor));
+    }
+
+    /**
+     * Saving a report rebuilds its history in archives of this plugin alone, the archives of all plugins of those
+     * sub-periods predate it and lack its records. Core's processor shares one sub-period archive ID cache between
+     * all plugins, filled with the archives of all plugins by whichever plugin aggregates first, so a period
+     * archived later for all plugins would sum nothing. An Archive of our own selects the archives of this plugin
+     * newer than those, and sharing it between the saved reports keeps it to one lookup per sub-period.
+     *
+     * It must not launch archiving: the main processor already has, and a relaunch could replace a sub-period
+     * archive the main processor resolved, so plugins aggregating after us would lose that sub-period. Archived per
+     * plugin, the main processor's cache already holds the archives of this plugin.
+     */
+    private static function subPeriodProcessor(ArchiveProcessor $archiveProcessor): ArchiveProcessor
+    {
+        $params = $archiveProcessor->getParams();
+        if (!Rules::shouldProcessReportsAllPlugins($params->getIdSites(), $params->getSegment(), $params->getPeriod()->getLabel())) {
+            return $archiveProcessor;
+        }
+
+        if (self::$subPeriodProcessor === null || self::$subPeriodProcessor[0] !== $archiveProcessor) {
+            $processor = new ArchiveProcessor($params, $archiveProcessor->getArchiveWriter(), $archiveProcessor->getLogAggregator());
+            $processor->setNumberOfVisits($archiveProcessor->getNumberOfVisits(), $archiveProcessor->getNumberOfVisitsConverted());
+            $archive = Archive::factory($params->getSegment(), $params->getSubPeriods(), $params->getIdSites());
+            $archive->forceFetchingWithoutLaunchingArchiving();
+            // stands in for the Archive of ArchiveProcessor::getArchive(), which posts this event for its own
+            Piwik::postEvent('ArchiveProcessor.getArchive', [$archive]);
+            $processor->archive = $archive;
+            self::$subPeriodProcessor = [$archiveProcessor, $processor];
+        }
+
+        return self::$subPeriodProcessor[1];
     }
 
     protected function aggregate(ArchiveProcessor $archiveProcessor): array

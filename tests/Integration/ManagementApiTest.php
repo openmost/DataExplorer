@@ -351,6 +351,21 @@ class ManagementApiTest extends IntegrationTestCase
         $this->assertSame('DataExplorer.reportSaved', end($this->events)[0]);
     }
 
+    public function test_chartChange_keepsTheRevision_andInvalidatesNothing(): void
+    {
+        $this->as([1], [1]);
+        $id = $this->add();
+        $this->clearInvalidations();
+
+        $definition = json_decode(self::VISUAL, true);
+        $this->api->updateReport($id, 'Pie', 'visual', 'table', json_encode(['chart' => 'pie'] + $definition), '{"sites":[1]}', 'General_Actions', 'Other page');
+
+        $report = (new ReportsDao())->get($id);
+        $this->assertSame('pie', $report['definition']['chart']);
+        $this->assertSame(1, $report['revision']);
+        $this->assertSame([], $this->invalidatedSites());
+    }
+
     public function test_placementChange_invalidatesTheAddedSitesOnly_andKeepsTheRevision(): void
     {
         $this->as([1, 2, 3], [1, 2, 3]);

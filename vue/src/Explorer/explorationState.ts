@@ -27,7 +27,7 @@ export const VISUALIZATION_ICONS: Record<Visualization, string> = {
   bar: 'icon-chart-bar',
   pie: 'icon-chart-pie',
   line: 'icon-chart-line',
-  kpicard: 'icon-hits',
+  kpicard: 'dataExplorerKpiIcon',
 };
 
 export const VISUALIZATIONS: Visualization[] = ['table', 'bar', 'pie', 'line', 'kpicard'];
@@ -260,6 +260,8 @@ export function fromDefinition(
     visualization = 'line';
   } else if (reportType === 'kpicard') {
     visualization = 'kpicard';
+  } else if (definition.chart === 'bar' || definition.chart === 'pie') {
+    visualization = definition.chart;
   }
 
   return normalize({

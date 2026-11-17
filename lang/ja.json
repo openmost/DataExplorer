@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "レポート「%s」を削除しますか？表示されているすべてのサイトのメニューから消えます。",
         "ManageDeleted": "レポート「%s」を削除しました。",
         "ManageAuthorDeleted": "削除されたユーザー",
-        "Export": "データをエクスポート"
+        "Export": "データをエクスポート",
+        "EditReport": "レポートを編集"
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",

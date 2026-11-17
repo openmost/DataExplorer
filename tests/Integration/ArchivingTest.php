@@ -10,6 +10,7 @@
 namespace Piwik\Plugins\DataExplorer\tests\Integration;
 
 use Piwik\Archive;
+use Piwik\Archive\ArchiveInvalidator;
 use Piwik\ArchiveProcessor;
 use Piwik\ArchiveProcessor\Parameters;
 use Piwik\Cache;
@@ -430,6 +431,29 @@ class ArchivingTest extends IntegrationTestCase
         $this->assertSame([self::DESKTOP => 1, self::SMARTPHONE => 1], $this->column($this->table($updated, 'day', '2024-03-01'), 'nb_visits'));
     }
 
+    public function test_historyRebuiltForThePluginAlone_survivesAPeriodArchivedLaterForAllPlugins(): void
+    {
+        Date::$now = strtotime('2024-03-10 12:00:00');
+        $this->disableUniques(['week']);
+        $days = ['2024-02-26', '2024-02-27', '2024-02-28', '2024-02-29', '2024-03-01', '2024-03-02', '2024-03-03'];
+        // archives of all plugins that predate the reports, so they hold none of their records
+        Archive::build(1, 'week', self::WEEK)->getNumeric('nb_visits');
+
+        $table = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);
+        $evolution = $this->save(['report_type' => 'evolution', 'metrics' => ['nb_visits']]);
+        Cache::getTransientCache()->flushAll();
+        foreach ($days as $day) {
+            $this->processInvalidation(1, 'day', $day);
+        }
+
+        StaticContainer::get(ArchiveInvalidator::class)->markArchivesAsInvalidated([1], [Date::factory(self::WEEK)], 'week');
+        $this->archiveAllPlugins(1, 'week', self::WEEK);
+
+        $this->assertEquals(['fr' => 3, 'us' => 2, 'de' => 1], $this->column($this->table($table, 'week', self::WEEK), 'nb_visits'));
+        $name = SavedReport::numericRecordName($evolution['idreport'], $evolution['revision'], 'nb_visits');
+        $this->assertEquals(6, $this->numeric(Archive::build(1, 'week', self::WEEK), $name));
+    }
+
     public function test_invalidateHistory_invalidatesOnlyDataExplorerArchives_ofThePlacedSites(): void
     {
         Date::$now = strtotime('2024-03-10 12:00:00');
@@ -540,6 +564,21 @@ class ArchivingTest extends IntegrationTestCase
 
         try {
             CoreAdminHomeAPI::getInstance()->archiveReports($idSite, $period, $date, false, 'DataExplorer');
+        } finally {
+            $_GET = $backup;
+        }
+    }
+
+    /**
+     * What core:archive does for an invalidation of all plugins: one archive aggregating every plugin.
+     */
+    private function archiveAllPlugins(int $idSite, string $period, string $date): void
+    {
+        $backup = $_GET;
+        $_GET['trigger'] = 'archivephp';
+
+        try {
+            CoreAdminHomeAPI::getInstance()->archiveReports($idSite, $period, $date, false, false);
         } finally {
             $_GET = $backup;
         }

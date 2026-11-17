@@ -144,6 +144,14 @@ class GetSavedReport extends Report
                 return EChartsLine::ID;
             case ReportDefinition::REPORT_TYPE_KPICARD:
                 return EChartsKpi::ID;
+        }
+
+        $chart = $this->row !== null && !$this->isSql() ? ($this->row['definition']['chart'] ?? '') : '';
+        switch ($chart) {
+            case 'bar':
+                return EChartsBar::ID;
+            case 'pie':
+                return EChartsPie::ID;
             default:
                 return HtmlTable::ID;
         }

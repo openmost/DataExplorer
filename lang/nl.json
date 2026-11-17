@@ -195,7 +195,8 @@
         "ManageDeleteConfirm": "Het rapport \"%s\" verwijderen? Het verdwijnt uit het menu van elke website waarop het wordt getoond.",
         "ManageDeleted": "Het rapport \"%s\" is verwijderd.",
         "ManageAuthorDeleted": "Verwijderde gebruiker",
-        "Export": "Gegevens exporteren"
+        "Export": "Gegevens exporteren",
+        "EditReport": "Rapport bewerken"
     },
     "OpenmostCommunication": {
         "Dismiss": "Sluiten",
