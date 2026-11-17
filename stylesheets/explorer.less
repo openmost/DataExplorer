@@ -3,7 +3,8 @@
 // Explorer page (vue/src/Explorer, RawSql, SaveDialog): three columns like GA4 Explorations on one
 // flat surface. Every color comes from the Matomo theme variables (Matomo 5.10 or higher), which
 // switch with the dark mode and custom themes; the state colors (no theme variable before 5.14.1)
-// come from the Morpheus palette. Grey tints only mark states (hover, selected, drag over).
+// come from the Morpheus palette. The accent is the theme link color, not the brand green that core
+// buttons use, and the core button and field styles are reset inside the plugin surfaces.
 
 @de-surface: ~"var(--theme-color-background-contrast)";
 @de-sunken: ~"var(--theme-color-background-base)";
@@ -11,19 +12,124 @@
 @de-text-strong: ~"var(--theme-color-text-highContrast)";
 @de-text-light: ~"var(--theme-color-text-light)";
 @de-text-lighter: ~"var(--theme-color-text-lighter)";
-@de-border: ~"var(--theme-color-border)";
-@de-brand: ~"var(--theme-color-brand)";
 @de-focus: ~"var(--theme-color-focus-ring)";
+@de-accent: ~"var(--theme-color-link)";
+@de-on-accent: ~"var(--theme-color-text-invert-contrast)";
+@de-accent-hover: ~"color-mix(in srgb, var(--theme-color-link) 86%, var(--theme-color-text-highContrast))";
+@de-accent-soft: ~"color-mix(in srgb, var(--theme-color-link) 11%, var(--theme-color-background-contrast))";
+@de-accent-line: ~"color-mix(in srgb, var(--theme-color-link) 45%, transparent)";
+@de-border: ~"color-mix(in srgb, var(--theme-color-text) 14%, transparent)";
+@de-border-strong: ~"color-mix(in srgb, var(--theme-color-text) 24%, transparent)";
 @de-hover: ~"color-mix(in srgb, var(--theme-color-text) 6%, transparent)";
-@de-selected: ~"color-mix(in srgb, var(--theme-color-brand) 10%, var(--theme-color-background-contrast))";
-@de-shadow: ~"color-mix(in srgb, var(--theme-color-text-highContrast) 22%, transparent)";
+@de-selected: @de-accent-soft;
+@de-shadow: ~"color-mix(in srgb, var(--theme-color-text-highContrast) 18%, transparent)";
 @de-backdrop: ~"color-mix(in srgb, var(--theme-color-text-highContrast) 32%, transparent)";
 @de-warning: @color-orange-brand;
 @de-danger: @color-red-matomo;
 @de-success: @color-green-matomo;
 
+@de-radius: 10px;
+@de-radius-control: 6px;
+@de-control-height: 32px;
+
+.de-eyebrow() {
+  margin: 0;
+  color: @de-text-lighter;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+// buttons and fields of the plugin surfaces, without the core green, shadows and uppercase
+.de-controls() {
+  .btn,
+  button.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: @de-control-height;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: @de-radius-control;
+    background: @de-accent;
+    box-shadow: none;
+    color: @de-on-accent !important;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    transition: background-color .12s ease, border-color .12s ease;
+
+    &:hover,
+    &:focus {
+      background: @de-accent-hover;
+      box-shadow: none;
+      color: @de-on-accent !important;
+    }
+
+    &.btn-flat {
+      border-color: @de-border-strong;
+      background: transparent;
+      color: @de-text !important;
+
+      &:hover,
+      &:focus {
+        background: @de-hover;
+        color: @de-text-strong !important;
+      }
+    }
+
+    &[disabled],
+    &.disabled {
+      border-color: transparent;
+      background: @de-hover !important;
+      color: @de-text-lighter !important;
+    }
+  }
+
+  select.browser-default,
+  input.browser-default {
+    box-sizing: border-box;
+    height: @de-control-height;
+    padding: 0 10px;
+    border: 1px solid @de-border-strong;
+    border-radius: @de-radius-control;
+    background-color: @de-surface;
+    box-shadow: none;
+    color: @de-text;
+    font-size: 13px;
+    transition: border-color .12s ease;
+
+    &:hover {
+      border-color: @de-text-lighter;
+    }
+
+    &:focus {
+      border-color: @de-accent;
+      outline: 2px solid @de-accent-line;
+      outline-offset: 0;
+    }
+  }
+
+  button:focus-visible,
+  [tabindex="0"]:focus-visible {
+    outline: 2px solid @de-focus;
+    outline-offset: 1px;
+  }
+}
+
+.dataExplorer,
+.dataExplorerPanel,
+.dataExplorerSaveDialog {
+  .de-controls();
+}
+
 .dataExplorer {
   color: @de-text;
+  font-size: 13px;
 }
 
 .dataExplorerVisuallyHidden {
@@ -35,32 +141,64 @@
   white-space: nowrap;
 }
 
+.dataExplorerIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: @de-radius-control;
+  background: none;
+  color: @de-text-lighter;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+
+  &:hover {
+    background: @de-hover;
+    color: @de-text-strong;
+  }
+}
+
+// toolbar: tabs, report picker, save
 .dataExplorer__toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px 24px;
+  gap: 12px 20px;
   margin-bottom: 16px;
 }
 
 .dataExplorer__tabs {
-  display: flex;
-  border-bottom: 1px solid @de-border;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: @de-hover;
 }
 
 .dataExplorer__tab {
-  background: none;
+  height: 28px;
+  padding: 0 14px;
   border: 0;
-  border-bottom: 3px solid transparent;
-  padding: 8px 16px;
-  cursor: pointer;
+  border-radius: @de-radius-control;
+  background: none;
   color: @de-text-light;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+
+  &:hover {
+    color: @de-text-strong;
+  }
 
   &.is-active {
-    color: @de-text;
-    border-bottom-color: @de-brand;
-    font-weight: 500;
+    background: @de-surface;
+    box-shadow: 0 1px 2px @de-shadow;
+    color: @de-text-strong;
   }
 }
 
@@ -76,20 +214,12 @@
 }
 
 .dataExplorer__reportsLabel {
-  font-size: 14px;
-  color: @de-text-light;
+  color: @de-text-lighter;
+  font-size: 13px;
 }
 
 .dataExplorer__save {
   margin-left: auto;
-}
-
-.dataExplorer button:focus-visible,
-.dataExplorer [tabindex="0"]:focus-visible,
-.dataExplorerPanel button:focus-visible,
-.dataExplorerSaveDialog button:focus-visible {
-  outline: 2px solid @de-focus;
-  outline-offset: 1px;
 }
 
 // one surface, the columns only separated by a 1px line, the exploration about two thirds wide
@@ -98,7 +228,7 @@
   grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(0, 4fr);
   align-items: stretch;
   border: 1px solid @de-border;
-  border-radius: 4px;
+  border-radius: @de-radius;
   background: @de-surface;
 }
 
@@ -140,14 +270,15 @@
   padding: 14px 16px;
   border-bottom: 1px solid @de-border;
   color: @de-text-strong;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
 }
 
 // sections inside a column, separated by a 1px line
 .dataExplorerVariables__section,
 .dataExplorerSettings__section {
-  padding: 12px 16px;
+  padding: 14px 16px;
 }
 
 .dataExplorerVariables__section + .dataExplorerVariables__section,
@@ -155,72 +286,40 @@
   border-top: 1px solid @de-border;
 }
 
-.dataExplorerSettings > .dataExplorerDropZone {
-  margin: 12px 16px 0;
-}
-
-// the canvas keeps about a 4:3 aspect so the charts are not squeezed, a long table makes it taller
-.dataExplorerCanvas {
-  display: flex;
-  flex-direction: column;
-  aspect-ratio: 4 / 3;
-
-  > :not(.dataExplorerCanvas__header) {
-    margin-left: 16px;
-    margin-right: 16px;
-  }
-}
-
-.dataExplorerIconButton {
-  background: none;
-  border: 0;
-  padding: 2px 4px;
-  cursor: pointer;
-  color: @de-text-light;
-  line-height: 1;
-
-  &:hover {
-    color: @de-text;
-  }
-}
-
 // variables column
-
 .dataExplorerVariables__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 
   h4 {
-    font-size: 13px;
-    font-weight: 500;
-    text-transform: uppercase;
-    color: @de-text-light;
-    margin: 0;
+    .de-eyebrow();
   }
 }
 
 .dataExplorerVariables__list {
-  margin: 6px 0 0 0;
+  margin: 8px 0 0 0;
   padding: 0;
   list-style: none;
 }
 
 .dataExplorerVariables__empty {
-  font-size: 13px;
-  color: @de-text-lighter;
   padding: 4px 0;
+  color: @de-text-lighter;
+  font-size: 13px;
 }
 
 .dataExplorerVariable {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 6px;
+  min-height: 30px;
   margin-bottom: 2px;
-  border-radius: 3px;
-  cursor: grab;
+  padding: 2px 4px 2px 10px;
+  border-radius: @de-radius-control;
   font-size: 13px;
+  cursor: grab;
+  transition: background-color .12s ease;
 
   &:hover {
     background: @de-hover;
@@ -228,10 +327,20 @@
 
   &.is-used {
     background: @de-selected;
+    color: @de-text-strong;
   }
 
   &.is-incompatible {
-    opacity: .55;
+    color: @de-text-lighter;
+  }
+
+  .dataExplorerVariable__remove {
+    opacity: 0;
+  }
+
+  &:hover .dataExplorerVariable__remove,
+  &:focus-within .dataExplorerVariable__remove {
+    opacity: 1;
   }
 }
 
@@ -271,9 +380,9 @@ html.dataExplorer-panel-open {
   height: 100dvh;
   border-left: 1px solid @de-border;
   background: @de-surface;
+  box-shadow: -16px 0 40px -16px @de-shadow;
   color: @de-text;
-  box-shadow: -12px 0 32px -12px @de-shadow;
-  font-size: 14px;
+  font-size: 13px;
   text-align: left;
 }
 
@@ -294,7 +403,8 @@ html.dataExplorer-panel-open {
   min-width: 0;
   margin: 0;
   padding: 0;
-  font-size: 1rem;
+  color: @de-text-strong;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.3;
   text-transform: none;
@@ -302,26 +412,24 @@ html.dataExplorer-panel-open {
 
 .dataExplorerPanel__close {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  font-size: 16px;
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
 }
 
 .dataExplorerPanel__search {
   flex-shrink: 0;
-  padding: .75rem 1.25rem .5rem;
+  padding: 14px 1.25rem 10px;
 
   input {
     width: 100%;
-    box-sizing: border-box;
-    padding: 8px 10px;
   }
 }
 
 .dataExplorerPanel__count {
-  margin: 6px 0 0 0;
-  font-size: 12px;
+  margin: 8px 0 0 0;
   color: @de-text-lighter;
+  font-size: 12px;
 }
 
 .dataExplorerPanel__body {
@@ -354,8 +462,10 @@ html.dataExplorer-panel-open {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 10px 4px;
+  margin: 2px 0;
+  padding: 9px 6px;
   border: 0;
+  border-radius: @de-radius-control;
   background: none;
   color: @de-text-strong;
   font: inherit;
@@ -378,14 +488,19 @@ html.dataExplorer-panel-open {
 }
 
 .dataExplorerPanel__categoryCount {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: @de-hover;
   color: @de-text-lighter;
-  font-size: 12px;
-  font-weight: normal;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
 }
 
 .dataExplorerPanel__chevron {
   color: @de-text-lighter;
-  font-size: 12px;
+  font-size: 11px;
   transition: transform .15s ease;
 }
 
@@ -398,14 +513,16 @@ html.dataExplorer-panel-open {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 8px 7px 16px;
+  min-height: 32px;
+  padding: 6px 8px 6px 16px;
   border: 0;
-  border-radius: 3px;
+  border-radius: @de-radius-control;
   background: none;
   color: @de-text;
   font-size: 13px;
   text-align: left;
   cursor: pointer;
+  transition: background-color .12s ease;
 
   &:hover {
     background: @de-hover;
@@ -413,6 +530,7 @@ html.dataExplorer-panel-open {
 
   &.is-added {
     background: @de-selected;
+    color: @de-text-strong;
   }
 
   &.is-incompatible {
@@ -428,7 +546,7 @@ html.dataExplorer-panel-open {
 
 .dataExplorerPanel__check {
   flex-shrink: 0;
-  color: @de-brand;
+  color: @de-accent;
   font-size: 12px;
 }
 
@@ -457,89 +575,105 @@ html.dataExplorer-panel-open {
   opacity: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dataExplorerPanel__chevron,
-  .dataExplorerPanel-enter-active,
-  .dataExplorerPanel-leave-active,
-  .dataExplorerPanelBackdrop-enter-active,
-  .dataExplorerPanelBackdrop-leave-active {
-    transition: none;
-  }
-}
-
 // tab settings column
-.dataExplorerSettings__section {
-  h4 {
-    font-size: 13px;
-    font-weight: 500;
-    text-transform: uppercase;
-    color: @de-text-light;
-    margin: 0 0 6px 0;
-  }
-}
-
-.dataExplorerVisualizations {
-  display: flex;
-  gap: 4px;
-}
-
-.dataExplorerVisualizations__button {
-  font-size: 18px;
-  padding: 6px 8px;
-  border: 1px solid @de-border;
-  border-radius: 3px;
-
-  &.is-active {
-    color: @de-brand;
-    border-color: @de-brand;
-  }
+.dataExplorerSettings__section h4 {
+  .de-eyebrow();
+  margin-bottom: 8px;
 }
 
 .dataExplorerSettings__hint {
+  margin: -4px 0 12px 0;
+  color: @de-text-lighter;
   font-size: 12px;
+}
+
+// visualization and cell type pickers: segmented controls
+.dataExplorerVisualizations,
+.dataExplorerCellTypes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: @de-hover;
+}
+
+.dataExplorerVisualizations__button,
+.dataExplorerCellTypes__button {
+  height: 28px;
+  border: 0;
+  border-radius: @de-radius-control;
+  background: none;
   color: @de-text-light;
-  margin: -6px 0 12px 0;
+  cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+
+  &:hover {
+    background: none;
+    color: @de-text-strong;
+  }
+
+  &.is-active {
+    background: @de-surface;
+    box-shadow: 0 1px 2px @de-shadow;
+    color: @de-accent;
+  }
+}
+
+.dataExplorerVisualizations__button {
+  min-width: 34px;
+  padding: 0 8px;
+  font-size: 16px;
+}
+
+.dataExplorerCellTypes__button {
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+// drop zones: a light dashed outline, the chips inside
+.dataExplorerSettings > .dataExplorerDropZone {
+  margin: 12px 16px 0;
 }
 
 .dataExplorerDropZone {
-  border: 1px dashed @de-border;
-  border-radius: 4px;
-  padding: 8px;
-  margin-bottom: 12px;
   position: relative;
+  padding: 10px;
+  border: 1px dashed @de-border-strong;
+  border-radius: 8px;
+  transition: border-color .12s ease, background-color .12s ease;
 
   &.is-accepting {
-    border-color: @de-brand;
+    border-color: @de-accent-line;
   }
 
   &.is-over {
     border-style: solid;
-    background: @de-hover;
+    border-color: @de-accent;
+    background: @de-selected;
   }
 
   &.is-disabled {
-    opacity: .6;
+    opacity: .55;
   }
 }
 
 .dataExplorerDropZone__header {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
 
   h4 {
-    font-size: 13px;
-    font-weight: 500;
-    text-transform: uppercase;
-    color: @de-text-light;
-    margin: 0 0 6px 0;
+    .de-eyebrow();
   }
 }
 
 .dataExplorerDropZone__count,
 .dataExplorerDropZone__hint {
-  font-size: 12px;
   color: @de-text-lighter;
+  font-size: 12px;
 }
 
 .dataExplorerDropZone__hint {
@@ -547,6 +681,9 @@ html.dataExplorer-panel-open {
 }
 
 .dataExplorerDropZone__chips {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -555,11 +692,12 @@ html.dataExplorer-panel-open {
 .dataExplorerChip {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
-  margin-bottom: 4px;
-  border-radius: 3px;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 4px 0 10px;
+  border-radius: @de-radius-control;
   background: @de-selected;
+  color: @de-text-strong;
   font-size: 13px;
 
   &.is-incompatible {
@@ -569,149 +707,152 @@ html.dataExplorer-panel-open {
       color: @de-warning;
     }
   }
+
+  .dataExplorerChip__remove {
+    min-width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
 }
 
 .dataExplorerDropZone__select {
   width: 100%;
-  text-align: left;
-  background: none;
-  border: 0;
+  min-height: 28px;
   padding: 4px 6px;
-  cursor: pointer;
+  border: 0;
+  border-radius: @de-radius-control;
+  background: none;
   color: @de-text-lighter;
   font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: @de-hover;
+    color: @de-text;
+  }
 }
 
 .dataExplorerDropZone__menu {
   position: absolute;
   z-index: 20;
-  left: 0;
   right: 0;
-  max-height: 260px;
+  left: 0;
+  max-height: 280px;
   overflow-y: auto;
-  margin: 2px 0 0 0;
-  padding: 4px 0;
-  list-style: none;
+  margin: 4px 0 0 0;
+  padding: 4px;
   border: 1px solid @de-border;
-  border-radius: 4px;
+  border-radius: 8px;
   background: @de-surface;
-  box-shadow: 0 4px 16px @de-shadow;
+  box-shadow: 0 8px 24px @de-shadow;
+  list-style: none;
 
   button {
     display: block;
     width: 100%;
-    text-align: left;
-    background: none;
+    padding: 6px 10px;
     border: 0;
-    padding: 4px 10px;
-    cursor: pointer;
+    border-radius: @de-radius-control;
+    background: none;
     color: @de-text;
     font-size: 13px;
+    text-align: left;
+    cursor: pointer;
 
     &:hover:not(:disabled) {
       background: @de-hover;
     }
 
     &:disabled {
-      cursor: not-allowed;
       color: @de-text-lighter;
+      cursor: not-allowed;
     }
   }
 }
 
 .dataExplorerDropZone__menuEmpty {
-  padding: 4px 10px;
+  padding: 6px 10px;
   color: @de-text-lighter;
   font-size: 13px;
 }
 
 .dataExplorerFilters {
-  margin: 6px 16px 0;
+  margin: 8px 16px 0;
   padding: 0;
   list-style: none;
 }
 
 .dataExplorerFilter {
-  border: 1px solid @de-border;
-  border-radius: 3px;
-  padding: 6px;
   margin-bottom: 6px;
+  padding: 8px;
+  border: 1px solid @de-border;
+  border-radius: 8px;
 
   &.is-incompatible {
-    border-color: @de-warning;
+    box-shadow: inset 3px 0 0 @de-warning;
   }
 }
 
 .dataExplorerFilter__header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  color: @de-text-strong;
   font-size: 13px;
 }
 
 .dataExplorerFilter__reason {
-  font-size: 12px;
-  color: @de-text-light;
   margin: 2px 0;
+  color: @de-text-lighter;
+  font-size: 12px;
 }
 
 .dataExplorerFilter__fields {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 6px;
 
   select,
   input {
     width: 100%;
-    height: auto;
-    padding: 4px 6px;
-    font-size: 13px;
   }
 }
 
-// cell types: buttons in the tab settings, bucketed cells in the canvas table
-.dataExplorerCellTypes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.dataExplorerCellTypes__button {
-  background: none;
-  border: 1px solid @de-border;
-  border-radius: 3px;
-  padding: 4px 8px;
-  cursor: pointer;
-  color: @de-text-light;
-  font-size: 12px;
-
-  &.is-active {
-    color: @de-brand;
-    border-color: @de-brand;
-  }
-}
-
+// cell types of the canvas table: bars and heat buckets
 .dataExplorerCellBuckets(@i) when (@i > 0) {
   .dataExplorerResult .dataExplorerCell--bar-@{i} {
     background-image: linear-gradient(to left, @de-cell-bar 0%, @de-cell-bar unit(@i * 10, %), transparent unit(@i * 10, %));
   }
 
-  // at most half the brand color, so the theme text stays readable on every bucket
+  // at most half the accent, so the theme text stays readable on every bucket
   @heat: unit((@i * 5), %);
 
   .dataExplorerResult .dataExplorerCell--heat-@{i} {
-    background-color: ~"color-mix(in srgb, var(--theme-color-brand) @{heat}, transparent)";
+    background-color: ~"color-mix(in srgb, var(--theme-color-link) @{heat}, transparent)";
   }
 
   .dataExplorerCellBuckets(@i - 1);
 }
 
-@de-cell-bar: ~"color-mix(in srgb, var(--theme-color-brand) 28%, transparent)";
+@de-cell-bar: ~"color-mix(in srgb, var(--theme-color-link) 22%, transparent)";
 
 .dataExplorerCellBuckets(10);
 
 // canvas
+.dataExplorerCanvas {
+  display: flex;
+  flex-direction: column;
+  // about a 4:3 aspect so the charts are not squeezed, a long table makes it taller
+  aspect-ratio: 4 / 3;
+
+  > :not(.dataExplorerCanvas__header) {
+    margin-right: 20px;
+    margin-left: 20px;
+  }
+}
+
 .dataExplorerCanvas__header {
   display: flex;
   align-items: center;
@@ -722,15 +863,16 @@ html.dataExplorer-panel-open {
 
   .dataExplorerColumn__title {
     flex: 1;
+    padding-left: 20px;
     border-bottom: 0;
   }
 }
 
 .dataExplorerCanvas__context {
   margin-top: 0;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   color: @de-text-lighter;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .dataExplorerCanvas__period {
@@ -744,13 +886,15 @@ html.dataExplorer-panel-open {
   cursor: pointer;
 
   &:hover {
-    color: @de-text;
+    color: @de-accent;
   }
 }
 
 // a new result loads over the previous one, dimmed, so the canvas never blanks or jumps
 .dataExplorerCanvas__result {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
   transition: opacity .15s ease;
 
@@ -758,65 +902,112 @@ html.dataExplorer-panel-open {
     opacity: .45;
     pointer-events: none;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .dataExplorerCanvas__result {
-    transition: none;
+  .dataExplorerChart {
+    flex: 1;
+    min-height: 320px;
+  }
+
+  .dataExplorerChart__canvas {
+    height: 100%;
+    min-height: 320px;
   }
 }
 
 .dataExplorerCanvas__hint {
-  color: @de-text-light;
-  padding: 24px 0;
+  padding: 48px 0;
+  color: @de-text-lighter;
   text-align: center;
 }
 
 .dataExplorerCanvas__table {
-  overflow-x: auto;
   max-height: 640px;
-  overflow-y: auto;
+  overflow: auto;
+  border: 1px solid @de-border;
+  border-radius: 8px;
 }
 
-.dataExplorerResult {
+// result table: quiet header, hairline rows, no zebra
+.dataExplorer table.entityTable.dataExplorerResult {
   width: 100%;
+  margin: 0;
+  border: 0;
+  border-collapse: separate;
+  border-spacing: 0;
 
-  th {
+  thead tr th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 10px 14px !important;
+    border-bottom: 1px solid @de-border;
+    background: @de-surface;
+    color: @de-text-lighter;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
     white-space: nowrap;
   }
 
+  tbody tr td {
+    padding: 9px 14px !important;
+    border-bottom: 1px solid @de-border !important;
+    background-color: transparent;
+    color: @de-text;
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0 !important;
+  }
+
+  tbody tr:hover td {
+    background-color: @de-hover;
+  }
+
   .dataExplorerResult__metric {
-    text-align: right;
+    text-align: right !important;
+    font-variant-numeric: tabular-nums;
   }
 
   .dataExplorerResult__pivot {
-    text-align: center;
     border-bottom: 1px solid @de-border;
+    text-align: center !important;
   }
 }
 
 .dataExplorerResult__sort {
-  background: none;
-  border: 0;
   padding: 0;
-  cursor: pointer;
+  border: 0;
+  background: none;
   color: inherit;
   font: inherit;
+  letter-spacing: inherit;
   text-transform: inherit;
+  cursor: pointer;
+
+  &:hover {
+    color: @de-text-strong;
+  }
 
   span {
     margin-left: 4px;
-    font-size: 10px;
+    font-size: 9px;
   }
 }
 
 .dataExplorerCanvas__kpi {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
   text-align: center;
 }
 
 .dataExplorerCanvas__kpiName {
-  font-size: 14px;
-  color: @de-text-light;
+  .de-eyebrow();
   margin-bottom: 8px;
 }
 
@@ -824,28 +1015,54 @@ html.dataExplorer-panel-open {
 .dataExplorerSql__layout {
   display: grid;
   grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
-  gap: 12px;
   align-items: start;
+  border: 1px solid @de-border;
+  border-radius: @de-radius;
+  background: @de-surface;
+
+  > * {
+    min-width: 0;
+    padding: 0 0 16px;
+  }
+
+  > * > :not(.dataExplorerColumn__title) {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+
+  > * > .dataExplorerColumn__title {
+    margin-bottom: 14px;
+  }
+
+  > * + * {
+    border-left: 1px solid @de-border;
+  }
 }
 
 @media (max-width: 900px) {
   .dataExplorerSql__layout {
     grid-template-columns: minmax(0, 1fr);
+
+    > * + * {
+      border-left: 0;
+      border-top: 1px solid @de-border;
+    }
   }
 }
 
 .dataExplorerSql__help,
 .dataExplorerSchema__help {
+  margin: 0 0 10px 0;
+  color: @de-text-lighter;
   font-size: 13px;
-  color: @de-text-light;
-  margin: 0 0 8px 0;
 }
 
 .dataExplorerSql__codemirror {
   min-height: 180px;
   max-height: 480px;
-  border-radius: 6px;
   overflow: hidden;
+  border: 1px solid @de-border;
+  border-radius: 8px;
   font-size: 13px;
 
   .cm-scroller {
@@ -853,7 +1070,8 @@ html.dataExplorer-panel-open {
   }
 
   &.cm-focused {
-    outline: 2px solid @de-brand;
+    border-color: @de-accent;
+    outline: 2px solid @de-accent-line;
   }
 }
 
@@ -882,13 +1100,13 @@ html.dataExplorer-panel-open {
 }
 
 .dataExplorerSql__valid {
-  color: @de-success;
   margin: 0;
+  color: @de-success;
 }
 
 .dataExplorerSql__checking {
-  color: @de-text-light;
   margin: 0;
+  color: @de-text-lighter;
 }
 
 .dataExplorerSql__actions {
@@ -900,56 +1118,62 @@ html.dataExplorer-panel-open {
 }
 
 .dataExplorerSql__count {
+  color: @de-text-lighter;
   font-size: 13px;
-  color: @de-text-light;
 }
 
 .dataExplorerSchema__search {
   width: 100%;
-  padding: 6px 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .dataExplorerSchema__tables {
+  max-height: 560px;
+  overflow-y: auto;
   margin: 0;
   padding: 0;
   list-style: none;
-  max-height: 560px;
-  overflow-y: auto;
 
   summary {
-    cursor: pointer;
-    padding: 3px 0;
+    padding: 4px 6px;
+    border-radius: @de-radius-control;
     font-family: var(--om-code-font);
-    font-size: 13px;
+    font-size: 12px;
+    cursor: pointer;
+
+    &:hover {
+      background: @de-hover;
+    }
   }
 }
 
 .dataExplorerSchema__columns {
-  margin: 0 0 6px 12px;
+  margin: 0 0 6px 14px;
   padding: 0;
   list-style: none;
 }
 
 .dataExplorerSchema__column,
 .dataExplorerSchema__insert {
-  background: none;
+  padding: 2px 6px;
   border: 0;
-  padding: 1px 4px;
-  cursor: pointer;
+  border-radius: 4px;
+  background: none;
   color: @de-text;
   font-family: var(--om-code-font);
   font-size: 12px;
+  cursor: pointer;
 
   &:hover {
-    color: @de-brand;
+    background: @de-hover;
+    color: @de-accent;
   }
 }
 
 .dataExplorerSchema__insert {
   margin-left: 8px;
+  color: @de-text-lighter;
   font-family: inherit;
-  color: @de-text-light;
 }
 
 // save dialog
@@ -957,7 +1181,7 @@ html.dataExplorer-panel-open {
   text-align: left;
 
   .dataExplorerSaveDialog__reportType {
-    color: @de-text-light;
+    color: @de-text-lighter;
   }
 }
 
@@ -965,5 +1189,14 @@ html.dataExplorer-panel-open {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dataExplorer *,
+  .dataExplorerPanel,
+  .dataExplorerPanel *,
+  .dataExplorerPanelBackdrop {
+    transition: none !important;
+  }
 }

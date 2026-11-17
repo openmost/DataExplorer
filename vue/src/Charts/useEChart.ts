@@ -70,7 +70,8 @@ function cssVariable(style: CSSStyleDeclaration, name: string, fallback = ''): s
  */
 export function chartTheme(): ChartTheme {
   const style = window.getComputedStyle(document.documentElement);
-  const base = cssVariable(style, '--theme-color-base-series', FALLBACK_SERIES[0]);
+  // the accent of the explorer (theme link color) leads, like the rest of the plugin surfaces
+  const base = cssVariable(style, '--theme-color-link', FALLBACK_SERIES[0]);
 
   return {
     // read here so that computed chart options follow theme mode changes
