@@ -959,7 +959,7 @@ export default defineComponent({
       notice.value = event.isNew
         ? translate('DataExplorer_ReportCreated')
         : translate('DataExplorer_ReportUpdated');
-      // the reporting menu is loaded once per page: without this the new page shows after a reload only
+      // the reporting menu is loaded once per page, a new report page would wait for a reload
       ReportingMenuStore.reloadMenuItems();
       loadReports().then(() => {
         const report = reports.value.find((item) => item.idreport === event.idReport);
