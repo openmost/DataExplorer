@@ -226,7 +226,9 @@ export default defineComponent({
         ? category.subcategories.find((item) => item.id === report.subcategory)
         : undefined;
       const categoryName = category ? category.name : categoryId;
-      return `${categoryName} > ${subcategory ? subcategory.name : report.subcategory}`;
+      // a report saved without a page has a page of its own, named after it
+      const pageName = report.subcategory === '' ? report.name : report.subcategory;
+      return `${categoryName} > ${subcategory ? subcategory.name : pageName}`;
     }
 
     function sitesText(report: SavedReport) {

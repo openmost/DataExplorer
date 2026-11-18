@@ -57,13 +57,9 @@
 
 .dataExplorer,
 .dataExplorerPanel,
-.dataExplorerSaveDialog {
-  .de-controls();
-}
-
 // Materialize paints every focused button teal; :where keeps the specificity of its own rule so
 // the state rules of the plugin (active tab, hover) still win
-:where(.dataExplorer, .dataExplorerPanel, .dataExplorerSaveDialog) button:focus {
+:where(.dataExplorer, .dataExplorerPanel) button:focus {
   background-color: transparent;
 }
 
@@ -164,17 +160,50 @@
 }
 
 // one surface, the columns only separated by a 1px line, the exploration about two thirds wide
+// the tool runs the full width of the Matomo card: the padding of the card is cancelled like the report
+// tables do, a line separates it from the toolbar above
+.de-card-flush() {
+  margin: 0 -20px -20px;
+  border-top: 1px solid @de-border;
+  // the bottom corners of the card (8px, inside its 1px border)
+  border-radius: 0 0 7px 7px;
+  background: @de-surface;
+}
+
 .dataExplorer__columns {
+  .de-card-flush();
+
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(0, 4fr);
   align-items: stretch;
-  border: 1px solid @de-border;
-  border-radius: @de-radius;
-  background: @de-surface;
 }
 
 .dataExplorerColumn + .dataExplorerColumn {
   border-left: 1px solid @de-border;
+}
+
+// the lines of the variables and of the report settings meet: both columns share the rows of the grid (the
+// headers, then each section facing one setting), the last variables section runs to the bottom; the last
+// row is flexible, so the canvas height never stretches the rows above
+@media (min-width: 1101px) {
+  .dataExplorer__columns {
+    grid-template-rows: repeat(8, auto) 1fr;
+  }
+
+  .dataExplorerVariables,
+  .dataExplorerSettings {
+    display: grid;
+    grid-row: ~"1 / -1";
+    grid-template-rows: subgrid;
+  }
+
+  .dataExplorerVariables__section:last-child {
+    grid-row: ~"4 / -1";
+  }
+
+  .dataExplorerCanvas {
+    grid-row: ~"1 / -1";
+  }
 }
 
 @media (max-width: 1100px) {
@@ -1010,119 +1039,30 @@ button.dataExplorerCanvas__period {
   }
 }
 
-// the Matomo loader over the dimmed previous result, centred in the canvas
+// the native report widget of the exploration, flush with the canvas borders
 .dataExplorerCanvas__stage {
-  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  // the widget brings its own paddings
+  margin-right: 0 !important;
+  margin-left: 0 !important;
 }
 
-.dataExplorerCanvas__loading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-// a new result loads over the previous one, dimmed, so the canvas never blanks or jumps
-.dataExplorerCanvas__result {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  padding-top: 16px;
-  padding-bottom: 16px;
-
-  // the table runs from the header down to the bottom border of the canvas
-  &.is-table {
-    padding-top: 0;
-    padding-bottom: 0;
-  }
-  transition: opacity .15s ease;
-
-  &.is-stale {
-    opacity: .45;
-    pointer-events: none;
-  }
-
-  .dataExplorerChart {
-    flex: 1;
-    min-height: 320px;
-  }
-
-  .dataExplorerChart__canvas {
-    height: 100%;
-    min-height: 320px;
-  }
+// the padding of a Matomo card, which the report table cancels with its own margins to reach the borders;
+// a line closes the report where it ends, above the empty part of the canvas
+.dataExplorerCanvas__widget {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid @de-border;
 }
 
 .dataExplorerCanvas__hint {
   padding: 48px 0;
   color: @de-text-lighter;
   text-align: center;
-}
-
-// the table fills the canvas down to its bottom and scrolls inside; absolutely placed, its rows do not
-// make the grid row taller than the other columns
-.dataExplorerCanvas__table {
-  position: relative;
-  flex: 1 1 0;
-  min-height: 320px;
-
-  .dataTableScroller {
-    position: absolute;
-    inset: 0;
-    overflow: auto;
-  }
-}
-
-// result table: the report table of Matomo (table.dataTable), only the pivot header and the cell
-// types are the plugin's own
-.dataExplorer table.dataTable.dataExplorerResult {
-  .dataExplorerResult__pivot {
-    text-align: center;
-  }
-
-  .dataExplorerResult__metric {
-    font-variant-numeric: tabular-nums;
-  }
-}
-
-.dataExplorerResult__sort {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-
-  &:hover {
-    color: @de-text-strong;
-  }
-
-  span {
-    margin-left: 4px;
-    font-size: 9px;
-  }
-}
-
-.dataExplorerCanvas__kpi {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.dataExplorerCanvas__kpiName {
-  .de-eyebrow();
-  margin-bottom: 8px;
 }
 
 // raw SQL tab
@@ -1132,9 +1072,7 @@ button.dataExplorerCanvas__period {
   align-items: stretch;
   // the editor and the table list use the height of the screen, the results below add to it
   min-height: ~"max(560px, calc(100vh - 320px))";
-  border: 1px solid @de-border;
-  border-radius: @de-radius;
-  background: @de-surface;
+  .de-card-flush();
 
   > * {
     min-width: 0;
@@ -1321,20 +1259,114 @@ button.dataExplorerCanvas__period {
   font-family: inherit;
 }
 
-// save dialog
-.dataExplorerSaveDialog {
-  text-align: left;
+// form side panels (SidePanel.vue): save report, save as custom report
+.dataExplorerFormPanel {
+  .de-controls();
 
-  .dataExplorerSaveDialog__reportType {
-    color: @de-text-lighter;
+  width: ~"min(480px, 100vw)";
+}
+
+.dataExplorerFormPanel__body {
+  padding-top: 1rem;
+}
+
+.dataExplorerFormPanel__actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 1.25rem;
+  border-top: 1px solid @de-border;
+}
+
+.dataExplorerSaveDialog__reportType {
+  color: @de-text-lighter;
+}
+
+// websites of a report: the chosen ones as chips, a search over a list to tick
+.dataExplorerSitePicker {
+  margin: 0 .75rem 24px;
+}
+
+.dataExplorerSitePicker__label {
+  margin-bottom: 8px;
+  color: @de-text-lighter;
+  font-size: 13px;
+}
+
+.dataExplorerSitePicker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.dataExplorerSitePicker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 4px 0 12px;
+  border-radius: 14px;
+  background: @de-accent-soft;
+  color: @de-text-strong;
+  font-size: 13px;
+}
+
+.dataExplorerSitePicker__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: @de-text-light;
+  font-size: 10px;
+  cursor: pointer;
+
+  &:hover {
+    background: @de-hover;
+    color: @de-text-strong;
   }
 }
 
-.dataExplorerSaveDialog__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 20px;
+.dataExplorerSitePicker__list {
+  max-height: 220px;
+  margin: 8px 0 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  border: 1px solid @de-border;
+  border-radius: @de-radius-control;
+  list-style: none;
+
+  li {
+    margin: 0;
+  }
+}
+
+// the Matomo checkbox (label > input + span), one row per website
+.dataExplorerSitePicker__option {
+  display: block;
+  padding: 6px 12px;
+  color: @de-text;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    background: @de-hover;
+  }
+}
+
+.dataExplorerSitePicker__empty {
+  padding: 6px 12px;
+  color: @de-text-lighter;
+  font-size: 13px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1361,48 +1393,6 @@ button.dataExplorerCanvas__period {
   color: @de-text-strong;
   font-size: 12px;
   white-space: pre;
-}
-
-// export of the canvas: a menu under the download button
-.dataExplorerCanvas__export {
-  position: relative;
-  align-self: center;
-}
-
-.dataExplorerCanvas__exportButton {
-  min-width: 32px;
-  height: 32px;
-  font-size: 16px;
-}
-
-.dataExplorerCanvas__exportMenu {
-  right: 0;
-  left: auto;
-  min-width: 140px;
-}
-
-// PDF export: the browser prints the canvas only
-@media print {
-  html.dataExplorer-printing body * {
-    visibility: hidden;
-  }
-
-  html.dataExplorer-printing .dataExplorerCanvas,
-  html.dataExplorer-printing .dataExplorerCanvas * {
-    visibility: visible;
-  }
-
-  html.dataExplorer-printing .dataExplorerCanvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-  }
-
-  html.dataExplorer-printing .dataExplorerCanvas__export,
-  html.dataExplorer-printing .dataExplorerCanvas__loading {
-    display: none;
-  }
 }
 
 // manage explorations page
@@ -1435,32 +1425,6 @@ button.dataExplorerCanvas__period {
   padding-top: 16px;
 }
 
-// hierarchical view of the result table: a "+" opens the rows of the next dimension
-.dataExplorerResult__treeLabel {
-  white-space: nowrap;
-}
-
-.dataExplorerResult__toggle {
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: @de-text-lighter;
-  font-size: 11px;
-  vertical-align: middle;
-  cursor: pointer;
-
-  &:hover {
-    color: @de-text-strong;
-  }
-}
-
-.dataExplorerResult tr[class^="level"]:not(.level0) .dataExplorerResult__treeLabel > span:last-child {
-  color: @de-text-light;
-}
-
 // report picker of the toolbar: the Matomo select, inline
 .dataExplorer__reports {
   .matomo-form-field.row {
@@ -1486,7 +1450,7 @@ button.dataExplorerCanvas__period {
 }
 
 .dataExplorerCustomReport__help {
-  margin-bottom: 12px;
+  margin: 0 0 12px;
 }
 
 .dataExplorerCustomReport__warning {

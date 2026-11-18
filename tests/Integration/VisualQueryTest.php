@@ -548,6 +548,23 @@ class VisualQueryTest extends IntegrationTestCase
         API::getInstance()->runVisual(1, 'range', self::RANGE, $definition);
     }
 
+    public function test_api_runVisual_opensTheHierarchicalViewOneLevelAtATime_andTheFlatViewWhole(): void
+    {
+        $definition = json_encode(['rows' => [self::COUNTRY, self::DEVICE], 'metrics' => ['nb_visits']]);
+
+        $first = API::getInstance()->runVisual(1, 'range', self::RANGE, $definition);
+        $france = $first->getRowFromLabel('France');
+        $this->assertFalse($france->getSubtable(), 'children are not loaded with the first level');
+        $this->assertGreaterThan(0, $france->getIdSubDataTable());
+
+        $children = API::getInstance()->runVisual(1, 'range', self::RANGE, $definition, '', (int) $france->getIdSubDataTable());
+        $this->assertNotEmpty($children->getRowsCount());
+        $this->assertFalse($children->getRowFromLabel('France'));
+
+        $flat = API::getInstance()->runVisual(1, 'range', self::RANGE, $definition, '', 0, true);
+        $this->assertInstanceOf(DataTable::class, $flat->getRowFromLabel('France')->getSubtable());
+    }
+
     public function test_api_runVisual_evolutionOverADateRange_returnsOneTotalPerDay(): void
     {
         $definition = json_encode(['report_type' => 'evolution', 'metrics' => ['nb_visits', 'nb_actions']]);

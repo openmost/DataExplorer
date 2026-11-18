@@ -1,3 +1,0 @@
-{% if vueEntry is defined and chartProps is defined %}
-<div class="dataExplorerChart" vue-entry="{{ vueEntry }}"{% for name, value in chartProps %} {{ name }}="{{ value|json_encode }}"{% endfor %}></div>
-{% endif %}

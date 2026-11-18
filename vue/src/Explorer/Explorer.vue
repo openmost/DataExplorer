@@ -58,7 +58,7 @@
       <button
         v-if="customReports && activeTab === 'explore'"
         type="button"
-        class="btn-flat dataExplorer__saveCustomReport"
+        class="btn btn-outline dataExplorer__saveCustomReport"
         :disabled="!isRunnable"
         @click="customReportOpen = true"
       >{{ translate('DataExplorer_SaveAsCustomReport') }}</button>
@@ -128,20 +128,8 @@
           :segment-text="segmentText"
           @open-period-selector="openPeriodSelector"
           :visualization="state.visualization"
-          :table-view="state.tableView"
-          :tree="resultTree"
-          :loading="loading"
-          :error="runError"
           :hint="hint"
-          :dimension-names="resultDimensionNames"
-          :columns="resultColumnsList"
-          :rows="resultRows"
-          :metric-names="metricNames"
-          :slice="slice"
-          :bar-series="barSeries"
-          :slice-metric-name="metricNames[state.values[0]] || ''"
-          :evolution="evolution"
-          :kpi="kpi"
+          :widget-params="previewParams"
         />
       </div>
     </div>
@@ -207,7 +195,6 @@ import {
   Matomo,
   MatomoUrl,
   Notification,
-  NumberFormatter,
   Periods,
   ReportingMenuStore,
   translate,
@@ -234,24 +221,7 @@ import {
   toDefinition,
 } from './explorationState';
 import { distinctNames } from './catalogNames';
-import {
-  chartSeries,
-  chartSlice,
-  evolutionSeries,
-  flattenRows,
-  treeRows,
-  resultColumns,
-  totalValue,
-} from './resultTable';
 import type {
-  ChartSlice,
-  EvolutionSeries,
-  ResultColumn,
-  ResultRow,
-  TreeRow,
-} from './resultTable';
-import type {
-  ApiRow,
   Catalog,
   DimensionItem,
   ExplorationState,
@@ -269,15 +239,9 @@ import type {
 } from '../types';
 
 const RUN_DELAY_MS = 300;
-const CHART_TOP_ROWS = 10;
 
 type Tab = 'explore' | 'sql';
 type Zone = 'rows' | 'column' | 'values' | 'filters' | 'segment';
-
-interface KpiResult {
-  value: number|null;
-  evolution: EvolutionSeries;
-}
 
 /**
  * The explorer of the "Data Explorer > Explore" page: free-form exploration in three columns
@@ -338,11 +302,8 @@ export default defineComponent({
     const activeTab = ref<Tab>('explore');
     const sqlOpened = ref(false);
 
-    const loading = ref(false);
-    const runError = ref('');
-    const tableRows = ref<ApiRow[]>([]);
-    const evolutionResult = ref<EvolutionSeries|null>(null);
-    const kpiResult = ref<KpiResult|null>(null);
+    // what the canvas loads: the native visualization of the exploration, null while it cannot run
+    const previewParams = ref<Record<string, string>|null>(null);
 
     const notice = ref('');
     const noticeContext = ref<'success'|'warning'|'error'>('success');
@@ -383,14 +344,6 @@ export default defineComponent({
       const map: Record<string, string> = {};
       (catalog.value ? catalog.value.segments : []).forEach((item) => {
         map[item.definition] = item.name;
-      });
-      return map;
-    });
-
-    const metricNames = computed(() => {
-      const map: Record<string, string> = {};
-      Object.values(metricsById.value).forEach((metric) => {
-        map[metric.id] = metric.name;
       });
       return map;
     });
@@ -583,175 +536,29 @@ export default defineComponent({
     const requestDefinition = computed<VisualDefinition>(() => {
       const def = definition.value;
       if (state.visualization === 'bar' || state.visualization === 'pie') {
-        return { ...def, rows: def.rows.slice(0, 1), column: null };
+        return {
+          ...def,
+          rows: def.rows.slice(0, 1),
+          column: null,
+          chart: state.visualization,
+        };
       }
       return def;
     });
 
-    // results
-    const resultDimensionNames = computed(() => requestDefinition.value.rows.map(dimensionName));
-
-    const resultColumnsList = computed<ResultColumn[]>(() => resultColumns(
-      tableRows.value,
-      requestDefinition.value.metrics,
-    ));
-
-    const resultTree = computed<TreeRow[]>(() => treeRows(
-      tableRows.value,
-      requestDefinition.value.rows.length,
-      resultColumnsList.value,
-    ));
-
-    const resultRows = computed<ResultRow[]>(() => flattenRows(
-      tableRows.value,
-      requestDefinition.value.rows.length,
-      resultColumnsList.value,
-    ));
-
-    // an "Others" slice is the sum of its rows: never for a distinct count that the rows share
-    function addsUpAcrossRows(metricId: string): boolean {
-      const metric = metricsById.value[metricId];
-      const dimension = dimensionsById.value[requestDefinition.value.rows[0]];
-      if (!metric || !dimension) {
-        return true;
-      }
-      return (metric.additiveScopes || []).indexOf(dimension.scope) !== -1;
-    }
-
-    const slice = computed<ChartSlice|null>(() => (state.values.length
-      ? chartSlice(
-        tableRows.value,
-        state.values[0],
-        CHART_TOP_ROWS,
-        translate('General_Others'),
-        addsUpAcrossRows(state.values[0]),
-      )
-      : null));
-
-    const barSeries = computed(() => (slice.value
-      ? chartSeries(
-        tableRows.value,
-        slice.value,
-        state.values,
-        translate('General_Others'),
-        addsUpAcrossRows,
-      ).map((line) => ({ name: metricNames.value[line.metric] || line.metric, data: line.data }))
-      : []));
-
-    const evolution = computed(() => evolutionResult.value);
-
-    const kpi = computed(() => {
-      if (!kpiResult.value || !state.values.length) {
-        return null;
-      }
-      const metric = state.values[0];
-      const { value } = kpiResult.value;
-      const [firstSeries] = kpiResult.value.evolution.series;
-      const points = firstSeries ? firstSeries.data : [];
-      let evolutionView = null;
-      if (period.value !== 'range' && points.length >= 2) {
-        const current = points[points.length - 1];
-        const previous = points[points.length - 2];
-        evolutionView = {
-          percent: NumberFormatter.calculateAndFormatEvolution(current, previous),
-          trend: Math.sign(current - previous),
-          tooltip: translate(
-            'DataExplorer_KpiPreviousPeriod',
-            NumberFormatter.formatNumber(previous),
-          ),
-        };
-      }
-      return {
-        metricName: metricName(metric),
-        value: value === null
-          ? ''
-          : NumberFormatter.formatNumber(value, Number.isInteger(value) ? 0 : 2),
-        evolution: evolutionView,
-        sparkline: points,
-        sparklineLabels: kpiResult.value.evolution.labels,
-      };
-    });
-
-    // runs
-    let runTimer: ReturnType<typeof setTimeout>|null = null;
-    let runController: AbortController|null = null;
-    let runSequence = 0;
-
-    function runVisual(def: VisualDefinition, controller: AbortController): Promise<unknown> {
-      return AjaxHelper.post(
-        {
-          method: 'DataExplorer.runVisual',
-          idSite,
+    function run() {
+      previewParams.value = isRunnable.value
+        ? {
+          module: 'DataExplorer',
+          action: 'preview',
+          definition: JSON.stringify(requestDefinition.value),
           period: period.value,
           date: date.value,
-          expanded: 1,
-          filter_limit: -1,
-          format_metrics: 0,
-        },
-        { definition: JSON.stringify(def) },
-        { createErrorNotification: false, abortController: controller },
-      );
+        }
+        : null;
     }
 
-    function run() {
-      if (runController) {
-        runController.abort();
-        runController = null;
-      }
-      runSequence += 1;
-      const sequence = runSequence;
-
-      if (!isRunnable.value) {
-        loading.value = false;
-        runError.value = '';
-        return;
-      }
-
-      const controller = new AbortController();
-      runController = controller;
-      loading.value = true;
-      runError.value = '';
-
-      const def = requestDefinition.value;
-      let request: Promise<void>;
-
-      if (def.report_type === 'evolution') {
-        request = runVisual(def, controller).then((result) => {
-          if (sequence === runSequence) {
-            evolutionResult.value = evolutionSeries(result, def.metrics);
-          }
-        });
-      } else if (def.report_type === 'kpicard') {
-        request = Promise.all([
-          runVisual(def, controller),
-          runVisual({ ...def, report_type: 'evolution' }, controller),
-        ]).then(([value, series]) => {
-          if (sequence === runSequence) {
-            kpiResult.value = {
-              value: totalValue(value, def.metrics[0]),
-              evolution: evolutionSeries(series, def.metrics.slice(0, 1)),
-            };
-          }
-        });
-      } else {
-        request = runVisual(def, controller).then((result) => {
-          if (sequence === runSequence) {
-            tableRows.value = Array.isArray(result) ? result as ApiRow[] : [];
-          }
-        });
-      }
-
-      request.catch((e: Error) => {
-        if (sequence === runSequence) {
-          runError.value = e.message;
-        }
-      }).finally(() => {
-        if (sequence === runSequence) {
-          loading.value = false;
-          runController = null;
-        }
-      });
-    }
+    let runTimer: ReturnType<typeof setTimeout>|null = null;
 
     function scheduleRun() {
       if (runTimer) {
@@ -1100,9 +907,6 @@ export default defineComponent({
       if (runTimer) {
         clearTimeout(runTimer);
       }
-      if (runController) {
-        runController.abort();
-      }
     });
 
     return {
@@ -1111,7 +915,6 @@ export default defineComponent({
       onCustomReportCreated,
       onCustomReportFailed,
       reportOptions,
-      resultTree,
       periodText,
       segmentText,
       openPeriodSelector,
@@ -1126,8 +929,7 @@ export default defineComponent({
       activeTab,
       sqlOpened,
       tabs,
-      loading,
-      runError,
+      previewParams,
       notice,
       noticeContext,
       saveOpen,
@@ -1148,14 +950,6 @@ export default defineComponent({
       hint,
       isRunnable,
       canvasTitle,
-      metricNames,
-      resultDimensionNames,
-      resultColumnsList,
-      resultRows,
-      slice,
-      barSeries,
-      evolution,
-      kpi,
       openableReports,
       onPickReport,
       selectTab,

@@ -188,7 +188,7 @@ class ReadOnlySetupTest extends IntegrationTestCase
             unset($_GET['idSite']);
         }
 
-        $this->assertStringContainsString('CoreHome.ContentBlock', $html);
+        $this->assertStringContainsString('vue-entry="DataExplorer.ReadOnlySetup"', $html);
         $this->assertStringContainsString('GRANT SELECT ON', $html);
         $this->assertStringContainsString('[DataExplorer]', $html);
     }

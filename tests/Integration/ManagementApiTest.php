@@ -13,6 +13,7 @@ namespace Piwik\Plugins\DataExplorer\tests\Integration;
 
 use Piwik\Cache;
 use Piwik\CacheId;
+use Piwik\Category\CategoryList;
 use Piwik\Common;
 use Piwik\Config;
 use Piwik\Date;
@@ -24,6 +25,7 @@ use Piwik\Plugins\API\API as CoreAPI;
 use Piwik\Plugins\DataExplorer\API;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
+use Piwik\Plugins\DataExplorer\Reports\GetSavedReport;
 use Piwik\Plugins\DataExplorer\Sql\RejectedQueryException;
 use Piwik\Tests\Framework\Fixture;
 use Piwik\Tests\Framework\Mock\FakeAccess;
@@ -485,8 +487,6 @@ class ManagementApiTest extends IntegrationTestCase
         $cases = [
             ['Unknown_Category', 'x', Piwik::translate('DataExplorer_ErrorCategoryInvalid')],
             ['General_Visitors', str_repeat('a', 256), Piwik::translate('DataExplorer_ErrorSubcategoryInvalid', [255])],
-            ['General_Visitors', '   ', Piwik::translate('DataExplorer_ErrorSubcategoryRequired')],
-            ['', '', Piwik::translate('DataExplorer_ErrorSubcategoryRequired')],
         ];
         foreach ($cases as [$category, $subcategory, $message]) {
             try {
@@ -496,6 +496,37 @@ class ManagementApiTest extends IntegrationTestCase
                 $this->assertSame($message, $e->getMessage());
             }
         }
+    }
+
+    public function test_withoutPage_theReportGetsItsOwnPage_numberedInTheDataExplorerCategory(): void
+    {
+        $this->as([1], [1]);
+
+        $own = $this->api->addReport('Visits by country', 'visual', 'table', self::VISUAL, '{"sites":[1]}', '', '   ');
+        $elsewhere = $this->api->addReport('Visits elsewhere', 'visual', 'table', self::VISUAL, '{"sites":[1]}', 'General_Visitors', '');
+
+        $this->assertSame('', (new ReportsDao())->get($own)['subcategory']);
+        // numeric like goals and custom reports, so the menu collapses them into a searchable list past 5
+        $this->assertSame((string) $own, GetSavedReport::pageId(['idreport' => $own, 'category' => ExploreSubcategory::CATEGORY, 'subcategory' => '']));
+        // another plugin's category may number its own pages
+        $this->assertSame('dataexplorer-report-' . $elsewhere, GetSavedReport::pageId(['idreport' => $elsewhere, 'category' => 'General_Visitors', 'subcategory' => '']));
+
+        $_GET['idSite'] = 1;
+        try {
+            Cache::getTransientCache()->flushAll();
+            $pages = [];
+            foreach (CategoryList::get()->getCategories() as $category) {
+                foreach ($category->getSubcategories() as $subcategory) {
+                    $pages[$category->getId() . '|' . $subcategory->getId()] = $subcategory->getName();
+                }
+            }
+            $offered = array_column(array_column($this->api->getCategories(1), null, 'id')[ExploreSubcategory::CATEGORY]['subcategories'], 'id');
+        } finally {
+            unset($_GET['idSite']);
+        }
+        $this->assertSame('Visits by country', $pages[ExploreSubcategory::CATEGORY . '|' . $own]);
+        $this->assertSame('Visits elsewhere', $pages['General_Visitors|dataexplorer-report-' . $elsewhere]);
+        $this->assertNotContains((string) $own, $offered, 'a page of its own is not offered to other reports');
     }
 
     public function test_savedWithTheDefaultCategory_isAPageOfTheReportingMenu(): void

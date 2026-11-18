@@ -34,6 +34,9 @@ class SavedReportReader
     /** table metadata naming the raw SQL column shown as the label */
     public const LABEL_COLUMN_METADATA = 'dataexplorer_label_column';
 
+    /** table metadata giving the row dimension level of a table: 0 the report, 1 a subtable, ... */
+    public const DEPTH_METADATA = 'dataexplorer_depth';
+
     /** @var RawSqlRunner */
     private $sqlRunner;
     /** @var LabelFormatter */
@@ -88,8 +91,9 @@ class SavedReportReader
 
         $depth = $idSubtable ? $this->subtableDepth($recordName, count($resolved['rows']), $idSite, $period, $date, $segment, $idSubtable) : 0;
         $rows = array_slice($resolved['rows'], $depth);
-        $table->filter(function (DataTable $table) use ($rows, $resolved, $idSite) {
+        $table->filter(function (DataTable $table) use ($rows, $resolved, $idSite, $depth) {
             $this->labels->formatArchivedTable($table, $rows, $resolved['column'], $idSite);
+            $table->setMetadata(self::DEPTH_METADATA, $depth);
         });
 
         return $table;

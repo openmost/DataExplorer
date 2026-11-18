@@ -26,8 +26,8 @@ use Piwik\Tests\Framework\Mock\FakeAccess;
 use Piwik\Tests\Framework\TestCase\IntegrationTestCase;
 
 /**
- * Saved reports rendered as report widgets: the HTML holds the chart mount point of the ECharts component and
- * the serialized data, the footer offers the DataExplorer bar and pie on DataExplorer tables only.
+ * Saved reports rendered as report widgets with the native Matomo visualizations: table, bar, pie, evolution
+ * graph and sparkline. The footer of a table offers the table, bar and pie only.
  *
  * @group DataExplorer
  * @group DataExplorerVisualizationTest
@@ -72,7 +72,7 @@ class VisualizationTest extends IntegrationTestCase
         return ['Piwik\\Access' => new FakeAccess()];
     }
 
-    public function test_tableReport_rendersTheHtmlTable_withTheDataExplorerBarAndPieInTheFooter(): void
+    public function test_tableReport_rendersTheHtmlTable_withTheNativeBarAndPieInTheFooter(): void
     {
         $id = $this->save('table', ['rows' => ['UserCountry.Country'], 'metrics' => ['nb_visits']]);
 
@@ -81,10 +81,7 @@ class VisualizationTest extends IntegrationTestCase
         $this->assertStringContainsString('dataTableVizHtmlTable', $html);
         $this->assertStringContainsString('France', $html);
         $icons = $this->footerIcons($html);
-        $this->assertContains('DataExplorerBar', $icons);
-        $this->assertContains('DataExplorerPie', $icons);
-        $this->assertNotContains('graphVerticalBar', $icons);
-        $this->assertNotContains('DataExplorerLine', $icons);
+        $this->assertSame(['table', 'graphVerticalBar', 'graphPie'], $icons);
     }
 
     public function test_pivotColumns_areShownWithTheMetricNameAndTheFormattedValue(): void
@@ -124,7 +121,7 @@ class VisualizationTest extends IntegrationTestCase
 
         $icons = $this->footerIcons($this->render($id, 'day', '2024-03-03'));
 
-        $this->assertSame(['DataExplorerLine'], $icons);
+        $this->assertSame([], $icons, 'one visualization, nothing to switch to');
     }
 
     public function test_sqlTable_keepsTheOrderOfTheQuery(): void
@@ -169,29 +166,24 @@ class VisualizationTest extends IntegrationTestCase
         }
     }
 
-    public function test_coreReports_doNotOfferTheDataExplorerCharts(): void
+    public function test_coreReports_offerTheirOwnFooterIcons(): void
     {
         $html = $this->dispatch('UserCountry', 'getCountry', ['period' => 'week', 'date' => '2024-02-26']);
 
         $icons = $this->footerIcons($html);
         $this->assertContains('graphVerticalBar', $icons);
-        $this->assertNotContains('DataExplorerBar', $icons);
-        $this->assertNotContains('DataExplorerPie', $icons);
+        $this->assertContains('tableAllColumns', $icons);
     }
 
-    public function test_barView_serializesTheTopRowsOfTheFirstMetric(): void
+    public function test_barView_isTheNativeBarGraph_withOneSeriesPerMetric(): void
     {
         $id = $this->save('table', ['rows' => ['UserCountry.Country'], 'metrics' => ['nb_visits', 'nb_actions']]);
 
-        $props = $this->props($this->render($id, 'week', '2024-02-26', 'DataExplorerBar'), 'DataExplorer.EChartsBar');
+        $data = $this->graphData($this->render($id, 'week', '2024-02-26', 'graphVerticalBar'));
 
-        $this->assertSame(['France', 'United States', 'Germany'], $props['labels']);
-        $this->assertEquals([3, 2, 1], $props['values']);
-        $this->assertNotSame('', $props['metric-name']);
-        $this->assertCount(2, $props['series'], 'one bar series per metric');
-        $this->assertEquals([3, 2, 1], $props['series'][0]['data']);
-        $this->assertSame($props['metric-name'], $props['series'][0]['name']);
-        $this->assertCount(3, $props['series'][1]['data']);
+        $this->assertSame(['France', 'United States', 'Germany'], $data['params']['axes']['xaxis']['labels']);
+        $this->assertCount(2, $data['data'], 'one bar series per metric');
+        $this->assertEquals([3, 2, 1], $data['data'][0]);
     }
 
     public function test_barView_othersSlice_onlyForMetricsThatAddUpAcrossRows(): void
@@ -202,50 +194,93 @@ class VisualizationTest extends IntegrationTestCase
             $visits = $this->save('table', ['rows' => ['UserCountry.Country'], 'metrics' => ['nb_visits']]);
             $visitors = $this->save('table', ['rows' => ['UserCountry.Country'], 'metrics' => ['nb_uniq_visitors']]);
 
-            $visitsProps = $this->props($this->render($visits, 'week', '2024-02-26', 'DataExplorerBar'), 'DataExplorer.EChartsBar');
-            $visitorsProps = $this->props($this->render($visitors, 'week', '2024-02-26', 'DataExplorerBar'), 'DataExplorer.EChartsBar');
+            $visitsData = $this->graphData($this->render($visits, 'week', '2024-02-26', 'graphVerticalBar'));
+            $visitorsData = $this->graphData($this->render($visitors, 'week', '2024-02-26', 'graphVerticalBar'));
         } finally {
             Config::getInstance()->DataExplorer = $original;
         }
 
         $others = Piwik::translate('General_Others');
-        $this->assertSame(['France', $others], $visitsProps['labels'], 'distinct visits add up across countries');
-        $this->assertEquals([3, 3], $visitsProps['values']);
-        $this->assertSame(['France'], $visitorsProps['labels'], 'distinct visitors are shared by countries');
+        $this->assertSame(['France', $others], $visitsData['params']['axes']['xaxis']['labels'], 'distinct visits add up across countries');
+        $this->assertNotContains($others, $visitorsData['params']['axes']['xaxis']['labels'], 'distinct visitors are shared by countries');
     }
 
-    public function test_pieView_rendersTheEChartsPie(): void
+    public function test_pieView_isTheNativePieGraph(): void
     {
         $id = $this->save('table', ['rows' => ['UserCountry.Country'], 'metrics' => ['nb_visits']]);
 
-        $props = $this->props($this->render($id, 'week', '2024-02-26', 'DataExplorerPie'), 'DataExplorer.EChartsPie');
+        $data = $this->graphData($this->render($id, 'week', '2024-02-26', 'graphPie'));
 
-        $this->assertEquals([3, 2, 1], $props['values']);
+        $this->assertEquals([3, 2, 1], $data['data'][0]);
     }
 
-    public function test_evolutionReport_rendersTheEChartsLine_overTheLastPeriods(): void
+    public function test_evolutionReport_isTheNativeEvolutionGraph_overTheLastPeriods(): void
     {
         $id = $this->save('evolution', ['metrics' => ['nb_visits']]);
 
-        $props = $this->props($this->render($id, 'day', '2024-03-03'), 'DataExplorer.EChartsLine');
+        $data = $this->graphData($this->render($id, 'day', '2024-03-03'));
 
-        $this->assertCount(30, $props['labels']);
-        $this->assertCount(1, $props['series']);
-        $data = $props['series'][0]['data'];
-        $this->assertEquals([2, 2, 2], array_slice($data, -3));
+        $this->assertCount(30, $data['params']['axes']['xaxis']['labels']);
+        $this->assertCount(1, $data['data']);
+        $this->assertEquals([2, 2, 2], array_slice($data['data'][0], -3));
     }
 
-    public function test_kpiCard_rendersTheValue_theEvolution_andTheSparkline(): void
+    public function test_kpiCard_isTheNativeSparkline_withTheValueAndTheEvolution(): void
     {
         $id = $this->save('kpicard', ['metrics' => ['nb_visits']]);
 
         // no visit on 2024-03-04, two the day before
-        $props = $this->props($this->render($id, 'day', '2024-03-04'), 'DataExplorer.KpiCard');
+        $html = $this->render($id, 'day', '2024-03-04');
 
-        $this->assertSame('0', $props['value']);
-        $this->assertSame(-1, $props['evolution']['trend']);
-        $this->assertSame('-100%', $props['evolution']['percent']);
-        $this->assertCount(30, $props['sparkline']);
+        $sparkline = $this->firstSparkline($html);
+        $this->assertSame('-100%', $sparkline['evolution']['percent']);
+        $this->assertLessThan(0, $sparkline['evolution']['trend']);
+        $metrics = reset($sparkline['metrics']);
+        $this->assertSame('0', (string) $metrics[0]['value']);
+    }
+
+    public function test_preview_rendersTheUnsavedExploration_inTheNativeVisualizationOfItsChart(): void
+    {
+        $definition = json_encode(['rows' => ['UserCountry.Country'], 'metrics' => ['nb_visits'], 'chart' => 'pie']);
+
+        $html = $this->dispatch('DataExplorer', 'preview', ['period' => 'week', 'date' => '2024-02-26', 'definition' => $definition]);
+
+        $this->assertEquals([3, 2, 1], $this->graphData($html)['data'][0]);
+        $this->assertStringContainsString('DataExplorer.getReport', $html);
+    }
+
+    public function test_preview_table_keepsTheDefinitionForTheReloadsOfTheDataTable(): void
+    {
+        $definition = json_encode(['rows' => ['UserCountry.Country'], 'metrics' => ['nb_visits']]);
+
+        $html = $this->dispatch('DataExplorer', 'preview', ['period' => 'week', 'date' => '2024-02-26', 'definition' => $definition]);
+
+        $this->assertStringContainsString('dataTableVizHtmlTable', $html);
+        $this->assertStringContainsString('France', $html);
+        $this->assertStringContainsString('&quot;definition&quot;', $html);
+    }
+
+    public function test_preview_flatTable_ofTwoRowDimensions_showsOneColumnPerDimension(): void
+    {
+        $definition = json_encode(['rows' => ['UserCountry.Country', 'DevicesDetection.DeviceType'], 'metrics' => ['nb_visits'], 'table_view' => 'flat']);
+
+        $html = $this->dispatch('DataExplorer', 'preview', ['period' => 'week', 'date' => '2024-02-26', 'definition' => $definition, 'flat' => '1', 'show_dimensions' => '1']);
+
+        $this->assertStringNotContainsString('could not be found', $html);
+        $this->assertStringContainsString('Desktop', $html);
+        $this->assertSame(1, substr_count($html, '>Device type<'), 'the second dimension is one column, not repeated as the label');
+    }
+
+    public function test_preview_kpiCard_drawsItsSparklineOverSeveralPeriods(): void
+    {
+        $definition = json_encode(['report_type' => 'kpicard', 'metrics' => ['nb_visits']]);
+
+        $table = \Piwik\API\Request::processRequest('DataExplorer.getReport', [
+            'idSite' => 1, 'period' => 'day', 'date' => '2024-02-26,2024-03-03', 'idExploration' => 0, 'definition' => $definition,
+        ]);
+
+        $this->assertInstanceOf(\Piwik\DataTable\Map::class, $table);
+        $this->assertCount(7, $table->getDataTables());
     }
 
     public function test_kpiCard_rendersInADashboardWidget(): void
@@ -262,7 +297,7 @@ class VisualizationTest extends IntegrationTestCase
             'widget' => '1',
         ]);
 
-        $this->assertStringContainsString('vue-entry="DataExplorer.KpiCard"', $html);
+        $this->assertStringContainsString('CoreVisualizations.SparklinesGrid', $html);
     }
 
     private function save(string $reportType, array $definition): int
@@ -312,19 +347,25 @@ class VisualizationTest extends IntegrationTestCase
     }
 
     /**
-     * @return array attribute => decoded JSON value of the vue-entry element
+     * @return array the data-data JSON of a native jqPlot graph
      */
-    private function props(string $html, string $entry): array
+    private function graphData(string $html): array
     {
-        $this->assertSame(1, preg_match('/<div class="dataExplorerChart" vue-entry="' . preg_quote($entry, '/') . '"([^>]*)>/', $html, $match), $html);
-        preg_match_all('/ ([a-z-]+)="([^"]*)"/', $match[1], $attributes, PREG_SET_ORDER);
+        $this->assertSame(1, preg_match('/class="piwik-graph" data-data="([^"]*)"/', $html, $match), $html);
 
-        $props = [];
-        foreach ($attributes as [, $name, $value]) {
-            $props[$name] = json_decode(html_entity_decode($value, ENT_QUOTES), true);
-        }
+        return json_decode(html_entity_decode($match[1], ENT_QUOTES), true);
+    }
 
-        return $props;
+    /**
+     * @return array the first sparkline of the native sparklines grid
+     */
+    private function firstSparkline(string $html): array
+    {
+        $this->assertSame(1, preg_match('/vue-entry="CoreVisualizations.SparklinesGrid"\s+sparklines="([^"]*)"/', $html, $match), $html);
+        $sparklines = json_decode(html_entity_decode($match[1], ENT_QUOTES), true);
+        $group = reset($sparklines);
+
+        return isset($group['metrics']) ? $group : reset($group);
     }
 }
 

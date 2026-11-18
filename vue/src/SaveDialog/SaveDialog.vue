@@ -6,14 +6,14 @@
 -->
 
 <template>
-  <MatomoDialog
+  <SidePanel
     :model-value="modelValue"
-    :options="dialogOptions"
+    :title="title"
+    focus-selector="#dataExplorerSaveName"
     @update:model-value="$emit('update:modelValue', $event)"
-    @close-end="$emit('closed')"
+    @closed="$emit('closed')"
   >
-    <div class="ui-confirm dataExplorerSaveDialog">
-      <h2 id="dataExplorerSaveDialogTitle">{{ title }}</h2>
+    <div class="dataExplorerSaveDialog">
       <div class="dataExplorerSaveDialog__form">
         <div
           class="dataExplorerSaveDialog__error"
@@ -27,6 +27,7 @@
         </div>
 
         <Field
+          :full-width="true"
           uicontrol="text"
           name="dataExplorerSaveName"
           v-model="form.name"
@@ -36,6 +37,7 @@
         />
 
         <Field
+          :full-width="true"
           v-if="type === 'sql'"
           uicontrol="select"
           name="dataExplorerSaveReportType"
@@ -50,6 +52,7 @@
         >{{ translate('DataExplorer_SavedAs', reportTypeLabel) }}</div>
 
         <Field
+          :full-width="true"
           uicontrol="radio"
           name="dataExplorerSavePlacement"
           v-model="form.placement"
@@ -57,24 +60,65 @@
           :options="placementOptions"
         />
 
-        <Field
-          v-if="form.placement === 'sites' && isSuperUser"
-          uicontrol="text"
-          name="dataExplorerSaveSitesSearch"
-          v-model="siteSearch"
-          :title="translate('DataExplorer_SaveSitesSearch')"
-        />
-
-        <Field
+        <div
           v-if="form.placement === 'sites'"
-          uicontrol="multiselect"
-          name="dataExplorerSaveSites"
-          v-model="form.sites"
-          :title="translate('DataExplorer_SaveSites')"
-          :options="siteOptions"
-        />
+          class="dataExplorerSitePicker"
+          role="group"
+          :aria-label="translate('DataExplorer_SaveSites')"
+        >
+          <div class="dataExplorerSitePicker__label">{{ translate('DataExplorer_SaveSites') }}</div>
+          <ul
+            v-if="form.sites.length"
+            class="dataExplorerSitePicker__chips"
+          >
+            <li
+              v-for="id in form.sites"
+              :key="id"
+              class="dataExplorerSitePicker__chip"
+            >
+              <span>{{ siteNames[id] || id }}</span>
+              <button
+                type="button"
+                class="dataExplorerSitePicker__remove"
+                :title="translate('General_Remove')"
+                :aria-label="`${translate('General_Remove')} ${siteNames[id] || id}`"
+                @click="toggleSite(id)"
+              >
+                <span
+                  class="icon-close"
+                  aria-hidden="true"
+                ></span>
+              </button>
+            </li>
+          </ul>
+          <SearchInput
+            v-model="siteSearch"
+            :placeholder="translate('DataExplorer_SaveSitesSearch')"
+            :aria-label="translate('DataExplorer_SaveSitesSearch')"
+          />
+          <ul class="dataExplorerSitePicker__list">
+            <li
+              v-for="site in siteOptions"
+              :key="site.key"
+            >
+              <label class="dataExplorerSitePicker__option">
+                <input
+                  type="checkbox"
+                  :checked="form.sites.indexOf(site.key) !== -1"
+                  @change="toggleSite(site.key)"
+                />
+                <span>{{ site.value }}</span>
+              </label>
+            </li>
+            <li
+              v-if="!siteOptions.length"
+              class="dataExplorerSitePicker__empty"
+            >{{ translate('General_SearchNoResults') }}</li>
+          </ul>
+        </div>
 
         <Field
+          :full-width="true"
           uicontrol="select"
           name="dataExplorerSaveCategory"
           v-model="form.category"
@@ -83,6 +127,7 @@
         />
 
         <Field
+          :full-width="true"
           uicontrol="select"
           name="dataExplorerSaveSubcategory"
           v-model="form.subcategory"
@@ -91,6 +136,7 @@
         />
 
         <Field
+          :full-width="true"
           v-if="form.subcategory === newSubcategoryKey"
           uicontrol="text"
           name="dataExplorerSaveNewSubcategory"
@@ -100,6 +146,7 @@
         />
 
         <Field
+          :full-width="true"
           uicontrol="text"
           var-type="integer"
           name="dataExplorerSaveOrder"
@@ -107,30 +154,29 @@
           :title="translate('DataExplorer_SaveOrder')"
           :inline-help="translate('DataExplorer_SaveOrderHelp')"
         />
-
-        <div class="dataExplorerSaveDialog__actions">
-          <SaveButton
-            v-if="canUpdate"
-            class="dataExplorerSaveDialog__update"
-            :saving="saving"
-            :value="translate('General_Save')"
-            @confirm="save(false)"
-          />
-          <SaveButton
-            class="dataExplorerSaveDialog__create"
-            :saving="saving"
-            :value="editing ? translate('DataExplorer_SaveAsNew') : translate('General_Save')"
-            @confirm="save(true)"
-          />
-        </div>
       </div>
-      <input
-        type="button"
-        role="cancel"
-        :value="translate('General_Cancel')"
-      />
     </div>
-  </MatomoDialog>
+    <template #actions>
+      <SaveButton
+        v-if="canUpdate"
+        class="dataExplorerSaveDialog__update"
+        :saving="saving"
+        :value="translate('General_Save')"
+        @confirm="save(false)"
+      />
+      <SaveButton
+        class="dataExplorerSaveDialog__create"
+        :saving="saving"
+        :value="editing ? translate('DataExplorer_SaveAsNew') : translate('General_Save')"
+        @confirm="save(true)"
+      />
+      <button
+        type="button"
+        class="btn-flat"
+        @click="$emit('update:modelValue', false)"
+      >{{ translate('General_Cancel') }}</button>
+    </template>
+  </SidePanel>
 </template>
 
 <script lang="ts">
@@ -144,11 +190,12 @@ import {
 } from 'vue';
 import {
   AjaxHelper,
-  MatomoDialog,
   Notification,
+  SearchInput,
   translate,
 } from 'CoreHome';
 import { Field, SaveButton } from 'CorePluginsAdmin';
+import SidePanel from '../SidePanel/SidePanel.vue';
 import type {
   ReportCategory,
   ReportType,
@@ -158,6 +205,8 @@ import type {
 
 const DEFAULT_CATEGORY = 'DataExplorer_DataExplorer';
 const NEW_SUBCATEGORY = '__dataexplorer_new__';
+// saved with no page: the report gets a page of its own, named after it
+const OWN_PAGE = '__dataexplorer_own__';
 const DEFAULT_ORDER = 100;
 // super users can write to every website: the list is searched on demand, never loaded whole
 const SITE_SEARCH_LIMIT = 50;
@@ -185,9 +234,10 @@ export default defineComponent({
   name: 'SaveDialog',
   components: {
     Field,
-    MatomoDialog,
     Notification,
     SaveButton,
+    SearchInput,
+    SidePanel,
   },
   props: {
     modelValue: {
@@ -236,14 +286,10 @@ export default defineComponent({
       placement: 'site',
       sites: [],
       category: DEFAULT_CATEGORY,
-      subcategory: NEW_SUBCATEGORY,
+      subcategory: OWN_PAGE,
       newSubcategory: '',
       order: DEFAULT_ORDER,
     });
-
-    const dialogOptions = {
-      focusSelector: '#dataExplorerSaveName',
-    };
 
     const title = computed(() => translate(props.editing
       ? 'DataExplorer_SaveDialogEditTitle'
@@ -287,6 +333,10 @@ export default defineComponent({
       });
     }
 
+    props.writableSites.forEach((site) => {
+      siteNames[String(site.id)] = site.name;
+    });
+
     function searchSites(): void {
       siteSearchRun += 1;
       const run = siteSearchRun;
@@ -324,22 +374,35 @@ export default defineComponent({
     }
 
     watch(siteSearch, () => {
+      if (!props.isSuperUser) {
+        return;
+      }
       if (siteSearchTimer) {
         clearTimeout(siteSearchTimer);
       }
       siteSearchTimer = setTimeout(searchSites, SITE_SEARCH_DELAY_MS);
     });
 
+    // the sites to tick: the writable sites matching the search (super users search them on the
+    // server, every website would be too many to list)
     const siteOptions = computed(() => {
       if (!props.isSuperUser) {
-        return props.writableSites.map((site) => ({
-          key: String(site.id),
-          value: site.name,
-        }));
+        const query = siteSearch.value.trim().toLowerCase();
+        return props.writableSites
+          .filter((site) => !query || site.name.toLowerCase().indexOf(query) !== -1)
+          .map((site) => ({ key: String(site.id), value: site.name }));
       }
-      const ids = form.sites.concat(foundSites.value.filter((id) => form.sites.indexOf(id) === -1));
-      return ids.map((id) => ({ key: id, value: siteNames[id] || id }));
+      return foundSites.value.map((id) => ({ key: id, value: siteNames[id] || id }));
     });
+
+    function toggleSite(id: string): void {
+      const index = form.sites.indexOf(id);
+      if (index === -1) {
+        form.sites.push(id);
+      } else {
+        form.sites.splice(index, 1);
+      }
+    }
 
     const categoryOptions = computed(() => categories.value.map((category) => ({
       key: category.id,
@@ -348,10 +411,13 @@ export default defineComponent({
 
     const subcategoryOptions = computed(() => {
       const category = categories.value.find((item) => item.id === form.category);
-      const options = (category ? category.subcategories : []).map((subcategory) => ({
-        key: subcategory.id,
-        value: subcategory.name,
-      }));
+      const options = [{
+        key: OWN_PAGE,
+        value: translate('DataExplorer_SaveOwnPageOption'),
+      }];
+      (category ? category.subcategories : []).forEach((subcategory) => {
+        options.push({ key: subcategory.id, value: subcategory.name });
+      });
       options.push({
         key: NEW_SUBCATEGORY,
         value: translate('DataExplorer_SaveNewSubcategoryOption'),
@@ -387,14 +453,14 @@ export default defineComponent({
       }
 
       form.category = report ? report.category : DEFAULT_CATEGORY;
-      if (report && subcategoryExists(report.category, report.subcategory)) {
+      form.newSubcategory = '';
+      if (!report || report.subcategory === '') {
+        form.subcategory = OWN_PAGE;
+      } else if (subcategoryExists(report.category, report.subcategory)) {
         form.subcategory = report.subcategory;
-        form.newSubcategory = '';
       } else {
         form.subcategory = NEW_SUBCATEGORY;
-        form.newSubcategory = report
-          ? report.subcategory
-          : translate('DataExplorer_DefaultSubcategory');
+        form.newSubcategory = report.subcategory;
       }
     }
 
@@ -425,10 +491,18 @@ export default defineComponent({
 
     // a new category starts on its first page
     watch(() => form.category, (category, previous) => {
-      if (previous && category !== previous && !subcategoryExists(category, form.subcategory)) {
-        form.subcategory = NEW_SUBCATEGORY;
+      if (previous && category !== previous && form.subcategory !== OWN_PAGE
+        && !subcategoryExists(category, form.subcategory)) {
+        form.subcategory = OWN_PAGE;
       }
     });
+
+    function pageOf(subcategory: string): string {
+      if (subcategory === OWN_PAGE) {
+        return '';
+      }
+      return subcategory === NEW_SUBCATEGORY ? form.newSubcategory : subcategory;
+    }
 
     function placementJson(): string {
       if (form.placement === 'all') {
@@ -453,7 +527,7 @@ export default defineComponent({
         definition: JSON.stringify({ ...props.definition, report_type: reportType }),
         placement: placementJson(),
         category: form.category,
-        subcategory: form.subcategory === NEW_SUBCATEGORY ? form.newSubcategory : form.subcategory,
+        subcategory: pageOf(form.subcategory),
         order: parseInt(String(form.order), 10) || 0,
       };
       if (isUpdate && props.editing) {
@@ -484,7 +558,6 @@ export default defineComponent({
       form,
       saving,
       error,
-      dialogOptions,
       title,
       canUpdate,
       reportTypeOptions,
@@ -492,6 +565,8 @@ export default defineComponent({
       placementOptions,
       siteOptions,
       siteSearch,
+      siteNames,
+      toggleSite,
       categoryOptions,
       subcategoryOptions,
       newSubcategoryKey: NEW_SUBCATEGORY,

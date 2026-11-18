@@ -11,9 +11,16 @@ declare(strict_types=1);
 
 namespace Piwik\Plugins\DataExplorer\Reports;
 
+use Piwik\API\Request as ApiRequest;
 use Piwik\Common;
+use Piwik\Columns\Dimension;
 use Piwik\Columns\DimensionsProvider;
 use Piwik\DataTable;
+use Piwik\DataTable\Filter\CalculateEvolutionFilter;
+use Piwik\Metrics;
+use Piwik\Metrics\Formatter;
+use Piwik\Period\Factory as PeriodFactory;
+use Piwik\Period\Range;
 use Piwik\Piwik;
 use Piwik\Request;
 use Piwik\Plugin\Report;
@@ -30,10 +37,11 @@ use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\RecordBuilders\SavedReport;
 use Piwik\Plugins\DataExplorer\Sql\ResultColumns;
-use Piwik\Plugins\DataExplorer\Visualizations\EChartsBar;
-use Piwik\Plugins\DataExplorer\Visualizations\EChartsKpi;
-use Piwik\Plugins\DataExplorer\Visualizations\EChartsLine;
-use Piwik\Plugins\DataExplorer\Visualizations\EChartsPie;
+use Piwik\Plugins\CoreVisualizations\Visualizations\Graph;
+use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph\Bar;
+use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph\Evolution;
+use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph\Pie;
+use Piwik\Plugins\CoreVisualizations\Visualizations\Sparklines;
 
 /**
  * One saved report shown as a Matomo report: in the reporting menu place its author chose, the widget list,
@@ -46,6 +54,40 @@ use Piwik\Plugins\DataExplorer\Visualizations\EChartsPie;
 class GetSavedReport extends Report
 {
     public const PARAMETER = 'idExploration';
+
+    /** rows of a bar or pie chart of a metric that does not add up across rows, which gets no "Others" slice */
+    public const GRAPH_ROWS = 6;
+
+    /** page id prefix of a report shown on a page of its own outside the Data Explorer category */
+    public const OWN_PAGE_PREFIX = 'dataexplorer-report-';
+
+    /**
+     * The reporting page of a saved report: the page it was saved on, or a page of its own when none was picked,
+     * named after it. In the Data Explorer category that page is numbered with the report id, like goals and
+     * custom reports, so the reporting menu folds them into one searchable list when there are more than five.
+     * In another category a number could be one of its own pages (a goal, a custom report).
+     *
+     * @param array $row a ReportsDao row: idreport, category, subcategory
+     */
+    public static function pageId(array $row): string
+    {
+        if ((string) $row['subcategory'] !== '') {
+            return (string) $row['subcategory'];
+        }
+
+        return (string) $row['category'] === ExploreSubcategory::CATEGORY
+            ? (string) $row['idreport']
+            : self::OWN_PAGE_PREFIX . $row['idreport'];
+    }
+
+    /**
+     * Whether a page of the reporting menu is the page of its own of a saved report.
+     */
+    public static function isOwnPage(string $categoryId, string $subcategoryId): bool
+    {
+        return ($categoryId === ExploreSubcategory::CATEGORY && ctype_digit($subcategoryId))
+            || strpos($subcategoryId, self::OWN_PAGE_PREFIX) === 0;
+    }
 
     /** @var array|null hydrated ReportsDao row */
     private $row;
@@ -61,6 +103,67 @@ class GetSavedReport extends Report
     private $nonAdditiveMetrics = [];
     /** @var array<string, string> pivot columns of the period the metadata is built for */
     private $pivotColumns = [];
+    /** @var string|null JSON definition of an unsaved exploration shown in the explorer canvas */
+    private $previewDefinition;
+    /** @var Dimension[] dimension of each level of the rows, the first one is the report dimension */
+    private $rowDimensions = [];
+
+    /**
+     * The visual definition of an unsaved exploration (the explorer canvas), validated.
+     *
+     * @throws \InvalidArgumentException with a translated message
+     */
+    public static function previewDefinition(string $json): array
+    {
+        $raw = json_decode($json, true);
+        if (!is_array($raw)) {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorDefinitionInvalid'));
+        }
+        $raw['type'] = ReportDefinition::TYPE_VISUAL;
+        if (!isset($raw['name']) || !is_string($raw['name']) || trim($raw['name']) === '') {
+            $raw['name'] = 'preview';
+        }
+
+        return ReportDefinition::fromArray($raw)->toArray();
+    }
+
+    /**
+     * An unsaved exploration of the explorer canvas, rendered by the native visualizations like a saved report.
+     * Its data is DataExplorer.getReport with idExploration 0 and the definition, which runs it live.
+     *
+     * @param array $definition validated visual definition, see previewDefinition()
+     */
+    private function initPreview(array $definition, int $idSite): void
+    {
+        $this->previewDefinition = (string) json_encode($definition);
+        $this->initFromRow([
+            'idreport' => 0,
+            'name' => (string) $definition['name'],
+            'type' => ReportDefinition::TYPE_VISUAL,
+            'report_type' => (string) $definition['report_type'],
+            'definition' => $definition,
+            'category' => '',
+            'subcategory' => '',
+            'order' => 0,
+        ], $idSite, false);
+    }
+
+    public function isPreview(): bool
+    {
+        return $this->previewDefinition !== null;
+    }
+
+    /**
+     * The request parameters that name the data: the saved report, or the definition of the preview.
+     *
+     * @return array<string, int|string>
+     */
+    private function dataParameters(): array
+    {
+        return $this->isPreview()
+            ? [self::PARAMETER => 0, 'definition' => (string) $this->previewDefinition]
+            : [self::PARAMETER => $this->getIdReport()];
+    }
 
     protected function init()
     {
@@ -81,7 +184,26 @@ class GetSavedReport extends Report
             if ($row !== null && empty($row['deleted']) && $placement instanceof Placement && $placement->includes($idSite)) {
                 $this->initFromRow($row, $idSite, false);
             }
+            return;
         }
+
+        $definition = Common::unsanitizeInputValue(Common::getRequestVar('definition', '', 'string'));
+        if ($idSite > 0 && $definition !== '' && Common::getRequestVar('module', '', 'string') === 'DataExplorer') {
+            try {
+                $this->initPreview(self::previewDefinition($definition), $idSite);
+            } catch (\InvalidArgumentException $e) {
+                // the data request reports the invalid definition
+            }
+        }
+    }
+
+    /**
+     * The dimension of a level of the rows (0 the report dimension, 1 its subtable, ...), so core flattens the
+     * report with one column per dimension.
+     */
+    public function getNthLevelTableDimension(int $level): ?Dimension
+    {
+        return $this->rowDimensions[$level] ?? null;
     }
 
     /**
@@ -96,10 +218,11 @@ class GetSavedReport extends Report
 
         $this->name = (string) $row['name'];
         $this->categoryId = (string) $row['category'] !== '' ? (string) $row['category'] : ExploreSubcategory::CATEGORY;
-        $this->subcategoryId = (string) $row['subcategory'] !== '' ? (string) $row['subcategory'] : null;
+        $this->subcategoryId = self::pageId($row);
         $this->order = (int) $row['order'];
         $this->parameters = [self::PARAMETER => (int) $row['idreport']];
         $this->dimension = null;
+        $this->rowDimensions = [];
         $this->metrics = [];
         $this->metricNames = [];
         $this->nonAdditiveMetrics = [];
@@ -142,17 +265,17 @@ class GetSavedReport extends Report
     {
         switch ($this->getReportType()) {
             case ReportDefinition::REPORT_TYPE_EVOLUTION:
-                return EChartsLine::ID;
+                return Evolution::ID;
             case ReportDefinition::REPORT_TYPE_KPICARD:
-                return EChartsKpi::ID;
+                return Sparklines::ID;
         }
 
         $chart = $this->row !== null && !$this->isSql() ? ($this->row['definition']['chart'] ?? '') : '';
         switch ($chart) {
             case 'bar':
-                return EChartsBar::ID;
+                return Bar::ID;
             case 'pie':
-                return EChartsPie::ID;
+                return Pie::ID;
             default:
                 return HtmlTable::ID;
         }
@@ -261,25 +384,39 @@ class GetSavedReport extends Report
             return;
         }
 
-        $idReport = $this->getIdReport();
-        $view->requestConfig->request_parameters_to_modify[self::PARAMETER] = $idReport;
-        $view->config->custom_parameters[self::PARAMETER] = $idReport;
+        foreach ($this->dataParameters() as $name => $value) {
+            $view->requestConfig->request_parameters_to_modify[$name] = $value;
+            $view->config->custom_parameters[$name] = $value;
+        }
         $view->config->custom_parameters['dataExplorerReportType'] = $this->getReportType();
         $view->config->custom_parameters['dataExplorerNonAdditive'] = $this->nonAdditiveMetrics;
         $view->config->addTranslations($this->metricNames);
 
+        if ($this->getReportType() === ReportDefinition::REPORT_TYPE_KPICARD) {
+            $this->configureKpiCard($view);
+            return;
+        }
         if ($this->getReportType() !== ReportDefinition::REPORT_TYPE_TABLE) {
-            $view->config->footer_icons = $this->allowedFooterIcons($view, [$this->getDefaultTypeViewDataTable()]);
+            // one visualization, nothing to switch to
+            $view->config->footer_icons = [];
             return;
         }
 
-        $view->config->show_bar_chart = false;
-        $view->config->show_pie_chart = false;
+        if ($view instanceof Graph && $this->nonAdditiveMetrics) {
+            // an "Others" row sums the rows past a limit (the graph's or the archive's), wrong for a metric that does
+            // not add up across rows: the chart keeps the top rows only
+            $view->config->max_graph_elements = false;
+            $view->config->filters[] = function (DataTable $table) {
+                $table->deleteRow(DataTable::ID_SUMMARY_ROW);
+            };
+            $view->config->filters[] = ['Limit', [0, self::GRAPH_ROWS]];
+        }
+
         $view->config->show_tag_cloud = false;
         $view->config->show_goals = false;
         $view->config->show_insights = false;
         $view->config->show_table_all_columns = false;
-        $view->config->footer_icons = $this->allowedFooterIcons($view, [HtmlTable::ID, EChartsBar::ID, EChartsPie::ID]);
+        $view->config->footer_icons = $this->allowedFooterIcons($view, [HtmlTable::ID, Bar::ID, Pie::ID]);
 
         if ($this->isSql()) {
             // the rows keep the order of the query
@@ -305,13 +442,19 @@ class GetSavedReport extends Report
 
         $isWidget = Common::getRequestVar('widget', 0, 'int');
         $module = Common::getRequestVar('module', '', 'string');
-        if ($this->isSql() || ($isWidget && $module !== 'Widgetize')) {
-            // raw SQL runs live, and row evolution would not forward idExploration from a dashboard widget
+        if ($this->isSql() || $this->isPreview() || ($isWidget && $module !== 'Widgetize')) {
+            // raw SQL and previews run live, and row evolution would not forward idExploration from a dashboard widget
             $view->config->disable_row_evolution = true;
         }
 
         $metricNames = $this->metricNames;
         $view->config->filters[] = function (DataTable $table) use ($view, $metricNames) {
+            // every level is read through this report: a subtable is labelled with the dimension of its level
+            $depth = (int) $table->getMetadata(SavedReportReader::DEPTH_METADATA);
+            if ($depth > 0 && isset($this->rowDimensions[$depth])) {
+                $view->config->addTranslation('label', $this->rowDimensions[$depth]->getName());
+            }
+
             $labelColumn = $table->getMetadata(SavedReportReader::LABEL_COLUMN_METADATA);
             if (is_string($labelColumn) && $labelColumn !== '') {
                 $view->config->addTranslation('label', $labelColumn);
@@ -325,6 +468,10 @@ class GetSavedReport extends Report
                 break;
             }
             unset($columns['label']);
+            // the flat view adds a column per dimension in front of the metrics itself
+            foreach ((array) $table->getMetadata('dimensions') as $dimension) {
+                unset($columns[$dimension]);
+            }
             $view->config->columns_to_display = array_values(array_merge(['label'], $columns));
 
             foreach ($columns as $column) {
@@ -334,6 +481,60 @@ class GetSavedReport extends Report
                     $view->config->addTranslation($column, ($metricNames[$metric] ?? $metric) . substr((string) $column, $position));
                 }
             }
+        };
+    }
+
+    /**
+     * The native KPI layout of Visitors > Overview: the value of the period, its evolution against the previous
+     * period and a sparkline. A date range has no previous period to compare with.
+     */
+    private function configureKpiCard(ViewDataTable $view): void
+    {
+        $view->config->footer_icons = [];
+        if (!$view instanceof Sparklines) {
+            return;
+        }
+
+        $view->config->setNotLinkableWithAnyEvolutionGraph();
+        $metric = array_key_first($this->metricNames);
+        if ($metric === null) {
+            return;
+        }
+        $view->config->addSparklineMetric([$metric]);
+
+        $period = Piwik::getPeriod();
+        $date = Common::getRequestVar('date', '', 'string');
+        [$previousDate] = Range::getLastDate($date, $period);
+        if ($previousDate === false || $period === 'range') {
+            return;
+        }
+
+        $previous = ApiRequest::processRequest('DataExplorer.getReport', $this->dataParameters() + [
+            'date' => $previousDate,
+            'format_metrics' => '0',
+        ]);
+        $previousRow = $previous instanceof DataTable ? $previous->getFirstRow() : false;
+        $currentPretty = PeriodFactory::build($period, $date)->getLocalizedShortString();
+        $previousPretty = PeriodFactory::build($period, $previousDate)->getLocalizedShortString();
+        $name = $this->metricNames[$metric];
+
+        $view->config->compute_evolution = function (array $columns) use ($previousRow, $currentPretty, $previousPretty, $name, $metric) {
+            $value = reset($columns);
+            $pastValue = $previousRow === false ? 0 : $previousRow->getColumn($metric);
+            $formatter = new Formatter();
+
+            return [
+                'currentValue' => $value,
+                'pastValue' => $pastValue,
+                'isLowerValueBetter' => Metrics::isLowerValueBetter($metric),
+                'tooltip' => Piwik::translate('General_EvolutionSummaryGeneric', [
+                    $formatter->getPrettyNumber((float) $value) . ' ' . $name,
+                    $currentPretty,
+                    $formatter->getPrettyNumber((float) $pastValue) . ' ' . $name,
+                    $previousPretty,
+                    CalculateEvolutionFilter::calculate($value, $pastValue, 1),
+                ]),
+            ];
         };
     }
 
@@ -390,9 +591,12 @@ class GetSavedReport extends Report
             }
         }
 
-        $first = $resolved['rows'][0] ?? null;
-        if ($first !== null) {
-            $this->dimension = SiteContext::run($idSite, fn () => (new DimensionsProvider())->factory($first->id));
+        foreach ($resolved['rows'] as $level => $entry) {
+            $dimension = SiteContext::run($idSite, fn () => (new DimensionsProvider())->factory($entry->id));
+            if ($dimension instanceof Dimension) {
+                $this->rowDimensions[$level] = $dimension;
+            }
         }
+        $this->dimension = $this->rowDimensions[0] ?? null;
     }
 }

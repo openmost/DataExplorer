@@ -16,6 +16,7 @@ use Piwik\Category\Category;
 class DataExplorerCategory extends Category
 {
     protected $id = ExploreSubcategory::CATEGORY;
-    protected $order = 90;
+    // right before Custom Reports (65), the other place reports are built
+    protected $order = 64;
     protected $icon = 'icon-table';
 }

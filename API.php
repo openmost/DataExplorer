@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Piwik\Plugins\DataExplorer;
 
 use Piwik\Access;
+use Piwik\Archive\DataTableFactory;
 use Piwik\Cache;
 use Piwik\Category\CategoryList;
 use Piwik\Category\Subcategory;
@@ -21,6 +22,8 @@ use Piwik\Container\StaticContainer;
 use Piwik\DataTable;
 use Piwik\Db;
 use Piwik\NoAccessException;
+use Piwik\Period;
+use Piwik\Period\Factory as PeriodFactory;
 use Piwik\Piwik;
 use Piwik\Plugin\Manager as PluginManager;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
@@ -31,10 +34,12 @@ use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
+use Piwik\Plugins\DataExplorer\Query\PreviewTree;
 use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\Query\CustomReportExport;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
+use Piwik\Plugins\DataExplorer\Reports\GetSavedReport;
 use Piwik\Plugins\DataExplorer\Sql\ParsedQuery;
 use Piwik\Plugins\DataExplorer\Sql\RawSqlRunner;
 use Piwik\Plugins\DataExplorer\Sql\ReadOnlySetup;
@@ -44,6 +49,7 @@ use Piwik\Plugins\DataExplorer\Sql\SqlGuard;
 use Piwik\Plugins\SegmentEditor\API as SegmentEditorAPI;
 use Piwik\Plugins\SitesManager\API as SitesManagerAPI;
 use Piwik\Segment;
+use Piwik\Site;
 
 /**
  * API of the DataExplorer plugin.
@@ -59,6 +65,9 @@ class API extends \Piwik\Plugin\API
 
     private const MAX_SUBCATEGORY_LENGTH = 255;
     private const MAX_ORDER = 1000;
+
+    /** seconds a live exploration result serves the requests of the canvas data table */
+    private const PREVIEW_CACHE_TTL = 300;
 
     /**
      * Dimensions and metrics grouped by category (for the "+" pickers), the stored segments of the site and the
@@ -112,9 +121,11 @@ class API extends \Piwik\Plugin\API
      * @param string $date
      * @param string $definition JSON of the exploration, same shape as a saved visual definition
      * @param string $segment combined (AND) with the segment stored in the definition
+     * @param int $idSubtable a row of the hierarchical view to open, numbered by PreviewTree
+     * @param bool $flat the whole tree, its subtables in memory (flat view, export)
      * @return DataTable|DataTable\Map
      */
-    public function runVisual(int $idSite, string $period, string $date, string $definition, string $segment = ''): DataTable\DataTableInterface
+    public function runVisual(int $idSite, string $period, string $date, string $definition, string $segment = '', int $idSubtable = 0, bool $flat = false): DataTable\DataTableInterface
     {
         (new ReportPermissions())->checkCanExplore($idSite);
 
@@ -128,11 +139,37 @@ class API extends \Piwik\Plugin\API
         }
 
         $validated = ReportDefinition::fromArray($raw);
-        if ($validated->getReportType() === ReportDefinition::REPORT_TYPE_EVOLUTION) {
+        // a KPI card over several periods is its sparkline: one total per period, like an evolution
+        if ($validated->getReportType() === ReportDefinition::REPORT_TYPE_EVOLUTION
+            || ($validated->getReportType() === ReportDefinition::REPORT_TYPE_KPICARD && Period::isMultiplePeriod($date, $period))
+        ) {
             return (new VisualQueryRunner())->runEvolution($validated, $idSite, $period, $date, $segment);
         }
 
-        return (new VisualQueryRunner())->run($validated, $idSite, $period, $date, $segment);
+        // the native data table of the canvas asks again on every sort, page or opened row: one run serves them
+        $cache = Cache::getLazyCache();
+        $cacheId = 'DataExplorer_preview_' . md5(implode('|', [$idSite, $period, $date, $segment, json_encode($validated->toArray())]));
+        $tree = $cache->fetch($cacheId);
+        if (!is_array($tree)) {
+            $tree = PreviewTree::export((new VisualQueryRunner())->run($validated, $idSite, $period, $date, $segment));
+            $cache->save($cacheId, $tree, self::PREVIEW_CACHE_TTL);
+        }
+
+        if ($flat || Common::getRequestVar('expanded', 0, 'int')) {
+            $table = PreviewTree::toTable($tree);
+        } else {
+            $table = PreviewTree::level($tree, $idSubtable);
+            if ($table === null) {
+                throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorDefinitionInvalid'));
+            }
+        }
+
+        // like an archived report, so core can load and label the subtables of the period
+        $site = new Site($idSite);
+        $table->setMetadata(DataTableFactory::TABLE_METADATA_SITE_INDEX, $site);
+        $table->setMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX, PeriodFactory::build($period, $date, $site->getTimezone()));
+
+        return $table;
     }
 
     /**
@@ -166,7 +203,7 @@ class API extends \Piwik\Plugin\API
         $export = new CustomReportExport();
         $parameters = $export->convert($validated, $filters, $idSite);
 
-        if (!\Piwik\Plugin\Manager::getInstance()->isPluginActivated('CustomReports')) {
+        if (!Configuration::isCustomReportsAvailable()) {
             return $parameters;
         }
 
@@ -260,6 +297,9 @@ class API extends \Piwik\Plugin\API
      * (segment ignored). Evolution and KPI card raw SQL reports run once per sub-period of a multiple period,
      * at most raw_sql_max_points times (the most recent ones).
      *
+     * idExploration 0 with a definition is the unsaved exploration of the explorer canvas, run live like runVisual,
+     * so the canvas and the saved report share the report class core renders them with.
+     *
      * @param int $idSite
      * @param string $period
      * @param string $date
@@ -267,10 +307,17 @@ class API extends \Piwik\Plugin\API
      * @param string $segment
      * @param bool $expanded
      * @param int $idSubtable
+     * @param string $definition JSON of an unsaved visual exploration, with idExploration 0
      * @return DataTable\DataTableInterface
      */
-    public function getReport(int $idSite, string $period, string $date, int $idExploration, string $segment = '', bool $expanded = false, int $idSubtable = 0)
+    public function getReport(int $idSite, string $period, string $date, int $idExploration, string $segment = '', bool $expanded = false, int $idSubtable = 0, string $definition = '')
     {
+        if ($idExploration === 0 && $definition !== '') {
+            // runVisual takes its parameters unsanitized; core flattens the flat view from the whole tree
+            $flat = $expanded || Common::getRequestVar('flat', 0, 'int') === 1;
+            return $this->runVisual($idSite, $period, $date, Common::unsanitizeInputValue($definition), Common::unsanitizeInputValue($segment), $idSubtable, $flat);
+        }
+
         $report = (new ReportsDao())->get($idExploration);
         if ($report === null) {
             throw new NoAccessException(Piwik::translate('DataExplorer_ErrorReportNotAvailable'));
@@ -332,7 +379,7 @@ class API extends \Piwik\Plugin\API
      * @param string $definition JSON of the definition, {"sql": "..."} for a raw SQL report
      * @param string $placement JSON, {"all": true} or {"sites": [1, 2]}
      * @param string $category an id of getCategories(), empty for the Data Explorer category
-     * @param string $subcategory required, an existing subcategory id of the category or the name of a new one
+     * @param string $subcategory an existing subcategory id of the category, the name of a new one, or empty for a page of its own
      * @param int $order 0 to 1000
      * @return int id of the report
      */
@@ -510,7 +557,11 @@ class API extends \Piwik\Plugin\API
                 continue;
             }
 
-            $subcategories = $category->getSubcategories();
+            // the page of its own of a report is not a page others are saved on
+            $subcategories = array_values(array_filter(
+                $category->getSubcategories(),
+                fn ($subcategory) => !GetSavedReport::isOwnPage((string) $category->getId(), (string) $subcategory->getId())
+            ));
             usort($subcategories, fn ($a, $b) => $a->getOrder() <=> $b->getOrder());
 
             $categories[] = [
@@ -675,10 +726,8 @@ class API extends \Piwik\Plugin\API
             throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorCategoryInvalid'));
         }
 
+        // empty: the report gets a page of its own, named after it (GetSavedReport::pageId)
         $subcategory = trim($subcategory);
-        if ($subcategory === '') {
-            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorSubcategoryRequired'));
-        }
         if (mb_strlen($subcategory) > self::MAX_SUBCATEGORY_LENGTH) {
             throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorSubcategoryInvalid', [self::MAX_SUBCATEGORY_LENGTH]));
         }

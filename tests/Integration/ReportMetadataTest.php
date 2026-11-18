@@ -20,8 +20,8 @@ use Piwik\Plugins\CoreVisualizations\Visualizations\HtmlTable;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
-use Piwik\Plugins\DataExplorer\Visualizations\EChartsKpi;
-use Piwik\Plugins\DataExplorer\Visualizations\EChartsLine;
+use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph\Evolution;
+use Piwik\Plugins\CoreVisualizations\Visualizations\Sparklines;
 use Piwik\Tests\Framework\Fixture;
 use Piwik\Tests\Framework\Mock\FakeAccess;
 use Piwik\Tests\Framework\TestCase\IntegrationTestCase;
@@ -126,8 +126,8 @@ class ReportMetadataTest extends IntegrationTestCase
         $table = $widgets['General_Visitors/General_Overview/On site 1'];
         $this->assertSame(HtmlTable::ID, $table['viewDataTable']);
         $this->assertEquals($this->ids['site1'], $table['parameters']['idExploration']);
-        $this->assertSame(EChartsLine::ID, $widgets['General_Actions/Campaign pages/Everywhere']['viewDataTable']);
-        $this->assertSame(EChartsKpi::ID, $widgets['General_Visitors/General_Overview/Visits card']['viewDataTable']);
+        $this->assertSame(Evolution::ID, $widgets['General_Actions/Campaign pages/Everywhere']['viewDataTable']);
+        $this->assertSame(Sparklines::ID, $widgets['General_Visitors/General_Overview/Visits card']['viewDataTable']);
         $this->assertArrayNotHasKey('General_Visitors/General_Overview/On site 2', $widgets);
     }
 

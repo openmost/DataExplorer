@@ -167,11 +167,6 @@ export interface SqlValidation {
   warnings: SqlProblem[];
 }
 
-export type ApiRow = Record<string, unknown> & {
-  label?: string;
-  subtable?: ApiRow[];
-};
-
 export interface DragPayload {
   kind: VariableKind;
   id: string;

@@ -137,6 +137,7 @@ import {
 } from 'vue';
 import { SearchInput } from 'CoreHome';
 import type { PickerGroup } from '../types';
+import { lockPageScroll } from '../pageScrollLock';
 import { catalogueState, closeCatalogue, getReturnFocusTarget } from './catalogueStore';
 
 const FOCUSABLE = [
@@ -144,20 +145,6 @@ const FOCUSABLE = [
   'input:not([disabled])',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
-
-const PAGE_SCROLL_LOCK_CLASS = 'dataExplorer-panel-open';
-const SCROLLBAR_WIDTH_VAR = '--dataexplorer-scrollbar-width';
-
-// hiding the page scrollbar widens the page: its width is padded back so the columns do not move
-function lockPageScroll(lock: boolean) {
-  const root = document.documentElement;
-  if (lock) {
-    root.style.setProperty(SCROLLBAR_WIDTH_VAR, `${window.innerWidth - root.clientWidth}px`);
-  } else {
-    root.style.removeProperty(SCROLLBAR_WIDTH_VAR);
-  }
-  root.classList.toggle(PAGE_SCROLL_LOCK_CLASS, lock);
-}
 
 /**
  * Side panel of the "+" buttons: slides over the page from the right, searches the catalogue by

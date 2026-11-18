@@ -176,7 +176,7 @@ import SchemaBrowser from './SchemaBrowser.vue';
 import { toDiagnostics } from './sqlDiagnostics';
 import { runKeymap } from './runKeymap';
 import { createCodeTheme } from '../codeTheme';
-import { toCsv } from '../Explorer/resultTable';
+import { toCsv } from './csv';
 import type { Diagnostic, EditorView } from './codeMirrorModules';
 import type { SqlStatus, SqlValidation } from '../types';
 

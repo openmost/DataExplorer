@@ -55,10 +55,8 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_CustomReportCreated',
         'General_Save',
         'DataExplorer_ExportCsv',
-        'General_LoadingData',
         'General_Search',
         'DataExplorer_EditReport',
-        'General_Date',
         'General_Name',
         'General_Actions',
         'General_Yes',
@@ -72,7 +70,6 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_SetupConfigTitle',
         'DataExplorer_SetupConfigHelp',
         'DataExplorer_DataExplorer',
-        'DataExplorer_KpiPreviousPeriod',
         'DataExplorer_Variables',
         'DataExplorer_Dimensions',
         'DataExplorer_Metrics',
@@ -136,7 +133,6 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_FilterValuePlaceholder',
         'DataExplorer_RemoveFilter',
         'DataExplorer_Canvas',
-        'DataExplorer_Totals',
         'DataExplorer_HintAddMetric',
         'DataExplorer_HintAddRow',
         'DataExplorer_HintIncompatible',
@@ -165,6 +161,8 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_PlacementAll',
         'DataExplorer_SaveSites',
         'DataExplorer_SaveSitesSearch',
+        'General_Remove',
+        'General_SearchNoResults',
         'SegmentEditor_DefaultAllVisits',
         'SegmentEditor_CustomSegment',
         'General_ChooseDate',
@@ -172,7 +170,7 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_SaveSubcategory',
         'DataExplorer_SaveNewSubcategoryOption',
         'DataExplorer_SaveNewSubcategory',
-        'DataExplorer_DefaultSubcategory',
+        'DataExplorer_SaveOwnPageOption',
         'DataExplorer_SaveOrder',
         'DataExplorer_SaveOrderHelp',
         'DataExplorer_SaveAsNew',
@@ -200,8 +198,6 @@ class DataExplorer extends \Piwik\Plugin
         'General_Save',
         'General_Cancel',
         'General_Close',
-        'General_Others',
-        'CoreHome_ThereIsNoDataForThisReport',
     ];
 
     public function registerEvents()
@@ -306,16 +302,18 @@ class DataExplorer extends \Piwik\Plugin
 
         $order = 200;
         foreach ((new ReportsDao())->getForSiteCached($idSite) as $row) {
-            $key = $row['category'] . '|' . $row['subcategory'];
-            if ($row['category'] === '' || $row['subcategory'] === '' || isset($existing[$key])) {
+            $id = GetSavedReport::pageId($row);
+            $key = $row['category'] . '|' . $id;
+            if ($row['category'] === '' || isset($existing[$key])) {
                 continue;
             }
             $existing[$key] = true;
 
             $subcategory = new Subcategory();
             $subcategory->setCategoryId($row['category']);
-            $subcategory->setId($row['subcategory']);
-            $subcategory->setName($row['subcategory']);
+            $subcategory->setId($id);
+            // a page of its own is named after its report
+            $subcategory->setName($row['subcategory'] !== '' ? $row['subcategory'] : $row['name']);
             $subcategory->setOrder($order++);
             $subcategories[] = $subcategory;
         }
@@ -350,7 +348,6 @@ class DataExplorer extends \Piwik\Plugin
 
     public function getStylesheetFiles(array &$stylesheets): void
     {
-        $stylesheets[] = 'plugins/DataExplorer/stylesheets/charts.less';
         $stylesheets[] = 'plugins/DataExplorer/stylesheets/explorer.less';
     }
 

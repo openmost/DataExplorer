@@ -16,6 +16,7 @@ use Piwik\Common;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
+use Piwik\Plugins\DataExplorer\Configuration;
 use Piwik\Site;
 use Piwik\Url;
 use Piwik\Widget\Widget;
@@ -58,7 +59,7 @@ class ExplorerWidget extends Widget
                 'can-save' => Piwik::isUserHasWriteAccess($idSite),
                 'writable-sites' => $writableSites,
                 'custom-reports' => Piwik::isUserHasWriteAccess($idSite)
-                    && \Piwik\Plugin\Manager::getInstance()->isPluginActivated('CustomReports'),
+                    && Configuration::isCustomReportsAvailable(),
                 'setup-url' => $isSuperUser ? 'index.php?' . Url::getQueryStringFromParameters([
                     'module' => 'DataExplorer',
                     'action' => 'setup',

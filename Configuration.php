@@ -43,6 +43,19 @@ class Configuration
     public const DEFAULT_TUPLE_CHUNK_SIZE = 1000;
 
     /**
+     * The Custom Reports plugin is installed, its files present, activated and loaded: an exploration can be saved
+     * as one of its reports. Activated alone only reads the config, which keeps a plugin whose files were removed.
+     */
+    public static function isCustomReportsAvailable(): bool
+    {
+        $manager = \Piwik\Plugin\Manager::getInstance();
+
+        return $manager->isPluginInstalled('CustomReports', true)
+            && $manager->isPluginActivated('CustomReports')
+            && $manager->isPluginLoaded('CustomReports');
+    }
+
+    /**
      * Maximum number of row dimensions of an exploration, 1 to 9.
      */
     public static function getMaxDimensions(): int
