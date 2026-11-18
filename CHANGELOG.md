@@ -1,5 +1,9 @@
 ## Changelog
 
+## 5.0.1
+
+- The save buttons of the side panels stay on one line in every language, the panel close button replaces Cancel.
+
 ## 5.0.0
 
 First release of Data Explorer.

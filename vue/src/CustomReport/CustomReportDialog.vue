@@ -59,11 +59,6 @@
         :value="translate('General_Save')"
         @confirm="create"
       />
-      <button
-        type="button"
-        class="btn-flat"
-        @click="$emit('update:modelValue', false)"
-      >{{ translate('General_Cancel') }}</button>
     </template>
   </SidePanel>
 </template>
