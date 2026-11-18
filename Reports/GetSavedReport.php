@@ -40,12 +40,12 @@ use Piwik\Plugins\DataExplorer\Visualizations\EChartsPie;
  * dashboards and API.getReportMetadata, on every site it is placed on.
  *
  * Core builds one instance per saved report through Report.addReports, and builds this class again with no
- * argument to render a report widget or a ViewDataTable, so that instance reads the report from the idReport
+ * argument to render a report widget or a ViewDataTable, so that instance reads the report from the idExploration
  * and idSite request parameters. Only the listed instances are published in the metadata and widget lists.
  */
 class GetSavedReport extends Report
 {
-    public const PARAMETER = 'idReport';
+    public const PARAMETER = 'idExploration';
 
     /** @var array|null hydrated ReportsDao row */
     private $row;
@@ -306,7 +306,7 @@ class GetSavedReport extends Report
         $isWidget = Common::getRequestVar('widget', 0, 'int');
         $module = Common::getRequestVar('module', '', 'string');
         if ($this->isSql() || ($isWidget && $module !== 'Widgetize')) {
-            // raw SQL runs live, and row evolution would not forward idReport from a dashboard widget
+            // raw SQL runs live, and row evolution would not forward idExploration from a dashboard widget
             $view->config->disable_row_evolution = true;
         }
 

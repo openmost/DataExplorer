@@ -97,6 +97,27 @@ class VisualizationTest extends IntegrationTestCase
         $this->assertStringContainsString('Visits | Smartphone', $html);
     }
 
+    public function test_twoRowDimensions_flatView_loadsTheSubtablesThroughTheReportMetadata(): void
+    {
+        $id = $this->save('table', ['rows' => ['UserCountry.Country', 'DevicesDetection.DeviceType'], 'metrics' => ['nb_visits'], 'table_view' => 'flat']);
+
+        $html = $this->render($id, 'week', '2024-02-26');
+
+        $this->assertStringNotContainsString('could not be found', $html);
+        $this->assertStringContainsString('France', $html);
+        $this->assertStringContainsString('Desktop', $html);
+    }
+
+    public function test_aScheduledReportIdInTheRequest_isNotReadAsASavedReport(): void
+    {
+        $id = $this->save('table', ['rows' => ['UserCountry.Country'], 'metrics' => ['nb_visits']]);
+        $_GET = ['idSite' => '1', 'idReport' => (string) $id];
+
+        $report = new \Piwik\Plugins\DataExplorer\Reports\GetSavedReport();
+
+        $this->assertFalse($report->isEnabled());
+    }
+
     public function test_evolutionReport_footerOffersNoOtherVisualization(): void
     {
         $id = $this->save('evolution', ['metrics' => ['nb_visits']]);
@@ -234,7 +255,7 @@ class VisualizationTest extends IntegrationTestCase
         $html = $this->dispatch('Widgetize', 'iframe', [
             'moduleToWidgetize' => 'DataExplorer',
             'actionToWidgetize' => 'getReport',
-            'idReport' => (string) $id,
+            'idExploration' => (string) $id,
             'period' => 'day',
             'date' => '2024-03-05',
             'disableLink' => '1',
@@ -258,7 +279,7 @@ class VisualizationTest extends IntegrationTestCase
 
     private function render(int $idReport, string $period, string $date, string $viewDataTable = '', string $periodOverride = ''): string
     {
-        $params = ['idReport' => (string) $idReport, 'period' => $periodOverride ?: $period, 'date' => $date, 'widget' => '1'];
+        $params = ['idExploration' => (string) $idReport, 'period' => $periodOverride ?: $period, 'date' => $date, 'widget' => '1'];
         if ($viewDataTable !== '') {
             $params['viewDataTable'] = $viewDataTable;
         }

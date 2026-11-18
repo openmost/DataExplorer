@@ -85,7 +85,7 @@ class ReportMetadataTest extends IntegrationTestCase
         $bySite = array_column($reports, null, 'name');
         $this->assertSame(Piwik::translate('General_Visitors'), $bySite['On site 1']['category']);
         $this->assertSame(Piwik::translate('General_Overview'), $bySite['On site 1']['subcategory']);
-        $this->assertSame(['idReport' => $this->ids['site1']], $bySite['On site 1']['parameters']);
+        $this->assertSame(['idExploration' => $this->ids['site1']], $bySite['On site 1']['parameters']);
         $this->assertSame(CategoryList::get()->getCategory('General_Actions')->getDisplayName(), $bySite['Everywhere']['category']);
         $this->assertSame('Campaign pages', $bySite['Everywhere']['subcategory']);
         $this->assertArrayHasKey('nb_visits', $bySite['On site 1']['metrics']);
@@ -125,7 +125,7 @@ class ReportMetadataTest extends IntegrationTestCase
 
         $table = $widgets['General_Visitors/General_Overview/On site 1'];
         $this->assertSame(HtmlTable::ID, $table['viewDataTable']);
-        $this->assertEquals($this->ids['site1'], $table['parameters']['idReport']);
+        $this->assertEquals($this->ids['site1'], $table['parameters']['idExploration']);
         $this->assertSame(EChartsLine::ID, $widgets['General_Actions/Campaign pages/Everywhere']['viewDataTable']);
         $this->assertSame(EChartsKpi::ID, $widgets['General_Visitors/General_Overview/Visits card']['viewDataTable']);
         $this->assertArrayNotHasKey('General_Visitors/General_Overview/On site 2', $widgets);

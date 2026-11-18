@@ -164,7 +164,7 @@ class ProcessedReportTest extends IntegrationTestCase
         $offered = [];
         foreach (ScheduledReportsAPI::getReportMetadata(1, 'email') as $metadata) {
             if (($metadata['module'] ?? '') === 'DataExplorer') {
-                $offered[] = (int) $metadata['parameters']['idReport'];
+                $offered[] = (int) $metadata['parameters']['idExploration'];
             }
         }
 
@@ -177,7 +177,7 @@ class ProcessedReportTest extends IntegrationTestCase
     {
         Cache::getTransientCache()->flushAll();
 
-        return CoreAPI::getInstance()->getProcessedReport(1, $period, $date, 'DataExplorer', 'getReport', false, ['idReport' => $idReport], false, false, false, false, false, true);
+        return CoreAPI::getInstance()->getProcessedReport(1, $period, $date, 'DataExplorer', 'getReport', false, ['idExploration' => $idReport], false, false, false, false, false, true);
     }
 
     private function assertNoCoreProcessedMetric(array $columns): void

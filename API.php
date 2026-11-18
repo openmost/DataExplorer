@@ -263,15 +263,15 @@ class API extends \Piwik\Plugin\API
      * @param int $idSite
      * @param string $period
      * @param string $date
-     * @param int $idReport
+     * @param int $idExploration
      * @param string $segment
      * @param bool $expanded
      * @param int $idSubtable
      * @return DataTable\DataTableInterface
      */
-    public function getReport(int $idSite, string $period, string $date, int $idReport, string $segment = '', bool $expanded = false, int $idSubtable = 0)
+    public function getReport(int $idSite, string $period, string $date, int $idExploration, string $segment = '', bool $expanded = false, int $idSubtable = 0)
     {
-        $report = (new ReportsDao())->get($idReport);
+        $report = (new ReportsDao())->get($idExploration);
         if ($report === null) {
             throw new NoAccessException(Piwik::translate('DataExplorer_ErrorReportNotAvailable'));
         }
