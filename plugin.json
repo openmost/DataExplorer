@@ -1,7 +1,7 @@
 {
   "name": "DataExplorer",
   "description": "Explore your Matomo data like in GA4 Explorations, or with guarded raw SQL, then save, share and export it.",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "theme": false,
   "require": {
     "matomo": ">=5.12.0,<6.0.0-b1"

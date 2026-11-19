@@ -1,5 +1,9 @@
 ## Changelog
 
+## 5.0.2
+
+- A newly saved or edited report shows its data right away when browser archiving is on, instead of staying empty until the next `core:archive` run.
+
 ## 5.0.1
 
 - The save buttons of the side panels stay on one line in every language, the panel close button replaces Cancel.
