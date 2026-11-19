@@ -13,7 +13,6 @@ use Piwik\NoAccessException;
 use Piwik\Plugins\DataExplorer\API;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\MetricCatalog;
-use Piwik\Plugins\DataExplorer\Catalog\ScopeCompatibility;
 use Piwik\Tests\Framework\Fixture;
 use Piwik\Tests\Framework\Mock\FakeAccess;
 use Piwik\Tests\Framework\TestCase\IntegrationTestCase;
@@ -91,21 +90,24 @@ class CatalogTest extends IntegrationTestCase
         $this->assertSame('uniq', $metrics['nb_uniq_visitors']->aggregation);
     }
 
-    public function test_scopeCompatibilityMatrix(): void
+    public function test_eventMetrics_countTheEventActions(): void
     {
         $metrics = (new MetricCatalog())->all(1);
-        $compat = new ScopeCompatibility();
 
-        $this->assertTrue($compat->isAllowed('action', $metrics['nb_visits']));
-        $this->assertTrue($compat->isAllowed('action', $metrics['nb_uniq_visitors']));
-        $this->assertFalse($compat->isAllowed('action', $metrics['sum_visit_length']));
-        $this->assertFalse($compat->isAllowed('action', $metrics['bounce_count']));
-        $this->assertTrue($compat->isAllowed('visit', $metrics['nb_actions']));
-        $this->assertTrue($compat->isAllowed('visit', $metrics['nb_conversions']));
-        $this->assertTrue($compat->isAllowed('visit', $metrics['sum_visit_length']));
-        $this->assertTrue($compat->isAllowed('conversion', $metrics['nb_conversions']));
-        $this->assertFalse($compat->isAllowed('conversion', $metrics['nb_actions']));
-        $this->assertFalse($compat->isAllowed('conversion', $metrics['nb_visits']));
+        $this->assertSame('action', $metrics['nb_events']->scope);
+        $this->assertSame('sum', $metrics['nb_events']->aggregation);
+        $this->assertSame('action', $metrics['sum_event_value']->scope);
+    }
+
+    public function test_additiveScopes_followTheTableOfTheMetric(): void
+    {
+        $metrics = (new MetricCatalog())->all(1);
+
+        $this->assertSame(['visit'], $metrics['nb_visits']->additiveScopes());
+        $this->assertSame(['visit'], $metrics['sum_visit_length']->additiveScopes());
+        $this->assertSame(['visit', 'action'], $metrics['nb_actions']->additiveScopes());
+        $this->assertSame(['visit', 'conversion'], $metrics['nb_conversions']->additiveScopes());
+        $this->assertSame([], $metrics['nb_uniq_visitors']->additiveScopes());
     }
 
     private function configureCustomDimensionOnSite1(): void
@@ -161,7 +163,7 @@ class CatalogTest extends IntegrationTestCase
             }
         }
         $this->assertNotNull($nbVisits);
-        $this->assertSame(['visit', 'action'], $nbVisits['allowedScopes']);
+        $this->assertSame(['visit'], $nbVisits['additiveScopes']);
         $this->assertArrayNotHasKey('sql', $nbVisits);
     }
 

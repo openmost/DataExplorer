@@ -264,23 +264,57 @@ class VisualQueryTest extends IntegrationTestCase
         $this->assertContains("%x&#039; OR 1=1 -- 100\\%%", $query['bind']);
     }
 
-    public function test_incompatibleCombinations_areRefused(): void
+    public function test_conversionsUnderAPageUrl_countTheConversionsOfTheVisitsThatViewedIt_once(): void
     {
-        $cases = [
-            'row' => ['rows' => [self::URL], 'metrics' => ['nb_conversions']],
-            'second row' => ['rows' => [self::COUNTRY, self::URL], 'metrics' => ['sum_visit_length']],
-            'pivot' => ['rows' => [self::COUNTRY], 'column' => self::URL, 'metrics' => ['sum_visit_length']],
-            'filter' => ['rows' => [self::COUNTRY], 'metrics' => ['nb_conversions'], 'filters' => [['dimension' => self::URL, 'operator' => 'equals', 'value' => 'x']]],
-        ];
+        $table = $this->explore(['rows' => [self::URL], 'metrics' => ['nb_conversions', 'revenue']]);
+        $conversions = $this->column($table, 'nb_conversions');
+        $revenue = $this->column($table, 'revenue');
 
-        foreach ($cases as $case => $definition) {
-            try {
-                $this->explore($definition);
-                $this->fail("$case: expected a refusal");
-            } catch (\InvalidArgumentException $e) {
-                $this->assertStringContainsString('cannot be combined', $e->getMessage(), $case);
-            }
-        }
+        // the converting visit viewed /home twice, its conversion counts once in that row
+        $this->assertEquals(1, $this->findBySuffix($conversions, '/home'));
+        $this->assertEquals(10, $this->findBySuffix($revenue, '/home'));
+        $this->assertEquals(1, $this->findBySuffix($conversions, '/pricing'));
+        $this->assertEquals(1, $this->findBySuffix($conversions, '/contact'));
+    }
+
+    public function test_visitSumUnderAnActionFilter_countsEachVisitOnce_likeAVisitSegment(): void
+    {
+        $filtered = $this->explore(['rows' => [self::COUNTRY], 'metrics' => ['sum_visit_length', 'bounce_count'],
+            'filters' => [['dimension' => self::URL, 'operator' => 'contains', 'value' => 'home']]]);
+        $segmented = $this->explore(['rows' => [self::COUNTRY], 'metrics' => ['sum_visit_length', 'bounce_count']], 'pageUrl=@home');
+
+        $this->assertEquals($this->column($segmented, 'sum_visit_length'), $this->column($filtered, 'sum_visit_length'));
+        $this->assertEquals($this->column($segmented, 'bounce_count'), $this->column($filtered, 'bounce_count'));
+    }
+
+    public function test_visitSumUnderAPageUrl_countsEachVisitOncePerRow(): void
+    {
+        $table = $this->explore(['rows' => [self::URL], 'metrics' => ['bounce_count', 'sum_visit_length']]);
+        $bounces = $this->column($table, 'bounce_count');
+
+        // /home: one bounce (the visit of one page), the visit of three pages is counted once
+        $this->assertEquals(1, $this->findBySuffix($bounces, '/home'));
+        $this->assertEquals(0, $this->findBySuffix($bounces, '/blog'));
+        $this->assertEquals(1, $this->findBySuffix($bounces, '/contact'));
+
+        $byCountry = $this->explore(['rows' => [self::COUNTRY], 'metrics' => ['sum_visit_length']], 'pageUrl=@contact');
+        $this->assertEquals(array_sum($this->column($byCountry, 'sum_visit_length')), $this->findBySuffix($this->column($table, 'sum_visit_length'), '/contact'));
+    }
+
+    public function test_actionsUnderAGoal_countEachActionOnce_evenWithSeveralConversionsInTheVisit(): void
+    {
+        $definition = ReportDefinition::fromArray(['name' => 'preview', 'rows' => ['Goals.IdGoal'], 'metrics' => ['nb_actions']]);
+        $table = (new VisualQueryRunner())->run($definition, self::$fixture->idSite, 'day', '2024-03-05', '');
+
+        $this->assertSame([1], array_values($this->column($table, 'nb_actions')));
+    }
+
+    public function test_actionAndConversionScopes_combineInOneExploration(): void
+    {
+        $table = $this->explore(['rows' => [self::URL], 'column' => 'Goals.IdGoal', 'metrics' => ['nb_actions', 'nb_conversions']]);
+
+        $this->assertEquals(5, $this->findBySuffix($this->column($table, 'nb_actions'), '/home'));
+        $this->assertEquals(1, $this->findBySuffix($this->column($table, 'nb_conversions'), '/home'));
     }
 
     public function test_unknownIdsAndOperators_areRefused(): void

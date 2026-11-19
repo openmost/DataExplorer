@@ -23,7 +23,6 @@ export interface MetricItem {
   scope: Scope;
   aggregation: string;
   isNumeric: boolean;
-  allowedScopes: Scope[];
   additiveScopes: Scope[];
 }
 
@@ -176,6 +175,8 @@ export interface ZoneItem {
   name: string;
   // why the item cannot be used with the rest of the exploration, '' when it can
   reason: string;
+  // how a metric counts its rows when a dimension of the exploration repeats them
+  hint?: string;
 }
 
 export interface VariableView extends ZoneItem {

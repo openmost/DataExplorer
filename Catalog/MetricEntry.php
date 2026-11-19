@@ -37,16 +37,17 @@ final class MetricEntry
 
     /**
      * Scopes of the row dimensions across whose rows the metric adds up (an "Others" total is the sum of its
-     * rows). A visit has one value of each visit dimension and an action one value of each action and visit
-     * dimension, so distinct visits and distinct actions add up there; other distinct counts, maximums and
-     * minimums never do.
+     * rows). An action or a conversion has one value of each dimension of its own table and of its visit, so it
+     * lands in one row only there; under a dimension of another table a visit, an action or a conversion is counted
+     * in every row it has a value of, once per row. Distinct counts of other columns, maximums and minimums never
+     * add up.
      *
      * @return string[]
      */
     public function additiveScopes(): array
     {
         if ($this->aggregation === 'sum') {
-            return ['visit', 'action', 'conversion'];
+            return array_values(array_unique(['visit', $this->scope]));
         }
         if ($this->aggregation !== 'uniq') {
             return [];

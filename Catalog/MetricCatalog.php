@@ -15,6 +15,7 @@ use Piwik\Cache;
 use Piwik\Columns\MetricsList;
 use Piwik\Piwik;
 use Piwik\Plugin\ArchivedMetric;
+use Piwik\Plugin\Manager as PluginManager;
 
 class MetricCatalog
 {
@@ -86,6 +87,13 @@ class MetricCatalog
             ['sum_visit_length', 'General_ColumnSumVisitLength', 'visit', 'SUM(log_visit.visit_total_time)', 'sum', $category],
             ['bounce_count', 'General_ColumnBounces', 'visit', 'SUM(CASE WHEN log_visit.visit_total_actions = 1 THEN 1 ELSE 0 END)', 'sum', $category],
         ];
+
+        // the columns of the Events reports, per event action: the visit level "Total events" counts every event of
+        // the visits, so it is not the number of events of a row
+        if (PluginManager::getInstance()->isPluginActivated('Events')) {
+            $defs[] = ['nb_events', 'Events_Events', 'action', 'COUNT(log_link_visit_action.idaction_event_category)', 'sum', 'Events_Events'];
+            $defs[] = ['sum_event_value', 'Events_EventValue', 'action', 'SUM(CASE WHEN log_link_visit_action.idaction_event_category IS NULL THEN 0 ELSE COALESCE(log_link_visit_action.custom_float, 0) END)', 'sum', 'Events_Events'];
+        }
 
         $entries = [];
         foreach ($defs as [$id, $label, $scope, $sql, $aggregation, $cat]) {
