@@ -23,7 +23,7 @@
           v-if="reason"
           class="icon-warning"
           aria-hidden="true"
-        ></span>
+        />
         <span class="dataExplorerFilter__name">{{ dimensionName }}</span>
         <span
           v-if="filter.value"
@@ -37,7 +37,7 @@
         :title="translate('DataExplorer_RemoveFilter', dimensionName)"
         @click="$emit('remove')"
       >
-        <span class="icon-close" aria-hidden="true"></span>
+        <span class="icon-close" aria-hidden="true" />
       </button>
     </div>
     <div

@@ -5,6 +5,7 @@
  * @license https://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  */
 
+import { describe, expect, it } from 'vitest';
 import { distinctNames } from './catalogNames';
 
 const scopeLabel = (scope: string) => `scope ${scope}`;

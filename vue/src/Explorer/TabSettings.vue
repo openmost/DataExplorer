@@ -28,7 +28,7 @@
           :title="option.label"
           @click="$emit('setVisualization', option.id)"
         >
-          <span :class="option.icon" aria-hidden="true"></span>
+          <span :class="option.icon" aria-hidden="true" />
         </button>
       </div>
     </div>

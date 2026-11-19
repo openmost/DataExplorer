@@ -13,7 +13,7 @@
           class="dataExplorerCanvas__tabIcon"
           :class="tabIcon"
           aria-hidden="true"
-        ></span>
+        />
         <h3 class="dataExplorerCanvas__title">{{ title }}</h3>
       </div>
       <div
@@ -29,14 +29,14 @@
           <span
             class="icon-calendar"
             aria-hidden="true"
-          ></span>
+          />
           <span>{{ periodText }}</span>
         </button>
         <span class="dataExplorerCanvas__pill">
           <span
             class="icon-segment"
             aria-hidden="true"
-          ></span>
+          />
           <span>{{ segmentText }}</span>
         </span>
       </div>
@@ -79,7 +79,7 @@ import type { Visualization } from '../types';
  * from DataExplorer.preview like the saved report it would become.
  */
 export default defineComponent({
-  name: 'Canvas',
+  name: 'ExplorerCanvas',
   components: {
     WidgetLoader,
   },

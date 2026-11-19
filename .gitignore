@@ -1,10 +1,5 @@
 node_modules/
-/vue/dist/demo.html
+/vue/dist/*.umd.js
 /vue/dist/*.common.js
-/vue/dist/*.common.*.js
 /vue/dist/*.map
 /vue/dist/*.development.*
-# Matomo loads the minified library only, the non minified build's lazy chunks are not shipped
-/vue/dist/*.umd.vendors~*.js
-/vue/dist/*.umd.echarts.js
-/vue/dist/*.umd.codemirror.js

@@ -122,7 +122,7 @@
           @update-filter="updateFilter"
           @remove-filter="removeFilter"
         />
-        <Canvas
+        <ExplorerCanvas
           :title="canvasTitle"
           :period-text="periodText"
           :segment-text="segmentText"
@@ -200,7 +200,7 @@ import {
   translate,
 } from 'CoreHome';
 import { Field } from 'CorePluginsAdmin';
-import Canvas from './Canvas.vue';
+import ExplorerCanvas from './Canvas.vue';
 import TabSettings from './TabSettings.vue';
 import VariablesPanel from './VariablesPanel.vue';
 import RawSqlEditor from '../RawSql/RawSqlEditor.vue';
@@ -253,7 +253,7 @@ export default defineComponent({
   name: 'Explorer',
   components: {
     ActivityIndicator,
-    Canvas,
+    ExplorerCanvas,
     Notification,
     RawSqlEditor,
     SaveDialog,

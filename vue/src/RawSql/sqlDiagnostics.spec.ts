@@ -5,6 +5,7 @@
  * @license https://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  */
 
+import { describe, expect, it } from 'vitest';
 import { toDiagnostics } from './sqlDiagnostics';
 
 const problem = (offsetUtf16: number|null, lengthUtf16: number, message: string) => ({
@@ -24,23 +25,33 @@ describe('toDiagnostics', () => {
     };
 
     expect(toDiagnostics(validation, 50)).toEqual([
-      { from: 14, to: 18, severity: 'error', message: 'This query is refused: the table "user" cannot be read.' },
-      { from: 30, to: 39, severity: 'warning', message: 'The table log_visit is not filtered by idsite = {idsite}.' },
+      {
+        from: 14, to: 18, severity: 'error', message: 'This query is refused: the table "user" cannot be read.',
+      },
+      {
+        from: 30, to: 39, severity: 'warning', message: 'The table log_visit is not filtered by idsite = {idsite}.',
+      },
     ]);
   });
 
   it('covers the whole query when the problem has no offset', () => {
     const validation = { valid: false, errors: [problem(null, 0, 'too long')], warnings: [] };
 
-    expect(toDiagnostics(validation, 12)).toEqual([{ from: 0, to: 12, severity: 'error', message: 'too long' }]);
+    expect(toDiagnostics(validation, 12)).toEqual([{
+      from: 0, to: 12, severity: 'error', message: 'too long',
+    }]);
   });
 
   it('keeps the range inside the document and at least one character wide', () => {
     const validation = { valid: false, errors: [problem(10, 0, 'near end'), problem(40, 5, 'stale')], warnings: [] };
 
     expect(toDiagnostics(validation, 11)).toEqual([
-      { from: 10, to: 11, severity: 'error', message: 'near end' },
-      { from: 11, to: 11, severity: 'error', message: 'stale' },
+      {
+        from: 10, to: 11, severity: 'error', message: 'near end',
+      },
+      {
+        from: 11, to: 11, severity: 'error', message: 'stale',
+      },
     ]);
   });
 });

@@ -317,9 +317,9 @@ class ArchivingTest extends IntegrationTestCase
     {
         $report = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']]);
         $logger = new class extends NullLogger {
-            public $warnings = [];
+            public array $warnings = [];
 
-            public function log($level, $message, array $context = array())
+            public function log($level, \Stringable|string $message, array $context = []): void
             {
                 $this->warnings[] = [$level, $message, $context];
             }

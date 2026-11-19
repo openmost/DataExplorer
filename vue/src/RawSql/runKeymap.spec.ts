@@ -5,6 +5,9 @@
  * @license https://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  */
 
+import {
+  describe, expect, it, vi,
+} from 'vitest';
 import { runKeymap } from './runKeymap';
 
 describe('runKeymap', () => {
@@ -14,7 +17,7 @@ describe('runKeymap', () => {
       keymap: { of: (list: { key: string, run: () => boolean }[]) => { bindings.push(list); return 'keymap'; } },
       Prec: { highest: (extension: unknown) => ({ highest: extension }) },
     };
-    const run = jest.fn();
+    const run = vi.fn();
 
     const extension = runKeymap(cm as never, run);
 

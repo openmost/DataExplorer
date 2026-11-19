@@ -87,7 +87,7 @@
                 <span
                   class="icon-close"
                   aria-hidden="true"
-                ></span>
+                />
               </button>
             </li>
           </ul>

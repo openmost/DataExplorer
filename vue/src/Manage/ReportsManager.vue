@@ -75,14 +75,14 @@
               :href="reportUrl(report)"
               :title="translate('DataExplorer_ManageView', report.name)"
               :aria-label="translate('DataExplorer_ManageView', report.name)"
-            ></a>
+            />
             <a
               v-if="canOpen(report)"
               class="table-action icon-edit"
               :href="explorerUrl(report)"
               :title="translate('DataExplorer_ManageEdit', report.name)"
               :aria-label="translate('DataExplorer_ManageEdit', report.name)"
-            ></a>
+            />
             <button
               v-if="report.editable"
               type="button"
@@ -90,7 +90,7 @@
               :title="translate('DataExplorer_ManageDelete', report.name)"
               :aria-label="translate('DataExplorer_ManageDelete', report.name)"
               @click="askDelete(report)"
-            ></button>
+            />
           </td>
         </tr>
       </tbody>
@@ -101,7 +101,7 @@
         class="dataExplorerManage__create"
         :href="explorerUrl(null)"
       >
-        <span class="icon-add" aria-hidden="true"></span>
+        <span class="icon-add" aria-hidden="true" />
         {{ translate('DataExplorer_NewExploration') }}
       </a>
     </div>
@@ -110,6 +110,7 @@
       v-model="confirmOpen"
       @yes="confirmDelete"
     >
+      <!-- eslint-disable vuejs-accessibility/aria-role -->
       <div class="ui-confirm">
         <h2>{{ translate('DataExplorer_ManageDeleteConfirm', toDelete ? toDelete.name : '') }}</h2>
         <input
@@ -123,6 +124,7 @@
           :value="translate('General_No')"
         />
       </div>
+      <!-- eslint-enable vuejs-accessibility/aria-role -->
     </MatomoDialog>
   </div>
 </template>

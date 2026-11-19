@@ -1,12 +1,8 @@
 ## Changelog
 
-## 5.0.1
+## 6.0.0
 
-- The save buttons of the side panels stay on one line in every language, the panel close button replaces Cancel.
-
-## 5.0.0
-
-First release of Data Explorer.
+First release of Data Explorer for Matomo 6.
 
 - Free-form explorer for dimensions, metrics, segments and filters, with a live preview that follows the same row limits as the saved report.
 - Visualizations: the Matomo table, evolution graph, bar and pie charts and sparkline (KPI card), in the explorer as in the saved report. Any report can apply one saved segment as a filter.

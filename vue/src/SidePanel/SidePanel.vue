@@ -8,11 +8,13 @@
 <template>
   <Teleport to="body">
     <Transition name="dataExplorerPanelBackdrop">
+      <!-- the panel closes from the keyboard with Escape -->
+      <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events -->
       <div
         v-if="modelValue"
         class="dataExplorerPanelBackdrop"
         @click="close"
-      ></div>
+      />
     </Transition>
     <Transition
       name="dataExplorerPanel"
@@ -43,7 +45,7 @@
             <span
               class="icon-close"
               aria-hidden="true"
-            ></span>
+            />
           </button>
         </header>
         <div class="dataExplorerPanel__body dataExplorerFormPanel__body">

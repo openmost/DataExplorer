@@ -55,7 +55,7 @@
           v-if="item.reason"
           class="icon-warning"
           aria-hidden="true"
-        ></span>
+        />
         <span class="dataExplorerChip__name">{{ item.name }}</span>
         <span
           v-if="item.reason"
@@ -68,11 +68,11 @@
           :title="translate('DataExplorer_RemoveFromZone', item.name, title)"
           @click="remove(item.id, index)"
         >
-          <span class="icon-close" aria-hidden="true"></span>
+          <span class="icon-close" aria-hidden="true" />
         </button>
       </li>
     </ul>
-    <slot></slot>
+    <slot />
     <div
       v-if="!isFull && !disabled"
       class="dataExplorerDropZone__slot"
@@ -87,7 +87,7 @@
         <span
           class="icon-add"
           aria-hidden="true"
-        ></span>
+        />
         <span>{{ placeholder }}</span>
       </button>
       <ul

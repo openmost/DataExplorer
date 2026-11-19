@@ -68,7 +68,6 @@ export type Visualization = 'table' | 'line' | 'bar' | 'pie' | 'kpicard';
 
 export type ReportType = 'table' | 'evolution' | 'kpicard';
 
-
 export type FilterOperator = 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with'
   | 'regex' | 'gt' | 'lt';
 

@@ -26,7 +26,7 @@
           :aria-expanded="isOpen(section.kind) ? 'true' : 'false'"
           @click="open(section.kind, $event)"
         >
-          <span class="icon-add" aria-hidden="true"></span>
+          <span class="icon-add" aria-hidden="true" />
         </button>
       </div>
       <ul
@@ -53,7 +53,7 @@
           <span
             class="dataExplorerGrip"
             aria-hidden="true"
-          ></span>
+          />
           <span class="dataExplorerVariable__name">{{ item.name }}</span>
           <button
             type="button"
@@ -62,7 +62,7 @@
             :title="translate('DataExplorer_RemoveVariable', item.name)"
             @click="$emit('removeVariable', section.kind, item.id)"
           >
-            <span class="icon-close" aria-hidden="true"></span>
+            <span class="icon-close" aria-hidden="true" />
           </button>
         </li>
         <li

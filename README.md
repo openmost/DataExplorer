@@ -17,7 +17,7 @@ Explore your Matomo data the way you would in GA4 Explorations, then save the re
 
 ### Requirements
 
-- Matomo 5.12.0 or later (below 6.0.0).
+- Matomo 6.0.0 or later (below 7.0.0), PHP 8.1 or later.
 - MySQL 5.7 or later, or MariaDB, as required by Matomo. PHP version as required by your Matomo.
 - For raw SQL only: a MySQL user able to create another read-only user.
 

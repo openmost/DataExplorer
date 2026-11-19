@@ -8,11 +8,13 @@
 <template>
   <Teleport to="body">
     <Transition name="dataExplorerPanelBackdrop">
+      <!-- the panel closes from the keyboard with Escape -->
+      <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events -->
       <div
         v-show="isOpen"
         class="dataExplorerPanelBackdrop"
         @click="close"
-      ></div>
+      />
     </Transition>
     <Transition name="dataExplorerPanel">
       <section
@@ -36,7 +38,7 @@
             :title="translate('General_Close')"
             @click="close"
           >
-            <span class="icon-close" aria-hidden="true"></span>
+            <span class="icon-close" aria-hidden="true" />
           </button>
         </header>
         <div class="dataExplorerPanel__search">
@@ -75,7 +77,7 @@
                 <span
                   class="dataExplorerPanel__chevron icon-chevron-down"
                   aria-hidden="true"
-                ></span>
+                />
               </button>
             </h3>
             <ul
@@ -102,7 +104,7 @@
                     v-if="added.includes(item.id)"
                     class="dataExplorerPanel__check icon-ok"
                     aria-hidden="true"
-                  ></span>
+                  />
                   <span
                     v-if="item.reason"
                     :id="reasonId(item.id)"

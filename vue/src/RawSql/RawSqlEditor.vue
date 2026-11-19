@@ -45,7 +45,7 @@
         <div
           ref="container"
           class="dataExplorerSql__editor"
-        ></div>
+        />
 
         <div
           class="dataExplorerSql__validation"
@@ -67,7 +67,7 @@
               <span
                 :class="problem.severity === 'error' ? 'icon-error' : 'icon-warning'"
                 aria-hidden="true"
-              ></span>
+              />
               {{ problem.message }}
             </li>
           </ul>
@@ -75,7 +75,7 @@
             v-else-if="validity === 'valid'"
             class="dataExplorerSql__valid"
           >
-            <span class="icon-ok" aria-hidden="true"></span>
+            <span class="icon-ok" aria-hidden="true" />
             {{ translate('DataExplorer_SqlValid') }}
           </div>
         </div>
@@ -101,7 +101,7 @@
             class="btn btn-flat dataExplorerSql__csv"
             @click="exportCsv"
           >
-            <span class="icon-export" aria-hidden="true"></span>
+            <span class="icon-export" aria-hidden="true" />
             {{ translate('DataExplorer_ExportCsv') }}
           </button>
           <ActivityIndicator :loading="running" />
@@ -188,7 +188,7 @@ let modules: Promise<CodeMirrorModules> | null = null;
 
 function loadCodeMirror(): Promise<CodeMirrorModules> {
   if (!modules) {
-    modules = import(/* webpackChunkName: "codemirror" */ './codeMirrorModules');
+    modules = import('./codeMirrorModules');
   }
   return modules;
 }

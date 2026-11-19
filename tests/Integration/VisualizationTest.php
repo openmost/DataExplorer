@@ -334,10 +334,12 @@ class VisualizationTest extends IntegrationTestCase
      */
     private function footerIcons(string $html): array
     {
-        $this->assertSame(1, preg_match('/\sfooter-icons="([^"]*)"/', $html, $match));
+        // Matomo 6 hands the icons to the report actions menu of the header, as a JSON config
+        $this->assertSame(1, preg_match('/\sdata-report-actions="([^"]*)"/', $html, $match));
+        $config = json_decode(html_entity_decode($match[1], ENT_QUOTES), true);
 
         $ids = [];
-        foreach (json_decode(html_entity_decode($match[1], ENT_QUOTES), true) as $group) {
+        foreach ($config['footerIcons'] ?? [] as $group) {
             foreach ($group['buttons'] as $button) {
                 $ids[] = $button['id'];
             }
