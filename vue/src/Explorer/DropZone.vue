@@ -47,7 +47,7 @@
         }"
         :data-id="item.id"
         tabindex="0"
-        :title="item.reason
+        :title="item.reason || item.hint
           || (isInactive(index) ? inactiveReason : translate('DataExplorer_ChipRemoveHint'))"
         @keydown.delete.self.prevent="remove(item.id, index)"
       >
@@ -56,11 +56,16 @@
           class="icon-warning"
           aria-hidden="true"
         ></span>
+        <span
+          v-else-if="item.hint"
+          class="icon-info"
+          aria-hidden="true"
+        ></span>
         <span class="dataExplorerChip__name">{{ item.name }}</span>
         <span
-          v-if="item.reason"
+          v-if="item.reason || item.hint"
           class="dataExplorerVisuallyHidden"
-        >{{ item.reason }}</span>
+        >{{ item.reason || item.hint }}</span>
         <button
           type="button"
           class="dataExplorerIconButton dataExplorerChip__remove"

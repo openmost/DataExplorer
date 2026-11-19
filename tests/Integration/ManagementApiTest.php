@@ -581,7 +581,6 @@ class ManagementApiTest extends IntegrationTestCase
         return [
             'unknown dimension' => ['{"rows":["Nope.Nope"],"metrics":["nb_visits"]}', 'DataExplorer_ErrorUnknownDimension'],
             'unknown metric' => ['{"rows":["UserCountry.Country"],"metrics":["nope"]}', 'DataExplorer_ErrorUnknownMetric'],
-            'incompatible combination' => ['{"rows":["Actions.ActionUrl"],"metrics":["sum_visit_length"]}', 'DataExplorer_ErrorIncompatibleCombination'],
             'invalid segment' => ['{"rows":["UserCountry.Country"],"metrics":["nb_visits"],"segment":"notADimension==1"}', 'DataExplorer_ErrorSegmentInvalid'],
         ];
     }

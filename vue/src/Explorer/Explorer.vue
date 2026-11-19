@@ -231,6 +231,7 @@ import type {
   PickerGroup,
   PickerItem,
   SavedReport,
+  Scope,
   VariableKind,
   VariableView,
   VisualDefinition,
@@ -411,7 +412,7 @@ export default defineComponent({
       return items.length ? [{ category: translate('DataExplorer_SavedSegments'), items }] : [];
     });
 
-    // compatibility of the variables with the rest of the exploration
+    // dimensions read by the exploration, for the per row counting hint of the metrics
     const usedDimensions = computed(() => [
       ...(hasRowDimensions(state.visualization) ? state.rows : []),
       ...(hasRowDimensions(state.visualization) && state.column ? [state.column] : []),
@@ -427,25 +428,36 @@ export default defineComponent({
     }
 
     function metricReason(id: string): string {
-      const metric = metricsById.value[id];
-      if (!metric) {
-        return translate('DataExplorer_UnknownVariable');
-      }
-      const conflict = usedDimensions.value
-        .map((dimensionId) => dimensionsById.value[dimensionId])
-        .find((dimension) => dimension && !metric.allowedScopes.includes(dimension.scope));
-      return conflict ? translate('DataExplorer_IncompatibleWithDimension', conflict.name) : '';
+      return metricsById.value[id] ? '' : translate('DataExplorer_UnknownVariable');
     }
 
     function dimensionReason(id: string): string {
-      const dimension = dimensionsById.value[id];
-      if (!dimension) {
-        return translate('DataExplorer_UnknownVariable');
+      return dimensionsById.value[id] ? '' : translate('DataExplorer_UnknownVariable');
+    }
+
+    // a visit has several actions and conversions, an action shares its visit with the
+    // conversions and the other way round: under such a dimension the metric counts each of
+    // its rows once in every row of the report
+    const repeatingScopes: Record<Scope, Scope[]> = {
+      visit: ['action', 'conversion'],
+      action: ['conversion'],
+      conversion: ['action'],
+    };
+    const perRowHints: Record<Scope, string> = {
+      visit: 'DataExplorer_MetricPerVisitHint',
+      action: 'DataExplorer_MetricPerActionHint',
+      conversion: 'DataExplorer_MetricPerConversionHint',
+    };
+
+    function metricHint(id: string): string {
+      const metric = metricsById.value[id];
+      if (!metric) {
+        return '';
       }
-      const conflict = state.values
-        .map((metricId) => metricsById.value[metricId])
-        .find((metric) => metric && !metric.allowedScopes.includes(dimension.scope));
-      return conflict ? translate('DataExplorer_IncompatibleWithMetric', conflict.name) : '';
+      const repeats = usedDimensions.value
+        .map((dimensionId) => dimensionsById.value[dimensionId])
+        .some((dimension) => dimension && repeatingScopes[metric.scope].includes(dimension.scope));
+      return repeats ? translate(perRowHints[metric.scope]) : '';
     }
 
     const dimensionGroups = computed(() => pickerGroups(
@@ -490,7 +502,7 @@ export default defineComponent({
     }] : []));
 
     const valueItems = computed<ZoneItem[]>(() => state.values.map((id) => ({
-      id, name: metricName(id), reason: metricReason(id),
+      id, name: metricName(id), reason: metricReason(id), hint: metricHint(id),
     })));
 
     const segmentItems = computed<ZoneItem[]>(() => (state.segment ? [{

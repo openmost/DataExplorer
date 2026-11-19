@@ -19,11 +19,16 @@ use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionEntry;
 use Piwik\Plugins\DataExplorer\Catalog\MetricCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\MetricEntry;
-use Piwik\Plugins\DataExplorer\Catalog\ScopeCompatibility;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 
 /**
  * Compiles a visual definition into one aggregate query per metric scope and row level.
+ *
+ * Every metric can be read next to every dimension. A dimension of another table than the metric's repeats its
+ * rows: a visit has several actions, an action several conversions of its visit. Such a query is first grouped
+ * per row and per visit, action or conversion of the metric, so each one counts once per row, then aggregated:
+ * "Total events" by event name is the events of the visits having that event name, "Conversions" by page URL the
+ * conversions of the visits that viewed that page.
  *
  * Every table, column, join and metric expression comes from the catalogue, looked up by id.
  * Filter values only ever reach the database as bound parameters.
@@ -46,28 +51,28 @@ class VisualQueryBuilder
         'log_conversion' => 'server_time',
     ];
 
+    /** the columns identifying one row of each metric table */
+    private const GRAIN_COLUMNS = [
+        'log_visit' => ['idvisit'],
+        'log_link_visit_action' => ['idlink_va'],
+        'log_conversion' => ['idvisit', 'idgoal', 'buster'],
+    ];
+
     private const IDENTIFIER = '/^[a-zA-Z0-9_]+$/';
 
     /** @var DimensionCatalog */
     private $dimensionCatalog;
     /** @var MetricCatalog */
     private $metricCatalog;
-    /** @var ScopeCompatibility */
-    private $compatibility;
-
-    public function __construct(
-        ?DimensionCatalog $dimensionCatalog = null,
-        ?MetricCatalog $metricCatalog = null,
-        ?ScopeCompatibility $compatibility = null
-    ) {
+    public function __construct(?DimensionCatalog $dimensionCatalog = null, ?MetricCatalog $metricCatalog = null)
+    {
         $this->dimensionCatalog = $dimensionCatalog ?: new DimensionCatalog();
         $this->metricCatalog = $metricCatalog ?: new MetricCatalog();
-        $this->compatibility = $compatibility ?: new ScopeCompatibility();
     }
 
     /**
-     * Resolves every id of the definition against the catalogue and checks every dimension (rows,
-     * pivot column, filters) against every metric.
+     * Resolves every id of the definition against the catalogue, and checks that a metric read under a dimension
+     * that repeats its rows can be counted once per row.
      *
      * @return array{rows: DimensionEntry[], column: ?DimensionEntry, metrics: MetricEntry[], filters: array, scopes: string[]}
      * @throws \InvalidArgumentException with a translated message
@@ -96,8 +101,8 @@ class VisualQueryBuilder
         $chosen = array_merge($rows, $column ? [$column] : [], array_column($filters, 'dimension'));
         foreach ($chosen as $dimension) {
             foreach ($metrics as $metric) {
-                if (!$this->compatibility->isAllowed($dimension->scope, $metric)) {
-                    throw $this->error('DataExplorer_ErrorIncompatibleCombination', $metric->name, $dimension->name);
+                if ($this->repeatsRows(self::TABLE_BY_SCOPE[$metric->scope], [$dimension->table])) {
+                    $this->metricColumns($metric, $dimension->name);
                 }
             }
         }
@@ -169,9 +174,8 @@ class VisualQueryBuilder
                 $from[] = $dimension->table;
             }
         }
-        if (in_array('log_link_visit_action', $from, true) && in_array('log_conversion', $from, true)) {
-            throw $this->error('DataExplorer_ErrorScopesCannotBeCombined');
-        }
+        $metricTable = self::TABLE_BY_SCOPE[$scope];
+        $perGrain = $this->repeatsRows($metricTable, $from) && $this->countsRepeatedRows($metrics);
 
         $joins = [];
         $conditions = [];
@@ -186,17 +190,21 @@ class VisualQueryBuilder
 
         $select = [];
         $groupBy = [];
+        $aliases = [];
         for ($i = 0; $i < $labels; $i++) {
             $select[] = $rowExpressions[$i] . ' AS label_' . $i;
             $groupBy[] = $rowExpressions[$i];
+            $aliases[] = 'label_' . $i;
         }
         $pivotExpression = $column ? $this->groupExpression($column, $joins) : null;
         if ($pivotExpression !== null && !empty($spec['pivot'])) {
             $select[] = $pivotExpression . ' AS pivot';
             $groupBy[] = $pivotExpression;
+            $aliases[] = 'pivot';
         }
+        $metricSelect = [];
         foreach ($metrics as $index => $metric) {
-            $select[] = $metric->sql . ' AS metric_' . $index;
+            $metricSelect[] = $metric->sql . ' AS metric_' . $index;
         }
 
         $conditions = array_values(array_unique($conditions));
@@ -233,13 +241,17 @@ class VisualQueryBuilder
             $orderBy = implode(', ', $parentOrder) . ', ' . $metricOrder;
         }
 
-        $query = $aggregator->generateQuery(
-            implode(', ', $select),
-            $from,
-            $where,
-            implode(', ', $groupBy),
-            $groupBy ? $orderBy : ''
-        );
+        if ($perGrain) {
+            $query = $this->perGrainQuery($aggregator, $metricTable, $metrics, $select, $groupBy, $aliases, $metricSelect, $from, $where, $orderBy);
+        } else {
+            $query = $aggregator->generateQuery(
+                implode(', ', array_merge($select, $metricSelect)),
+                $from,
+                $where,
+                implode(', ', $groupBy),
+                $groupBy ? $orderBy : ''
+            );
+        }
 
         if ($perParent && $parentDepth > 0) {
             $query['sql'] = $this->rankPerParent($query['sql'], $parentDepth, $perParent + 1, $metricOrder);
@@ -253,6 +265,98 @@ class VisualQueryBuilder
         }
 
         return ['sql' => $query['sql'], 'bind' => $this->insertFilterBind($aggregator, $query['sql'], $query['bind'], $bind)];
+    }
+
+    /**
+     * The query grouped per row and per visit, action or conversion of the metric table first, keeping the columns
+     * the metrics read, then aggregated per row by the metric expressions themselves: the derived table takes the
+     * name of the metric table, so they apply unchanged.
+     *
+     * @param MetricEntry[] $metrics
+     * @return array{sql: string, bind: array}
+     */
+    private function perGrainQuery(LogAggregator $aggregator, string $metricTable, array $metrics, array $select, array $groupBy, array $aliases, array $metricSelect, array $from, string $where, string $orderBy): array
+    {
+        $columns = [];
+        foreach ($metrics as $metric) {
+            foreach ($this->metricColumns($metric, '') as $column) {
+                $columns[$column] = true;
+            }
+        }
+        foreach (self::GRAIN_COLUMNS[$metricTable] as $column) {
+            $select[] = $metricTable . '.' . $column . ' AS ' . $column;
+            $groupBy[] = $metricTable . '.' . $column;
+            unset($columns[$column]);
+        }
+        foreach (array_keys($columns) as $column) {
+            $select[] = 'MAX(' . $metricTable . '.' . $column . ') AS ' . $column;
+        }
+
+        $inner = $aggregator->generateQuery(implode(', ', $select), $from, $where, implode(', ', $groupBy), '');
+
+        $sql = 'SELECT ' . implode(', ', array_merge($aliases, $metricSelect)) . ' FROM (' . $inner['sql'] . ') AS ' . $metricTable;
+        if ($aliases) {
+            $sql .= ' GROUP BY ' . implode(', ', $aliases) . ' ORDER BY ' . $orderBy;
+        }
+
+        return ['sql' => $sql, 'bind' => $inner['bind']];
+    }
+
+    /**
+     * Whether a dimension of one of $tables gives a row of $metricTable several rows: a visit has several actions
+     * and conversions, an action or a conversion shares its visit with the conversions or actions of that visit.
+     *
+     * @param array<int, string|array> $tables
+     */
+    private function repeatsRows(string $metricTable, array $tables): bool
+    {
+        $repeating = [
+            'log_visit' => ['log_link_visit_action', 'log_conversion'],
+            'log_link_visit_action' => ['log_conversion'],
+            'log_conversion' => ['log_link_visit_action'],
+        ];
+        $names = array_filter($tables, 'is_string');
+
+        return (bool) array_intersect($repeating[$metricTable] ?? [], $names);
+    }
+
+    /**
+     * Distinct counts are the same over repeated rows, so a query of distinct counts only is run as it is.
+     *
+     * @param MetricEntry[] $metrics
+     */
+    private function countsRepeatedRows(array $metrics): bool
+    {
+        foreach ($metrics as $metric) {
+            if ($metric->aggregation !== 'uniq') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Columns of its own table a metric expression reads, so it can run over the rows grouped per visit, action or
+     * conversion.
+     *
+     * @return string[]
+     * @throws \InvalidArgumentException when the expression reads another table
+     */
+    private function metricColumns(MetricEntry $metric, string $dimensionName): array
+    {
+        $table = self::TABLE_BY_SCOPE[$metric->scope];
+        preg_match_all('/\b(log_[a-z_]+)\.`?([a-zA-Z0-9_]+)`?/', $metric->sql, $matches, PREG_SET_ORDER);
+
+        $columns = [];
+        foreach ($matches as [, $matchedTable, $column]) {
+            if ($matchedTable !== $table) {
+                throw $this->error('DataExplorer_ErrorIncompatibleCombination', $metric->name, $dimensionName);
+            }
+            $columns[$column] = $column;
+        }
+
+        return array_values($columns);
     }
 
     /**

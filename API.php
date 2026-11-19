@@ -29,7 +29,6 @@ use Piwik\Plugin\Manager as PluginManager;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\MetricCatalog;
-use Piwik\Plugins\DataExplorer\Catalog\ScopeCompatibility;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
@@ -80,8 +79,6 @@ class API extends \Piwik\Plugin\API
     {
         (new ReportPermissions())->checkCanExplore($idSite);
 
-        $compatibility = new ScopeCompatibility();
-
         $dimensions = [];
         foreach ((new DimensionCatalog())->all($idSite) as $entry) {
             $dimensions[] = $entry->toArray();
@@ -89,9 +86,7 @@ class API extends \Piwik\Plugin\API
 
         $metrics = [];
         foreach ((new MetricCatalog())->all($idSite) as $entry) {
-            $row = $entry->toArray();
-            $row['allowedScopes'] = $compatibility->allowedScopes($entry);
-            $metrics[] = $row;
+            $metrics[] = $entry->toArray();
         }
 
         $segments = [];
