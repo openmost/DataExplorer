@@ -1,5 +1,9 @@
 ## Changelog
 
+## 6.0.1
+
+- A newly saved or edited report shows its data right away when browser archiving is on, instead of staying empty until the next `core:archive` run.
+
 ## 6.0.0
 
 First release of Data Explorer for Matomo 6.

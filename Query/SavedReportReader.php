@@ -19,6 +19,7 @@ use Piwik\Period;
 use Piwik\Piwik;
 use Piwik\Period\Range;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
+use Piwik\Plugins\DataExplorer\Archiving\BrowserArchiver;
 use Piwik\Plugins\DataExplorer\Configuration;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 use Piwik\Plugins\DataExplorer\RecordBuilders\SavedReport;
@@ -43,15 +44,18 @@ class SavedReportReader
     private $labels;
     /** @var callable(): float */
     private $clock;
+    /** @var BrowserArchiver */
+    private $browserArchiver;
 
     /**
      * @param callable(): float|null $clock seconds as a float, microtime(true) by default
      */
-    public function __construct(?RawSqlRunner $sqlRunner = null, ?callable $clock = null)
+    public function __construct(?RawSqlRunner $sqlRunner = null, ?callable $clock = null, ?BrowserArchiver $browserArchiver = null)
     {
         $this->sqlRunner = $sqlRunner ?: new RawSqlRunner();
         $this->labels = new LabelFormatter();
         $this->clock = $clock ?: fn () => microtime(true);
+        $this->browserArchiver = $browserArchiver ?: new BrowserArchiver();
     }
 
     /**
@@ -75,6 +79,7 @@ class SavedReportReader
         foreach ($definition->getMetrics() as $metric) {
             $names[SavedReport::numericRecordName((int) $report['idreport'], (int) $report['revision'], $metric)] = $metric;
         }
+        $this->browserArchiver->archiveMissingRecords($report, array_keys($names), $idSite, $period, $date, $segment);
 
         $table = Archive::build($idSite, $period, $date, $segment)->getDataTableFromNumeric(array_keys($names));
         $table->filter('ReplaceColumnNames', [$names]);
@@ -86,6 +91,9 @@ class SavedReportReader
     {
         $resolved = (new VisualQueryBuilder())->resolve($definition, $idSite);
         $recordName = SavedReport::recordName((int) $report['idreport'], (int) $report['revision']);
+        if (!$idSubtable) {
+            $this->browserArchiver->archiveMissingRecords($report, [$recordName], $idSite, $period, $date, $segment);
+        }
 
         $table = Archive::createDataTableFromArchive($recordName, $idSite, $period, $date, $segment, $expanded, false, $idSubtable ?: null);
 
