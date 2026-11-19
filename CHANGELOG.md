@@ -1,5 +1,11 @@
 ## Changelog
 
+## 6.1.0
+
+- Every metric can be read next to every dimension, as in a custom report. Under a dimension of another table a visit, an action or a conversion counts once in each row it has a value of: *Total events* by event name are the events of the visits having that event name, *Conversions* by page URL the conversions of the visits that viewed that page. A hint on the metric says so.
+- Action and conversion data combine in one exploration, through their visit.
+- New *Events* and *Event value* metrics, the columns of the Events reports, to count the events of each event name, category or action.
+
 ## 6.0.1
 
 - A newly saved or edited report shows its data right away when browser archiving is on, instead of staying empty until the next `core:archive` run.
