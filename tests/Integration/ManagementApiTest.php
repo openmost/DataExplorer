@@ -556,7 +556,7 @@ class ManagementApiTest extends IntegrationTestCase
 
         $id = $this->add('{"sites":[1]}', 'sql', (string) json_encode(['sql' => $sql, 'rows' => ['x'], 'metrics' => ['y'], 'segment' => 'nope']));
 
-        $this->assertSame(['technique' => 'freeform', 'sql' => $sql], (new ReportsDao())->get($id)['definition']);
+        $this->assertSame(['description' => '', 'technique' => 'freeform', 'sql' => $sql, 'chart' => ''], (new ReportsDao())->get($id)['definition']);
     }
 
     /**

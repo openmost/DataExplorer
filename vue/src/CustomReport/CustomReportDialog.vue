@@ -8,7 +8,9 @@
 <template>
   <SidePanel
     :model-value="modelValue"
-    :title="translate('DataExplorer_SaveAsCustomReport')"
+    :title="translate(customReport
+      ? 'DataExplorer_UpdateCustomReport'
+      : 'DataExplorer_SaveAsCustomReport')"
     focus-selector="#dataExplorerCustomReportName"
     @update:model-value="$emit('update:modelValue', $event)"
   >
@@ -23,13 +25,23 @@
           :noclear="true"
         >{{ error }}</Notification>
       </div>
-      <p class="dataExplorerCustomReport__help">{{ translate('DataExplorer_CustomReportHelp') }}</p>
+      <p class="dataExplorerCustomReport__help">{{ translate(customReport
+        ? 'DataExplorer_CustomReportUpdateHelp'
+        : 'DataExplorer_CustomReportHelp') }}</p>
       <Field
         v-model="name"
         uicontrol="text"
         name="dataExplorerCustomReportName"
         :title="translate('General_Name')"
         :full-width="true"
+      />
+      <Field
+        v-model="description"
+        uicontrol="textarea"
+        name="dataExplorerCustomReportDescription"
+        :title="translate('DataExplorer_SaveDescription')"
+        :full-width="true"
+        :maxlength="1000"
       />
       <Field
         v-model="category"
@@ -55,9 +67,9 @@
     <template #actions>
       <SaveButton
         :saving="saving"
-        :disabled="!ready || !name.trim()"
+        :disabled="!ready || !name.trim() || (!!customReport && !modified && !formChanged)"
         :value="translate('General_Save')"
-        @confirm="create"
+        @confirm="save"
       />
     </template>
   </SidePanel>
@@ -67,6 +79,7 @@
 import {
   computed,
   defineComponent,
+  nextTick,
   PropType,
   ref,
   watch,
@@ -80,7 +93,7 @@ import {
 } from 'CoreHome';
 import { Field, SaveButton } from 'CorePluginsAdmin';
 import SidePanel from '../SidePanel/SidePanel.vue';
-import type { VisualDefinition } from '../types';
+import type { ImportedCustomReport, VisualDefinition } from '../types';
 
 // the reporting page Custom Reports creates for the report when none is picked
 const NEW_PAGE = '';
@@ -126,10 +139,27 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    defaultDescription: {
+      type: String,
+      default: '',
+    },
+    // the exploration differs from the custom report it was opened from
+    modified: {
+      type: Boolean,
+      default: false,
+    },
+    // the custom report the exploration was opened from: saving updates it
+    customReport: {
+      type: Object as PropType<ImportedCustomReport|null>,
+      default: null,
+    },
   },
-  emits: ['update:modelValue', 'created', 'failed'],
+  emits: ['update:modelValue', 'created', 'updated', 'failed'],
   setup(props, { emit }) {
     const name = ref('');
+    const description = ref('');
+    // the settings as prefilled: an update needs the report or its settings to change
+    const prefilled = ref('');
     const unsupported = ref<string[]>([]);
     const error = ref('');
     const saving = ref(false);
@@ -167,7 +197,19 @@ export default defineComponent({
       ).then((result) => {
         categories.value = Array.isArray(result) ? result : [];
         // the select shows its value once its options exist
-        category.value = DEFAULT_CATEGORY;
+        category.value = props.customReport && props.customReport.category
+          ? props.customReport.category
+          : DEFAULT_CATEGORY;
+        // after the category watcher, which resets the page
+        nextTick(() => {
+          subcategory.value = props.customReport ? props.customReport.subcategory : NEW_PAGE;
+          prefilled.value = JSON.stringify({
+            name: name.value,
+            description: description.value,
+            category: category.value,
+            subcategory: subcategory.value,
+          });
+        });
       }).catch(() => {
         categories.value = [];
       });
@@ -198,7 +240,11 @@ export default defineComponent({
 
     watch(() => props.modelValue, (open) => {
       if (open) {
-        name.value = props.defaultName;
+        prefilled.value = '';
+        name.value = props.customReport ? props.customReport.name : props.defaultName;
+        description.value = props.customReport
+          ? props.customReport.description
+          : props.defaultDescription;
         category.value = '';
         subcategory.value = NEW_PAGE;
         load();
@@ -206,30 +252,52 @@ export default defineComponent({
       }
     });
 
-    function create() {
+    function save() {
       if (!parameters || !name.value.trim()) {
         return;
       }
       error.value = '';
       saving.value = true;
+      const report = props.customReport;
+      const common = {
+        name: name.value.trim(),
+        reportType: parameters.reportType,
+        description: description.value.trim(),
+        segmentFilter: encodeURIComponent(parameters.segmentFilter),
+        categoryId: category.value || DEFAULT_CATEGORY,
+        ...(subcategory.value !== NEW_PAGE ? { subcategoryId: subcategory.value } : {}),
+      };
+      const lists: Record<string, (string|number)[]> = {
+        dimensionIds: parameters.dimensionIds,
+        metricIds: parameters.metricIds,
+      };
+      if (report) {
+        // an update replaces every field: what the explorer does not edit is sent back as it was
+        lists.subCategoryReportIds = report.childReportIds;
+        if (report.idSite !== 0 && report.multipleIdSites.length) {
+          lists.multipleIdSites = report.multipleIdSites;
+        }
+      }
+
       AjaxHelper.post<{ value: number|string }>(
-        {
-          method: 'CustomReports.addCustomReport',
-          idSite: Matomo.idSite,
-          name: name.value.trim(),
-          reportType: parameters.reportType,
-          description: '',
-          segmentFilter: encodeURIComponent(parameters.segmentFilter),
-          categoryId: category.value || DEFAULT_CATEGORY,
-          ...(subcategory.value !== NEW_PAGE ? { subcategoryId: subcategory.value } : {}),
-        },
-        {
-          dimensionIds: parameters.dimensionIds,
-          metricIds: parameters.metricIds,
-        },
+        report
+          ? {
+            method: 'CustomReports.updateCustomReport',
+            idSite: report.idSite === 0 ? 'all' : report.idSite,
+            idCustomReport: report.idCustomReport,
+            ...common,
+          }
+          : { method: 'CustomReports.addCustomReport', idSite: Matomo.idSite, ...common },
+        lists,
         { withTokenInUrl: true, createErrorNotification: false },
       ).then((response) => {
-        emit('created', { idCustomReport: Number(response.value), name: name.value.trim() });
+        emit(report ? 'updated' : 'created', {
+          idCustomReport: report ? report.idCustomReport : Number(response.value),
+          name: common.name,
+          description: common.description,
+          category: common.categoryId,
+          subcategory: subcategory.value,
+        });
         emit('update:modelValue', false);
       }).catch((e: Error) => {
         error.value = e.message;
@@ -238,8 +306,17 @@ export default defineComponent({
       });
     }
 
+    const formChanged = computed(() => prefilled.value !== '' && JSON.stringify({
+      name: name.value,
+      description: description.value,
+      category: category.value,
+      subcategory: subcategory.value,
+    }) !== prefilled.value);
+
     return {
       name,
+      description,
+      formChanged,
       unsupported,
       error,
       saving,
@@ -248,7 +325,7 @@ export default defineComponent({
       subcategory,
       categoryOptions,
       subcategoryOptions,
-      create,
+      save,
       translate,
     };
   },

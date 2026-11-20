@@ -61,7 +61,10 @@
             :key="group.category"
             class="dataExplorerPanel__group"
           >
-            <h3 class="dataExplorerPanel__category">
+            <h3
+              v-if="!singleGroup"
+              class="dataExplorerPanel__category"
+            >
               <button
                 type="button"
                 class="dataExplorerPanel__categoryToggle"
@@ -79,7 +82,7 @@
               </button>
             </h3>
             <ul
-              v-show="isExpanded(group.category)"
+              v-show="singleGroup || isExpanded(group.category)"
               :id="`dataExplorerPanelGroup-${groupIndex}`"
             >
               <li
@@ -235,6 +238,9 @@ export default defineComponent({
       rows[next].focus();
     }
 
+    // one category only (the saved segments): its items without a header to open
+    const singleGroup = computed(() => props.groups.length === 1);
+
     const filteredGroups = computed(() => {
       const needle = query.value.trim().toLowerCase();
       if (!needle) {
@@ -332,6 +338,7 @@ export default defineComponent({
       titleId,
       isOpen,
       filteredGroups,
+      singleGroup,
       isExpanded,
       toggleCategory,
       reasonId,

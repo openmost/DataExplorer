@@ -30,10 +30,15 @@ final class CustomReportExport
         'equals' => '==',
         'not_equals' => '!=',
         'contains' => '=@',
+        'not_contains' => '!@',
         'starts_with' => '=^',
+        'not_starts_with' => '!^',
         'ends_with' => '=$',
+        'not_ends_with' => '!$',
         'gt' => '>',
+        'gte' => '>=',
         'lt' => '<',
+        'lte' => '<=',
     ];
 
     /** @var int */
@@ -56,16 +61,22 @@ final class CustomReportExport
             $unsupported[] = Piwik::translate('DataExplorer_Columns');
         }
 
-        $any = $definition->getFilterMatch() === ReportDefinition::FILTER_MATCH_ANY;
+        $sizes = array_count_values(array_map(fn (array $filter) => (int) ($filter['group'] ?? 0), $filters));
         $groups = [];
         foreach ($filters as $filter) {
-            $group = $this->condition($filter, $any, $unsupported);
-            if ($group !== null && $group !== '') {
-                $groups[] = $group;
+            $group = (int) ($filter['group'] ?? 0);
+            $condition = $this->condition($filter, $sizes[$group] > 1, $unsupported);
+            if ($condition !== null && $condition !== '') {
+                $groups[$group][] = $condition;
             }
         }
 
-        $parts = array_values(array_filter([trim($definition->getSegment()), implode($any ? ',' : ';', $groups)], 'strlen'));
+        // a segment ANDs with ";" and ORs with ",", the OR binding first: groups of ORed filters, ANDed together
+        $parts = [trim($definition->getSegment())];
+        foreach ($groups as $conditions) {
+            $parts[] = implode(',', $conditions);
+        }
+        $parts = array_values(array_filter($parts, 'strlen'));
 
         return [
             'reportType' => $definition->getReportType(),
@@ -107,7 +118,7 @@ final class CustomReportExport
         }
 
         if ($operator === VisualQueryBuilder::OPERATOR_NOT_IN) {
-            // "none of these values" is an AND of differences, it cannot sit inside an OR of filters
+            // "none of these values" is an AND of differences, it cannot sit inside a group of ORed filters
             if ($any && count($filter['value']) > 1) {
                 $unsupported[] = $dimension->name;
 

@@ -31,21 +31,50 @@ export const VISUALIZATION_ICONS: Record<Visualization, string> = {
 
 export const VISUALIZATIONS: Visualization[] = ['table', 'bar', 'pie', 'line', 'kpicard'];
 
+// the core visualization of each chart, and back
+export const VIEW_BY_VISUALIZATION: Record<Visualization, string> = {
+  table: 'table',
+  bar: 'graphVerticalBar',
+  pie: 'graphPie',
+  line: 'graphEvolution',
+  kpicard: 'sparklines',
+};
+
+// the table views of core footers that all read as a table here
+export const VISUALIZATION_BY_VIEW: Record<string, Visualization> = {
+  table: 'table',
+  tableAllColumns: 'table',
+  tableGoals: 'table',
+  graphVerticalBar: 'bar',
+  graphPie: 'pie',
+  graphEvolution: 'line',
+  sparklines: 'kpicard',
+};
+
 export const FILTER_OPERATORS: FilterOperator[] = [
   'equals',
   'not_equals',
   'contains',
+  'not_contains',
   'starts_with',
+  'not_starts_with',
   'ends_with',
+  'not_ends_with',
   'regex',
   'gt',
+  'gte',
   'lt',
+  'lte',
 ];
 
 // a shared link is user input: bound every list so a crafted hash cannot blow up the page
 const MAX_LIST_LENGTH = 100;
 
-export function defaultState(): ExplorationState {
+// a new exploration starts with these variables, ready to drag
+export const DEFAULT_DIMENSIONS = ['Actions.PageUrl', 'DevicesDetection.DeviceType'];
+export const DEFAULT_METRICS = ['nb_visits', 'pageviews'];
+
+function emptyState(): ExplorationState {
   return {
     technique: 'freeform',
     variables: { dimensions: [], metrics: [], segments: [] },
@@ -53,11 +82,17 @@ export function defaultState(): ExplorationState {
     column: null,
     values: [],
     filters: [],
-    filterMatch: 'all',
     tableView: 'flat',
     visualization: 'table',
     segment: '',
   };
+}
+
+export function defaultState(): ExplorationState {
+  const state = emptyState();
+  state.variables.dimensions = [...DEFAULT_DIMENSIONS];
+  state.variables.metrics = [...DEFAULT_METRICS];
+  return state;
 }
 
 export function reportTypeOf(visualization: Visualization): ReportType {
@@ -106,11 +141,32 @@ function stringList(value: unknown): string[] {
   return result.slice(0, MAX_LIST_LENGTH);
 }
 
-function filterList(value: unknown): Filter[] {
+/**
+ * Filters ordered by group, groups numbered from 0 in their order of appearance, as the server
+ * stores them.
+ */
+export function groupFilters(filters: Filter[]): Filter[] {
+  const order = new Map<number, number>();
+  filters.forEach((filter) => {
+    if (!order.has(filter.group)) {
+      order.set(filter.group, order.size);
+    }
+  });
+  return filters
+    .map((filter) => ({ ...filter, group: order.get(filter.group) as number }))
+    .sort((a, b) => a.group - b.group);
+}
+
+/**
+ * Filters of a link or a definition. Without groups (saved before them), "any" puts every filter
+ * in one group and anything else each filter in its own.
+ */
+function filterList(value: unknown, legacyMatch: unknown): Filter[] {
   if (!Array.isArray(value)) {
     return [];
   }
   const result: Filter[] = [];
+  let legacy = true;
   value.forEach((item) => {
     if (typeof item !== 'object' || item === null) {
       return;
@@ -125,9 +181,21 @@ function filterList(value: unknown): Filter[] {
     const filterValue = typeof raw.value === 'string' || typeof raw.value === 'number'
       ? String(raw.value)
       : '';
-    result.push({ dimension: raw.dimension, operator, value: filterValue });
+    const hasGroup = typeof raw.group === 'number' && Number.isInteger(raw.group) && raw.group >= 0;
+    legacy = legacy && !hasGroup;
+    result.push({
+      dimension: raw.dimension,
+      operator,
+      value: filterValue,
+      group: hasGroup ? raw.group as number : result.length,
+    });
   });
-  return result.slice(0, MAX_LIST_LENGTH);
+  if (legacy && legacyMatch === 'any') {
+    result.forEach((filter) => {
+      filter.group = 0;
+    });
+  }
+  return groupFilters(result.slice(0, MAX_LIST_LENGTH));
 }
 
 function withVariables(state: ExplorationState): ExplorationState {
@@ -163,7 +231,7 @@ function withVariables(state: ExplorationState): ExplorationState {
  * every dimension or metric in use also listed in the variables.
  */
 export function normalize(raw: unknown): ExplorationState {
-  const state = defaultState();
+  const state = emptyState();
   if (typeof raw !== 'object' || raw === null) {
     return state;
   }
@@ -180,8 +248,7 @@ export function normalize(raw: unknown): ExplorationState {
   state.rows = stringList(value.rows);
   state.column = typeof value.column === 'string' && value.column !== '' ? value.column : null;
   state.values = stringList(value.values);
-  state.filters = filterList(value.filters);
-  state.filterMatch = value.filterMatch === 'any' ? 'any' : 'all';
+  state.filters = filterList(value.filters, value.filterMatch);
   state.tableView = value.tableView === 'hierarchical' ? 'hierarchical' : 'flat';
   state.visualization = VISUALIZATIONS.includes(value.visualization as Visualization)
     ? value.visualization as Visualization
@@ -241,8 +308,7 @@ export function toDefinition(state: ExplorationState): VisualDefinition {
     rows: isTable ? [...state.rows] : [],
     column: isTable ? state.column : null,
     metrics: reportType === 'kpicard' ? state.values.slice(0, 1) : [...state.values],
-    filters: state.filters.filter(isFilterComplete).map((filter) => ({ ...filter })),
-    filter_match: state.filterMatch,
+    filters: groupFilters(state.filters.filter(isFilterComplete)),
     table_view: state.tableView,
     segment: state.segment,
   };

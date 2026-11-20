@@ -75,14 +75,18 @@ class SavedReportReader
             return $this->readTable($report, $definition, $idSite, $period, $date, $segment, $expanded, $idSubtable);
         }
 
+        $resolved = (new VisualQueryBuilder())->resolve($definition, $idSite);
         $names = [];
-        foreach ($definition->getMetrics() as $metric) {
-            $names[SavedReport::numericRecordName((int) $report['idreport'], (int) $report['revision'], $metric)] = $metric;
+        foreach ($resolved['metrics'] as $metric) {
+            $names[SavedReport::numericRecordName((int) $report['idreport'], (int) $report['revision'], $metric->id)] = $metric->id;
         }
         $this->browserArchiver->archiveMissingRecords($report, array_keys($names), $idSite, $period, $date, $segment);
 
         $table = Archive::build($idSite, $period, $date, $segment)->getDataTableFromNumeric(array_keys($names));
         $table->filter('ReplaceColumnNames', [$names]);
+        $processed = ProcessedMetrics::forResolved($resolved, $idSite);
+        $processed->apply($table);
+        $processed->decorate($table);
 
         return $table;
     }
@@ -103,6 +107,9 @@ class SavedReportReader
             $this->labels->formatArchivedTable($table, $rows, $resolved['column'], $idSite);
             $table->setMetadata(self::DEPTH_METADATA, $depth);
         });
+        $processed = ProcessedMetrics::forResolved($resolved, $idSite);
+        $processed->apply($table);
+        $processed->decorate($table);
 
         return $table;
     }
@@ -156,10 +163,41 @@ class SavedReportReader
      */
     private function readSql(array $report, int $idSite, string $period, string $date): DataTableInterface
     {
-        $numeric = $report['report_type'] !== ReportDefinition::REPORT_TYPE_TABLE;
+        return $this->readSqlWith(
+            fn (string $runPeriod, string $runDate, ?int $maxSeconds) => $this->sqlRunner->runSaved($report, $idSite, $runPeriod, $runDate, $maxSeconds),
+            (string) $report['report_type'],
+            $idSite,
+            $period,
+            $date
+        );
+    }
+
+    /**
+     * The query of the Raw SQL tab, not saved yet, read like a saved raw SQL report (one run per sub-period for
+     * an evolution, the first numeric row for a KPI card) through the same short cache (super user only).
+     */
+    public function readSqlPreview(string $sql, string $reportType, int $idSite, string $period, string $date): DataTableInterface
+    {
+        (new ReportPermissions())->checkCanRunRawSql();
+
+        return $this->readSqlWith(
+            fn (string $runPeriod, string $runDate, ?int $maxSeconds) => $this->sqlRunner->run($sql, $idSite, $runPeriod, $runDate, true, $maxSeconds),
+            $reportType,
+            $idSite,
+            $period,
+            $date
+        );
+    }
+
+    /**
+     * @param callable(string, string, ?int): DataTable $run runs the query for a period and a date
+     */
+    private function readSqlWith(callable $run, string $reportType, int $idSite, string $period, string $date): DataTableInterface
+    {
+        $numeric = $reportType !== ReportDefinition::REPORT_TYPE_TABLE;
 
         if (!Period::isMultiplePeriod($date, $period)) {
-            $table = $this->sqlRunner->runSaved($report, $idSite, $period, $date);
+            $table = $run($period, $date, null);
 
             return $numeric ? $this->firstNumericRow($table) : $this->withLabel($table);
         }
@@ -178,7 +216,7 @@ class SavedReportReader
             if ($left <= 0) {
                 throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorRawSqlTimeout', [$budget]));
             }
-            $table = $this->sqlRunner->runSaved($report, $idSite, $subPeriod->getLabel(), $subPeriod->getDateStart()->toString(), $left);
+            $table = $run($subPeriod->getLabel(), $subPeriod->getDateStart()->toString(), $left);
             $table = $numeric ? $this->firstNumericRow($table) : $this->withLabel($table);
             $table->setMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX, $subPeriod);
             $table->setMetadata(DataTableFactory::TABLE_METADATA_SITE_INDEX, $site);

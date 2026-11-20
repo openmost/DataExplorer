@@ -134,7 +134,7 @@ class SavedReport extends RecordBuilder
             $record = Record::make(Record::TYPE_BLOB, $name)
                 ->setMaxRowsInTable(Configuration::getMaxRowsInMainTable($depth) + 1)
                 ->setMaxRowsInSubtable(Configuration::getMaxRowsInSubTable($depth) + 1)
-                ->setColumnToSortByBeforeTruncation($this->sortColumn($definition->getMetrics(), $renamed))
+                ->setColumnToSortByBeforeTruncation($this->sortColumn(array_map(fn (MetricEntry $m) => $m->id, $metrics), $renamed))
                 ->setBlobColumnAggregationOps($ops)
                 ->setColumnToRenameAfterAggregation($renamed);
 
@@ -143,10 +143,10 @@ class SavedReport extends RecordBuilder
 
         $records = [];
         $numericOps = [];
-        foreach ($definition->getMetrics() as $metricId) {
-            $recordName = $name . '_' . $metricId;
+        foreach ($metrics as $metric) {
+            $recordName = $name . '_' . $metric->id;
             $records[] = Record::make(Record::TYPE_NUMERIC, $recordName);
-            $numericOps[$recordName] = $ops[$metricId] ?? 'sum';
+            $numericOps[$recordName] = $ops[$metric->id] ?? 'sum';
         }
         foreach ($metrics as $metric) {
             if ($this->isNotSummableAcrossDays($metric)) {
@@ -230,9 +230,9 @@ class SavedReport extends RecordBuilder
 
         $totals = $table->getFirstRow();
         $records = [];
-        foreach ($definition->getMetrics() as $metricId) {
-            $value = $totals ? $totals->getColumn($metricId) : 0;
-            $records[$this->name() . '_' . $metricId] = $value === false ? 0 : $value;
+        foreach ($this->resolve($this->idSite($archiveProcessor))['metrics'] ?? [] as $metric) {
+            $value = $totals ? $totals->getColumn($metric->id) : 0;
+            $records[$this->name() . '_' . $metric->id] = $value === false ? 0 : $value;
         }
 
         return $records;
@@ -311,7 +311,7 @@ class SavedReport extends RecordBuilder
      */
     public static function isNotSummableAcrossDays(MetricEntry $metric): bool
     {
-        return $metric->aggregation === 'uniq' && !preg_match('/\.(idvisit|idlink_va)\)$/i', $metric->sql);
+        return $metric->aggregation === 'uniq' && !in_array($metric->distinctColumn(), ['idvisit', 'idlink_va'], true);
     }
 
     private function resolve(int $idSite): ?array

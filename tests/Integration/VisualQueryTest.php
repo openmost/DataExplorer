@@ -215,6 +215,55 @@ class VisualQueryTest extends IntegrationTestCase
         $this->assertEqualsCanonicalizing(['France', 'Germany'], array_keys($this->column($any, 'nb_visits')));
     }
 
+    public function test_metricsOfCustomReports_customAggregation_actionType_andRates(): void
+    {
+        $table = $this->explore([
+            'rows' => [self::COUNTRY],
+            'metrics' => ['pageviews', 'nb_visits_converted', 'bounce_rate', 'visits_conversion_rate'],
+        ]);
+
+        $this->assertEquals(['France' => 5, 'United States' => 3, 'Germany' => 2], $this->column($table, 'pageviews'));
+        $this->assertEquals(['France' => 1, 'United States' => 1, 'Germany' => 0], $this->column($table, 'nb_visits_converted'));
+        // France: visits 2 and 6 of one page out of 3, United States: visit 4 out of 2; the rounding is core's
+        $this->assertEqualsWithDelta(['France' => 0.667, 'United States' => 0.5, 'Germany' => 0], $this->column($table, 'bounce_rate'), 0.005);
+        $this->assertEqualsWithDelta(['France' => 0.333, 'United States' => 0.5, 'Germany' => 0], $this->column($table, 'visits_conversion_rate'), 0.005);
+    }
+
+    public function test_filterGroups_orInside_andBetween(): void
+    {
+        $table = $this->explore([
+            'rows' => [self::COUNTRY],
+            'metrics' => ['nb_visits'],
+            'filters' => [
+                ['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'France', 'group' => 0],
+                ['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'United States', 'group' => 0],
+                ['dimension' => self::DEVICE, 'operator' => 'equals', 'value' => 'Smartphone', 'group' => 1],
+            ],
+        ]);
+
+        $this->assertEquals(['France' => 1, 'United States' => 1], $this->column($table, 'nb_visits'));
+    }
+
+    public function test_negativeAndInclusiveOperators(): void
+    {
+        $countries = ['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']];
+
+        $notContains = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'not_contains', 'value' => 'ANCE']]]);
+        $this->assertEqualsCanonicalizing(['Germany', 'United States'], array_keys($this->column($notContains, 'nb_visits')));
+
+        $notStarts = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'not_starts_with', 'value' => 'united']]]);
+        $this->assertEqualsCanonicalizing(['France', 'Germany'], array_keys($this->column($notStarts, 'nb_visits')));
+
+        $notEnds = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'not_ends_with', 'value' => 'many']]]);
+        $this->assertEqualsCanonicalizing(['France', 'United States'], array_keys($this->column($notEnds, 'nb_visits')));
+
+        // device type codes: desktop 0, smartphone 1
+        $gte = $this->explore($countries + ['filters' => [['dimension' => self::DEVICE, 'operator' => 'gte', 'value' => '1']]]);
+        $this->assertEquals(['France' => 1, 'United States' => 1], $this->column($gte, 'nb_visits'));
+        $lte = $this->explore($countries + ['filters' => [['dimension' => self::DEVICE, 'operator' => 'lte', 'value' => '0']]]);
+        $this->assertEquals(['France' => 2, 'United States' => 1, 'Germany' => 1], $this->column($lte, 'nb_visits'));
+    }
+
     public function test_endsWithFilter(): void
     {
         $table = $this->explore([

@@ -13,8 +13,14 @@ namespace Piwik\Plugins\DataExplorer\Catalog;
 
 final class MetricEntry
 {
-    public const AGGREGATIONS = ['sum', 'max', 'min', 'uniq'];
+    public const AGGREGATIONS = ['sum', 'max', 'min', 'uniq', 'processed'];
 
+    // a ratio or an average computed from other metrics once they are aggregated, never queried itself
+    public const PROCESSED = 'processed';
+
+    /**
+     * @param string[] $dependents metrics a processed metric is computed from
+     */
     public function __construct(
         public readonly string $id,
         public readonly string $name,
@@ -22,8 +28,26 @@ final class MetricEntry
         public readonly string $scope,
         public readonly string $sql,
         public readonly string $aggregation,
-        public readonly bool $isNumeric
+        public readonly bool $isNumeric,
+        public readonly array $dependents = []
     ) {
+    }
+
+    public function isProcessed(): bool
+    {
+        return $this->aggregation === self::PROCESSED;
+    }
+
+    /**
+     * The column a distinct count counts, also when a discriminator wraps it in CASE WHEN ... END.
+     */
+    public function distinctColumn(): ?string
+    {
+        if ($this->aggregation !== 'uniq' || !preg_match('/\.`?([a-zA-Z0-9_]+)`?(?:\s+END)?\s*\)$/i', $this->sql, $match)) {
+            return null;
+        }
+
+        return strtolower($match[1]);
     }
 
     /**
@@ -47,19 +71,49 @@ final class MetricEntry
     public function additiveScopes(): array
     {
         if ($this->aggregation === 'sum') {
-            return array_values(array_unique(['visit', $this->scope]));
+            return $this->ownAndParentScopes();
         }
         if ($this->aggregation !== 'uniq') {
             return [];
         }
-        if (preg_match('/\.idvisit\)$/i', $this->sql)) {
+        if ($this->distinctColumn() === 'idvisit') {
             return ['visit'];
         }
-        if (preg_match('/\.idlink_va\)$/i', $this->sql)) {
+        if ($this->distinctColumn() === 'idlink_va') {
             return ['visit', 'action'];
+        }
+        // a distinct count of the rows of its own table adds up like a count of them
+        $tables = LogTables::get();
+        $table = $tables->tableOf($this->scope);
+        if ($table !== null && $tables->grain($table) === [$this->distinctColumn()]) {
+            return $this->ownAndParentScopes();
         }
 
         return [];
+    }
+
+    /**
+     * The scope of the metric and of the tables having one row per row of it (its visit), the visit first as before
+     * other tables were queryable.
+     *
+     * @return string[]
+     */
+    private function ownAndParentScopes(): array
+    {
+        $tables = LogTables::get();
+        $table = $tables->tableOf($this->scope);
+        if ($table === null || isset(LogTables::SCOPE_BY_TABLE[$table])) {
+            return array_values(array_unique(['visit', $this->scope]));
+        }
+        $scopes = [$this->scope];
+        foreach ($tables->parentsOf($table) as $parent) {
+            $scopes[] = (string) $tables->scopeOf($parent);
+        }
+        if (in_array('visit', $scopes, true)) {
+            $scopes = array_merge(['visit'], array_diff($scopes, ['visit']));
+        }
+
+        return array_values(array_unique($scopes));
     }
 
     /**
@@ -75,6 +129,7 @@ final class MetricEntry
             'aggregation' => $this->aggregation,
             'isNumeric' => $this->isNumeric,
             'additiveScopes' => $this->additiveScopes(),
+            'repeatedBy' => $this->scope === '' ? [] : LogTables::get()->repeatingScopes($this->scope),
         ];
     }
 }

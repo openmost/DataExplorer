@@ -23,7 +23,7 @@
         <button
           type="button"
           class="dataExplorerCanvas__pill dataExplorerCanvas__period"
-          :title="translate('General_ChooseDate', periodText)"
+          :title="translate('General_ChooseDate', periodDates || periodText)"
           @click="$emit('openPeriodSelector')"
         >
           <span
@@ -54,6 +54,7 @@
 
     <div
       v-if="!hint && widgetParams"
+      ref="stage"
       class="dataExplorerCanvas__stage"
     >
       <WidgetLoader
@@ -68,7 +69,10 @@
 import {
   computed,
   defineComponent,
+  onBeforeUnmount,
   PropType,
+  ref,
+  watch,
 } from 'vue';
 import { translate, WidgetLoader } from 'CoreHome';
 import { VISUALIZATION_ICONS } from './explorationState';
@@ -97,6 +101,11 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    // the dates of the period, when the pill shows its name (Last 28 days)
+    periodDates: {
+      type: String,
+      default: '',
+    },
     visualization: {
       type: String as PropType<Visualization>,
       required: true,
@@ -110,11 +119,43 @@ export default defineComponent({
       default: null,
     },
   },
-  emits: ['openPeriodSelector'],
-  setup(props) {
+  emits: ['openPeriodSelector', 'viewChanged'],
+  setup(props, { emit }) {
     const tabIcon = computed(() => VISUALIZATION_ICONS[props.visualization as Visualization]);
+    const stage = ref<HTMLElement|null>(null);
+
+    // the core footer (visualization icons, "Make it flat") reloads the table by itself: its new
+    // view and layout are read from the DataTable instance once loaded, so Report settings follow
+    function onLoaded(event: JQuery.TriggeredEvent) {
+      const table = $(event.target as HTMLElement).closest('.dataTable');
+      // core triggers the event before it attaches the DataTable instance to the element
+      setTimeout(() => {
+        const control = table.data('uiControlObject') as { param?: Record<string, unknown> }|undefined;
+        if (!control || !control.param) {
+          return;
+        }
+        emit('viewChanged', {
+          viewDataTable: String(control.param.viewDataTable || ''),
+          flat: String(control.param.flat || '0') === '1',
+        });
+      });
+    }
+
+    let bound: HTMLElement|null = null;
+    function bind(element: HTMLElement|null) {
+      if (bound) {
+        $(bound).off('piwik:dataTableLoaded', onLoaded);
+      }
+      bound = element;
+      if (bound) {
+        $(bound).on('piwik:dataTableLoaded', onLoaded);
+      }
+    }
+    watch(stage, bind);
+    onBeforeUnmount(() => bind(null));
 
     return {
+      stage,
       tabIcon,
       translate,
     };

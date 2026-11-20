@@ -12,6 +12,7 @@ namespace Piwik\Plugins\DataExplorer\tests\Integration;
 use Piwik\NoAccessException;
 use Piwik\Plugins\DataExplorer\API;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
+use Piwik\Plugins\DataExplorer\Catalog\LogTables;
 use Piwik\Plugins\DataExplorer\Catalog\MetricCatalog;
 use Piwik\Tests\Framework\Fixture;
 use Piwik\Tests\Framework\Mock\FakeAccess;
@@ -66,7 +67,8 @@ class CatalogTest extends IntegrationTestCase
         foreach ((new DimensionCatalog())->all(1) as $id => $entry) {
             $this->assertSame($id, $entry->id);
             $this->assertNotSame('', $entry->column);
-            $this->assertContains($entry->table, ['log_visit', 'log_link_visit_action', 'log_conversion']);
+            // any log table the active plugins declare and the explorer can join to a visit
+            $this->assertTrue(LogTables::get()->has($entry->table), $entry->table);
         }
     }
 

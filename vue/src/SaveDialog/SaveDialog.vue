@@ -38,18 +38,16 @@
 
         <Field
           :full-width="true"
-          v-if="type === 'sql'"
-          uicontrol="select"
-          name="dataExplorerSaveReportType"
-          v-model="form.reportType"
-          :title="translate('DataExplorer_SaveReportType')"
-          :options="reportTypeOptions"
-          :inline-help="translate('DataExplorer_SaveReportTypeHelp')"
+          uicontrol="textarea"
+          name="dataExplorerSaveDescription"
+          v-model="form.description"
+          :title="translate('DataExplorer_SaveDescription')"
+          :inline-help="translate('DataExplorer_SaveDescriptionHelp')"
+          :maxlength="1000"
         />
-        <div
-          v-else
-          class="dataExplorerSaveDialog__reportType"
-        >{{ translate('DataExplorer_SavedAs', reportTypeLabel) }}</div>
+
+        <div class="dataExplorerSaveDialog__reportType">{{
+          translate('DataExplorer_SavedAs', reportTypeLabel) }}</div>
 
         <Field
           :full-width="true"
@@ -161,6 +159,7 @@
         v-if="canUpdate"
         class="dataExplorerSaveDialog__update"
         :saving="saving"
+        :disabled="!modified && !formChanged"
         :value="translate('General_Save')"
         @confirm="save(false)"
       />
@@ -195,6 +194,7 @@ import type {
   ReportCategory,
   ReportType,
   SavedReport,
+  SaveSuggestion,
   WritableSite,
 } from '../types';
 
@@ -211,6 +211,7 @@ type Placement = 'site' | 'sites' | 'all';
 
 interface SaveForm {
   name: string;
+  description: string;
   reportType: ReportType;
   placement: Placement;
   sites: string[];
@@ -268,6 +269,16 @@ export default defineComponent({
       type: Object as PropType<SavedReport|null>,
       default: null,
     },
+    // the exploration or the query differs from the opened report
+    modified: {
+      type: Boolean,
+      default: false,
+    },
+    // where a report opened from elsewhere (a custom report) goes when nothing saved is open
+    suggestion: {
+      type: Object as PropType<SaveSuggestion|null>,
+      default: null,
+    },
   },
   emits: ['update:modelValue', 'saved', 'closed'],
   setup(props, { emit }) {
@@ -277,6 +288,7 @@ export default defineComponent({
 
     const form = reactive<SaveForm>({
       name: '',
+      description: '',
       reportType: 'table',
       placement: 'site',
       sites: [],
@@ -429,11 +441,26 @@ export default defineComponent({
       return sites.length === 1 && sites[0] === props.idSite;
     }
 
+    // the settings as prefilled: an update needs the report or its settings to change
+    const prefilled = ref('');
+    const formChanged = computed(() => prefilled.value !== ''
+      && JSON.stringify(form) !== prefilled.value);
+
     function prefill() {
       error.value = '';
+      prefilled.value = '';
       const report = props.editing;
-      form.name = report ? report.name : '';
-      form.reportType = report ? report.report_type : props.reportType;
+      const { suggestion } = props;
+      form.name = '';
+      form.description = '';
+      if (report) {
+        form.name = report.name;
+        form.description = String(report.definition.description || '');
+      } else if (suggestion) {
+        form.name = suggestion.name;
+        form.description = suggestion.description;
+      }
+      form.reportType = props.reportType;
       form.order = report ? report.order : DEFAULT_ORDER;
 
       if (report && report.placement.all) {
@@ -447,15 +474,21 @@ export default defineComponent({
         form.sites = [String(props.idSite)];
       }
 
-      form.category = report ? report.category : DEFAULT_CATEGORY;
+      let place: { category: string, subcategory: string } = { category: DEFAULT_CATEGORY, subcategory: '' };
+      if (report) {
+        place = report;
+      } else if (suggestion && categories.value.some((item) => item.id === suggestion.category)) {
+        place = suggestion;
+      }
+      form.category = place.category;
       form.newSubcategory = '';
-      if (!report || report.subcategory === '') {
+      if (place.subcategory === '') {
         form.subcategory = OWN_PAGE;
-      } else if (subcategoryExists(report.category, report.subcategory)) {
-        form.subcategory = report.subcategory;
+      } else if (subcategoryExists(place.category, place.subcategory)) {
+        form.subcategory = place.subcategory;
       } else {
         form.subcategory = NEW_SUBCATEGORY;
-        form.newSubcategory = report.subcategory;
+        form.newSubcategory = place.subcategory;
       }
     }
 
@@ -476,6 +509,7 @@ export default defineComponent({
     watch(() => props.modelValue, (open) => {
       if (open) {
         loadCategories().then(prefill).then(() => {
+          prefilled.value = JSON.stringify(form);
           if (props.isSuperUser) {
             loadSelectedSiteNames();
             searchSites();
@@ -514,12 +548,17 @@ export default defineComponent({
       saving.value = true;
 
       const isUpdate = !asNew && canUpdate.value && props.editing;
-      const reportType = props.type === 'sql' ? form.reportType : props.reportType;
+      // the visualization picked above the result or in Report settings, both tabs alike
+      const { reportType } = props;
       const postParams: Record<string, string|number> = {
         name: form.name,
         type: props.type,
         reportType,
-        definition: JSON.stringify({ ...props.definition, report_type: reportType }),
+        definition: JSON.stringify({
+          ...props.definition,
+          report_type: reportType,
+          description: form.description.trim(),
+        }),
         placement: placementJson(),
         category: form.category,
         subcategory: pageOf(form.subcategory),
@@ -555,6 +594,7 @@ export default defineComponent({
       error,
       title,
       canUpdate,
+      formChanged,
       reportTypeOptions,
       reportTypeLabel,
       placementOptions,

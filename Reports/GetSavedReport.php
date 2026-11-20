@@ -29,10 +29,13 @@ use Piwik\ViewDataTable\Manager as ViewDataTableManager;
 use Piwik\Plugins\CoreVisualizations\Visualizations\HtmlTable;
 use Piwik\Plugins\DataExplorer\Catalog\SiteContext;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
+use Piwik\Plugins\DataExplorer\Categories\ManageSubcategory;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
+use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 use Piwik\Plugins\DataExplorer\Query\LabelFormatter;
+use Piwik\Plugins\DataExplorer\Query\ProcessedMetrics;
 use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\RecordBuilders\SavedReport;
@@ -71,8 +74,11 @@ class GetSavedReport extends Report
      */
     public static function pageId(array $row): string
     {
-        if ((string) $row['subcategory'] !== '') {
-            return (string) $row['subcategory'];
+        $subcategory = (string) $row['subcategory'];
+        // a report stored on a page of the plugin itself (the explorer, the manage page) would render under it:
+        // it gets its own page instead
+        if ($subcategory !== '' && !in_array($subcategory, [ExploreSubcategory::ID, ManageSubcategory::ID], true)) {
+            return $subcategory;
         }
 
         return (string) $row['category'] === ExploreSubcategory::CATEGORY
@@ -101,6 +107,8 @@ class GetSavedReport extends Report
     private $sqlColumns;
     /** @var string[] metrics that do not add up across the rows of the first row dimension */
     private $nonAdditiveMetrics = [];
+    /** @var string[] metrics in the data only to compute the processed ones */
+    private $hiddenColumns = [];
     /** @var array<string, string> pivot columns of the period the metadata is built for */
     private $pivotColumns = [];
     /** @var string|null JSON definition of an unsaved exploration shown in the explorer canvas */
@@ -119,7 +127,12 @@ class GetSavedReport extends Report
         if (!is_array($raw)) {
             throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorDefinitionInvalid'));
         }
-        $raw['type'] = ReportDefinition::TYPE_VISUAL;
+        // the result of the Raw SQL tab, rendered like a saved raw SQL report: super users only
+        if (($raw['type'] ?? '') === ReportDefinition::TYPE_SQL) {
+            (new ReportPermissions())->checkCanRunRawSql();
+        } else {
+            $raw['type'] = ReportDefinition::TYPE_VISUAL;
+        }
         if (!isset($raw['name']) || !is_string($raw['name']) || trim($raw['name']) === '') {
             $raw['name'] = 'preview';
         }
@@ -139,7 +152,7 @@ class GetSavedReport extends Report
         $this->initFromRow([
             'idreport' => 0,
             'name' => (string) $definition['name'],
-            'type' => ReportDefinition::TYPE_VISUAL,
+            'type' => (string) ($definition['type'] ?? ReportDefinition::TYPE_VISUAL),
             'report_type' => (string) $definition['report_type'],
             'definition' => $definition,
             'category' => '',
@@ -217,6 +230,8 @@ class GetSavedReport extends Report
         $this->listed = $listed;
 
         $this->name = (string) $row['name'];
+        // the help tooltip of the report renders HTML, the description is plain text typed by a user
+        $this->documentation = htmlspecialchars(trim((string) ($row['definition']['description'] ?? '')), ENT_QUOTES, 'UTF-8');
         $this->categoryId = (string) $row['category'] !== '' ? (string) $row['category'] : ExploreSubcategory::CATEGORY;
         $this->subcategoryId = self::pageId($row);
         $this->order = (int) $row['order'];
@@ -226,6 +241,7 @@ class GetSavedReport extends Report
         $this->metrics = [];
         $this->metricNames = [];
         $this->nonAdditiveMetrics = [];
+        $this->hiddenColumns = [];
         // core adds its visit ratios to every report by default, as zero columns here
         $this->processedMetrics = [];
         $this->sqlColumns = null;
@@ -270,7 +286,7 @@ class GetSavedReport extends Report
                 return Sparklines::ID;
         }
 
-        $chart = $this->row !== null && !$this->isSql() ? ($this->row['definition']['chart'] ?? '') : '';
+        $chart = $this->row !== null ? ($this->row['definition']['chart'] ?? '') : '';
         switch ($chart) {
             case 'bar':
                 return Bar::ID;
@@ -397,8 +413,16 @@ class GetSavedReport extends Report
             return;
         }
         if ($this->getReportType() !== ReportDefinition::REPORT_TYPE_TABLE) {
+            // the forecast of incomplete periods (Matomo 5.14+) asks the report again without its idExploration and
+            // definition, the failed request turns the whole response into a 400
+            if (property_exists($view->config, 'disable_forecast')) {
+                $view->config->disable_forecast = true;
+            }
             // one visualization, nothing to switch to
             $view->config->footer_icons = [];
+            if ($this->hiddenColumns) {
+                $view->config->columns_to_display = $this->metrics;
+            }
             return;
         }
 
@@ -448,7 +472,9 @@ class GetSavedReport extends Report
         }
 
         $metricNames = $this->metricNames;
-        $view->config->filters[] = function (DataTable $table) use ($view, $metricNames) {
+        $hidden = $this->hiddenColumns;
+        $order = array_flip($this->metrics);
+        $view->config->filters[] = function (DataTable $table) use ($view, $metricNames, $hidden, $order) {
             // every level is read through this report: a subtable is labelled with the dimension of its level
             $depth = (int) $table->getMetadata(SavedReportReader::DEPTH_METADATA);
             if ($depth > 0 && isset($this->rowDimensions[$depth])) {
@@ -472,6 +498,11 @@ class GetSavedReport extends Report
             foreach ((array) $table->getMetadata('dimensions') as $dimension) {
                 unset($columns[$dimension]);
             }
+            $columns = array_filter($columns, fn ($column) => !in_array(self::metricOf((string) $column), $hidden, true));
+            // the metrics in the order they were chosen, a rate computed after its metrics included
+            uksort($columns, function ($a, $b) use ($order) {
+                return ($order[self::metricOf((string) $a)] ?? PHP_INT_MAX) <=> ($order[self::metricOf((string) $b)] ?? PHP_INT_MAX);
+            });
             $view->config->columns_to_display = array_values(array_merge(['label'], $columns));
 
             foreach ($columns as $column) {
@@ -557,6 +588,17 @@ class GetSavedReport extends Report
         return $groups;
     }
 
+    /**
+     * The metric of a column: itself, or the metric of a pivot column "metric|value" or of a "sum_daily_" one.
+     */
+    private static function metricOf(string $column): string
+    {
+        $position = strpos($column, LabelFormatter::PIVOT_SEPARATOR);
+        $metric = $position === false ? $column : substr($column, 0, $position);
+
+        return strpos($metric, 'sum_daily_') === 0 ? substr($metric, strlen('sum_daily_')) : $metric;
+    }
+
     private function initSql(array $row): void
     {
         $sql = is_array($row['definition'] ?? null) && is_string($row['definition']['sql'] ?? null) ? $row['definition']['sql'] : '';
@@ -578,7 +620,14 @@ class GetSavedReport extends Report
         }
 
         $dailySum = ' (' . Piwik::translate('General_DailySum') . ')';
-        foreach ($resolved['metrics'] as $metric) {
+        $entries = [];
+        foreach (array_merge($resolved['metrics'], $resolved['processed']) as $metric) {
+            $entries[$metric->id] = $metric;
+        }
+        // the metrics a rate or an average is computed from are in the data, not in the report
+        $this->hiddenColumns = $resolved['hidden'];
+        foreach ($resolved['chosen'] as $id) {
+            $metric = $entries[$id];
             $this->metrics[] = $metric->id;
             $this->metricNames[$metric->id] = $metric->name;
             $first = $resolved['rows'][0] ?? null;
@@ -590,6 +639,8 @@ class GetSavedReport extends Report
                 $this->nonAdditiveMetrics[] = 'sum_daily_' . $metric->id;
             }
         }
+        // core formats them (a rate as a percentage) and leaves the values computed by ProcessedMetrics as they are
+        $this->processedMetrics = array_values((new ProcessedMetrics($resolved['processed'], $idSite))->metrics());
 
         foreach ($resolved['rows'] as $level => $entry) {
             $dimension = SiteContext::run($idSite, fn () => (new DimensionsProvider())->factory($entry->id));

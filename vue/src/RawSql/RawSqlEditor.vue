@@ -91,64 +91,47 @@
           <button
             v-if="canSave"
             type="button"
-            class="btn btn-flat dataExplorerSql__save"
+            class="btn btn-outline dataExplorerSql__save"
             :disabled="validity !== 'valid'"
             @click="$emit('save')"
-          >{{ translate('DataExplorer_SaveReport') }}</button>
-          <button
-            v-if="columns.length"
-            type="button"
-            class="btn btn-flat dataExplorerSql__csv"
-            @click="exportCsv"
-          >
-            <span class="icon-export" aria-hidden="true"></span>
-            {{ translate('DataExplorer_ExportCsv') }}
-          </button>
-          <ActivityIndicator :loading="running" />
-        </div>
-
-        <div aria-live="polite">
-          <Notification
-            v-if="runError"
-            context="error"
-            :noclear="true"
-          >{{ runError }}</Notification>
-          <div
-            v-else-if="hasRun && !rows.length && !running"
-            class="dataExplorerCanvas__hint"
-          >{{ translate('DataExplorer_SqlNoRows') }}</div>
-          <div
-            v-else-if="rows.length"
-            class="dataExplorerSql__count"
-          >{{ translate('DataExplorer_SqlRowCount', rows.length) }}</div>
+          >{{ editing
+            ? translate('DataExplorer_EditReport')
+            : translate('DataExplorer_SaveReport') }}</button>
         </div>
 
         <div
-          v-if="rows.length"
-          class="dataExplorerCanvas__table"
+          v-if="resultParams"
+          class="dataExplorerSql__resultBlock"
         >
-          <table class="entityTable dataTable dataExplorerResult dataExplorerSql__result">
-            <thead>
-              <tr>
-                <th
-                  v-for="column in columns"
-                  :key="column"
-                  scope="col"
-                >{{ column }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(row, index) in rows"
-                :key="index"
-              >
-                <td
-                  v-for="column in columns"
-                  :key="column"
-                >{{ cell(row[column]) }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div
+            class="dataExplorerVisualizations dataExplorerSql__visualizations"
+            role="group"
+            :aria-label="translate('DataExplorer_Visualization')"
+          >
+            <button
+              v-for="option in visualizations"
+              :key="option.id"
+              type="button"
+              class="dataExplorerIconButton dataExplorerVisualizations__button"
+              :class="{ 'is-active': option.id === visualization }"
+              :aria-pressed="option.id === visualization ? 'true' : 'false'"
+              :aria-label="option.label"
+              :title="option.label"
+              @click="$emit('setVisualization', option.id)"
+            >
+              <span :class="option.icon" aria-hidden="true"></span>
+            </button>
+          </div>
+          <p
+            v-if="visualization === 'kpicard'"
+            class="dataExplorerSql__hint"
+          >{{ translate('DataExplorer_SqlKpiHint') }}</p>
+          <div
+            ref="resultElement"
+            class="dataExplorerSql__resultWidget"
+          >
+            <WidgetLoader :widget-params="resultParams" />
+          </div>
         </div>
       </div>
     </div>
@@ -162,6 +145,7 @@ import {
   onBeforeUnmount,
   nextTick,
   onMounted,
+  PropType,
   ref,
   watch,
 } from 'vue';
@@ -171,14 +155,21 @@ import {
   ContentBlock,
   Notification,
   translate,
+  WidgetLoader,
 } from 'CoreHome';
 import SchemaBrowser from './SchemaBrowser.vue';
 import { toDiagnostics } from './sqlDiagnostics';
 import { runKeymap } from './runKeymap';
 import { createCodeTheme } from '../codeTheme';
-import { toCsv } from './csv';
+import {
+  reportTypeOf,
+  VISUALIZATION_BY_VIEW,
+  VISUALIZATION_ICONS,
+  VISUALIZATIONS,
+  VIEW_BY_VISUALIZATION,
+} from '../Explorer/explorationState';
 import type { Diagnostic, EditorView } from './codeMirrorModules';
-import type { SqlStatus, SqlValidation } from '../types';
+import type { SqlStatus, SqlValidation, Visualization } from '../types';
 
 type CodeMirrorModules = typeof import('./codeMirrorModules');
 
@@ -198,6 +189,20 @@ function loadCodeMirror(): Promise<CodeMirrorModules> {
  * tables and columns, live validation by the server guard, the schema of the allowed tables, the
  * result table and its CSV export. Run stays disabled while the query is not valid.
  */
+function starterQuery(visitTable: string): string {
+  return [
+    'SELECT',
+    '  DATE(visit_last_action_time) AS day,',
+    '  COUNT(*) AS visits,',
+    '  SUM(visit_total_actions) AS actions',
+    `FROM ${visitTable}`,
+    'WHERE idsite = {idsite}',
+    '  AND visit_last_action_time BETWEEN {date_start} AND {date_end}',
+    'GROUP BY day',
+    'ORDER BY day',
+  ].join('\n');
+}
+
 export default defineComponent({
   name: 'RawSqlEditor',
   components: {
@@ -205,6 +210,7 @@ export default defineComponent({
     ContentBlock,
     Notification,
     SchemaBrowser,
+    WidgetLoader,
   },
   props: {
     modelValue: {
@@ -231,8 +237,17 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // a saved query this user may change is open: the button opens it for an update
+    editing: {
+      type: Boolean,
+      default: false,
+    },
+    visualization: {
+      type: String as PropType<Visualization>,
+      default: 'table',
+    },
   },
-  emits: ['update:modelValue', 'save', 'validity'],
+  emits: ['update:modelValue', 'save', 'validity', 'setVisualization'],
   setup(props, { emit }) {
     const container = ref<HTMLElement|null>(null);
     const editorReady = ref(false);
@@ -240,16 +255,19 @@ export default defineComponent({
     const schemaLoading = ref(false);
     const validity = ref<Validity>(props.modelValue.trim() ? 'pending' : 'empty');
     const problems = ref<Diagnostic[]>([]);
-    const running = ref(false);
-    const hasRun = ref(false);
-    const runError = ref('');
-    const rows = ref<Record<string, unknown>[]>([]);
+    // the result of Run: the native visualization of the query, like a saved raw SQL report
+    const resultParams = ref<Record<string, string>|null>(null);
+    const ranSql = ref('');
+    const visualizations = VISUALIZATIONS.map((id) => ({
+      id,
+      icon: VISUALIZATION_ICONS[id],
+      label: translate(`DataExplorer_Visualization_${id}`),
+    }));
 
     // CodeMirror objects must not be wrapped in Vue proxies
     let view: EditorView|null = null;
     let isApplyingModelValue = false;
     let validationSequence = 0;
-    let runSequence = 0;
     let unmounted = false;
 
     // asked when the tab opens: the status connects to the read-only database user
@@ -259,24 +277,11 @@ export default defineComponent({
     const isReady = computed(() => !!status.value && status.value.state === 'ready');
 
     const canRun = computed(() => editorReady.value
-      && validity.value === 'valid'
-      && !running.value);
+      && validity.value === 'valid');
 
     const runTitle = computed(() => (canRun.value
       ? translate('DataExplorer_SqlRunShortcut')
       : translate('DataExplorer_SqlRunDisabled')));
-
-    const columns = computed(() => {
-      const keys: string[] = [];
-      rows.value.forEach((row) => {
-        Object.keys(row).forEach((key) => {
-          if (!keys.includes(key)) {
-            keys.push(key);
-          }
-        });
-      });
-      return keys;
-    });
 
     watch(validity, (value) => {
       emit('validity', value);
@@ -314,44 +319,67 @@ export default defineComponent({
       });
     }
 
+    function load() {
+      const chart = props.visualization === 'bar' || props.visualization === 'pie'
+        ? props.visualization
+        : '';
+      resultParams.value = {
+        module: 'DataExplorer',
+        action: 'preview',
+        definition: JSON.stringify({
+          type: 'sql',
+          name: 'preview',
+          sql: ranSql.value,
+          report_type: reportTypeOf(props.visualization),
+          chart,
+        }),
+        period: props.period,
+        date: props.date,
+        viewDataTable: VIEW_BY_VISUALIZATION[props.visualization],
+      };
+    }
+
     function run() {
       if (!canRun.value || !view) {
         return;
       }
-      runSequence += 1;
-      const sequence = runSequence;
-      running.value = true;
-      runError.value = '';
+      ranSql.value = view.state.doc.toString();
+      load();
+    }
 
-      AjaxHelper.post<Record<string, unknown>[]>(
-        {
-          method: 'DataExplorer.runSql',
-          idSite: props.idSite,
-          period: props.period,
-          date: props.date,
-          filter_limit: -1,
-          format_metrics: 0,
-        },
-        { sql: view.state.doc.toString() },
-        { createErrorNotification: false },
-      ).then((result) => {
-        if (sequence !== runSequence) {
-          return;
-        }
-        rows.value = Array.isArray(result) ? result : [];
-      }).catch((e: Error) => {
-        if (sequence !== runSequence) {
-          return;
-        }
-        rows.value = [];
-        runError.value = e.message;
-      }).finally(() => {
-        if (sequence === runSequence) {
-          running.value = false;
-          hasRun.value = true;
+    // a chart picked in the footer of the result becomes the one of the query, as in the Free
+    // form canvas; core triggers the event before it attaches the DataTable instance
+    const resultElement = ref<HTMLElement|null>(null);
+    function onLoaded(event: JQuery.TriggeredEvent) {
+      const table = $(event.target as HTMLElement).closest('.dataTable');
+      setTimeout(() => {
+        const control = table.data('uiControlObject') as
+          { param?: Record<string, unknown> }|undefined;
+        const picked = control && control.param
+          ? VISUALIZATION_BY_VIEW[String(control.param.viewDataTable || '')]
+          : undefined;
+        if (picked && picked !== props.visualization) {
+          emit('setVisualization', picked);
         }
       });
     }
+    let bound: HTMLElement|null = null;
+    watch(resultElement, (element) => {
+      if (bound) {
+        $(bound).off('piwik:dataTableLoaded', onLoaded);
+      }
+      bound = element;
+      if (bound) {
+        $(bound).on('piwik:dataTableLoaded', onLoaded);
+      }
+    });
+
+    // the chart, period or date of a result already shown applies at once; the query waits for Run
+    watch(() => [props.visualization, props.period, props.date], () => {
+      if (resultParams.value) {
+        load();
+      }
+    });
 
     function insert(text: string) {
       if (!view) {
@@ -359,28 +387,6 @@ export default defineComponent({
       }
       view.dispatch({ ...view.state.replaceSelection(text), scrollIntoView: true });
       view.focus();
-    }
-
-    function cell(value: unknown): string {
-      if (value === null || typeof value === 'undefined') {
-        return '';
-      }
-      return typeof value === 'object' ? JSON.stringify(value) : String(value);
-    }
-
-    function exportCsv() {
-      const csv = toCsv(columns.value, rows.value.map((row) => columns.value.map((column) => {
-        const value = row[column];
-        return typeof value === 'number' ? value : cell(value);
-      })));
-      const blob = new Blob([`${String.fromCharCode(0xfeff)}${csv}`], { type: 'text/csv;charset=utf-8' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'data-explorer-query.csv';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(link.href);
     }
 
     function createEditor(cm: CodeMirrorModules) {
@@ -429,6 +435,17 @@ export default defineComponent({
       editorReady.value = true;
     }
 
+    // an empty editor (nothing opened, nothing typed: a text the user clears comes back from the
+    // editor itself and never gets here) starts on a query that runs as is, to show the way
+    function offerStarter(value: string): boolean {
+      const visits = Object.keys(schema.value).find((table) => /(^|_)log_visit$/.test(table));
+      if (value.trim() !== '' || !visits) {
+        return false;
+      }
+      emit('update:modelValue', starterQuery(visits));
+      return true;
+    }
+
     function start() {
       if (!isReady.value || view) {
         return;
@@ -439,6 +456,7 @@ export default defineComponent({
         { createErrorNotification: false },
       ).then((result) => {
         schema.value = result && typeof result === 'object' && !Array.isArray(result) ? result : {};
+        offerStarter(props.modelValue);
       }).catch(() => {
         // completion falls back to keywords, the guard still validates every query
         schema.value = {};
@@ -468,6 +486,11 @@ export default defineComponent({
       if (!view || value === view.state.doc.toString()) {
         return;
       }
+      // another query opened: the result of the previous one no longer belongs here
+      resultParams.value = null;
+      if (offerStarter(value)) {
+        return;
+      }
       isApplyingModelValue = true;
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
       isApplyingModelValue = false;
@@ -489,11 +512,9 @@ export default defineComponent({
       schemaLoading,
       validity,
       problems,
-      running,
-      hasRun,
-      runError,
-      rows,
-      columns,
+      resultParams,
+      resultElement,
+      visualizations,
       isReady,
       status,
       statusLoading,
@@ -501,8 +522,6 @@ export default defineComponent({
       runTitle,
       run,
       insert,
-      cell,
-      exportCsv,
     };
   },
 });

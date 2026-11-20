@@ -130,47 +130,92 @@
       :empty-menu-text="translate('DataExplorer_NoDimensions')"
       @add="$emit('add', 'filters', $event)"
     >
+      <template
+        v-for="(group, groupIndex) in filterGroups"
+        :key="groupIndex"
+      >
       <div
-        v-if="filters.length > 1"
-        class="dataExplorerSegmented dataExplorerFilterMatch"
-        role="radiogroup"
-        :aria-label="translate('DataExplorer_FilterMatchLabel')"
+        v-if="groupIndex > 0"
+        class="dataExplorerFilterGroup__join"
+        aria-hidden="true"
+      >{{ translate('DataExplorer_FilterAnd') }}</div>
+      <div
+        class="dataExplorerFilterGroup"
+        :class="{ 'is-drop-target': overGroup === group[0].filter.group }"
+        @dragover="onGroupDragOver($event, group[0].filter.group)"
+        @dragleave="overGroup = null"
+        @drop="onGroupDrop($event, group[0].filter.group)"
       >
-        <button
-          v-for="match in filterMatches"
-          :key="match.id"
-          type="button"
-          role="radio"
-          class="dataExplorerSegmented__button"
-          :class="{ 'is-active': filterMatch === match.id }"
-          :aria-checked="filterMatch === match.id ? 'true' : 'false'"
-          @click="$emit('setFilterMatch', match.id)"
-        >{{ match.label }}</button>
+        <ul
+          class="dataExplorerFilters"
+          :aria-label="group.length > 1
+            ? translate('DataExplorer_FilterGroupAnyLabel', groupIndex + 1)
+            : translate('DataExplorer_FilterGroupLabel', groupIndex + 1)"
+        >
+          <template
+            v-for="(view, position) in group"
+            :key="filterKey(view.filter)"
+          >
+            <li
+              v-if="position > 0"
+              class="dataExplorerFilters__or"
+              aria-hidden="true"
+            >{{ translate('DataExplorer_FilterOr') }}</li>
+            <FilterRow
+              :filter="view.filter"
+              :dimension-name="view.name"
+              :reason="view.reason"
+              draggable="true"
+              :class="{ 'is-dragged': draggedIndex === view.index }"
+              @dragstart="startFilterDrag($event, view.index)"
+              @dragend="endFilterDrag"
+              @update="$emit('updateFilter', view.index, $event)"
+              @remove="$emit('removeFilter', view.index)"
+            />
+          </template>
+        </ul>
+        <div class="dataExplorerFilterGroup__actions">
+          <FilterOrButton
+            :options="dimensionOptions"
+            @add="$emit('addFilterToGroup', group[0].filter.group, $event)"
+          />
+          <FilterOrButton
+            v-if="groupIndex === filterGroups.length - 1"
+            :options="dimensionOptions"
+            :label="translate('DataExplorer_FilterAddAnd')"
+            :aria-label="translate('DataExplorer_FilterAddAndLabel')"
+            @add="$emit('add', 'filters', $event)"
+          />
+        </div>
       </div>
-      <ul
-        v-if="filters.length"
-        class="dataExplorerFilters"
-        :aria-label="translate('DataExplorer_Filters')"
-      >
-        <FilterRow
-          v-for="(filter, index) in filters"
-          :key="`${index}-${filter.filter.dimension}`"
-          :filter="filter.filter"
-          :dimension-name="filter.name"
-          :reason="filter.reason"
-          @update="$emit('updateFilter', index, $event)"
-          @remove="$emit('removeFilter', index)"
-        />
-      </ul>
+      </template>
+      <div
+        v-if="draggedIndex !== null"
+        class="dataExplorerFilterGroup__newDrop"
+        :class="{ 'is-drop-target': overGroup === NEW_GROUP }"
+        @dragover="onGroupDragOver($event, NEW_GROUP)"
+        @dragleave="overGroup = null"
+        @drop="onGroupDrop($event, NEW_GROUP)"
+      >{{ translate('DataExplorer_FilterDropNewGroup') }}</div>
+      <p
+        v-if="filterSummary"
+        class="dataExplorerFilterSummary"
+      >{{ filterSummary }}</p>
     </DropZone>
   </div>
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, PropType } from 'vue';
+import {
+  computed,
+  defineComponent,
+  PropType,
+  ref,
+} from 'vue';
 import { translate } from 'CoreHome';
 import DropZone from './DropZone.vue';
 import FilterRow from './FilterRow.vue';
+import FilterOrButton from './FilterOrButton.vue';
 import {
   hasRowDimensions,
   VISUALIZATION_ICONS as ICONS,
@@ -178,7 +223,7 @@ import {
 } from './explorationState';
 import type {
   CatalogLimits,
-  FilterMatch,
+  Filter,
   TableView,
   FilterView,
   Visualization,
@@ -193,6 +238,7 @@ export default defineComponent({
   components: {
     DropZone,
     FilterRow,
+    FilterOrButton,
   },
   props: {
     visualization: {
@@ -223,10 +269,6 @@ export default defineComponent({
       type: Array as PropType<FilterView[]>,
       required: true,
     },
-    filterMatch: {
-      type: String as PropType<FilterMatch>,
-      default: 'all',
-    },
     tableView: {
       type: String as PropType<TableView>,
       default: 'flat',
@@ -250,10 +292,11 @@ export default defineComponent({
     'remove',
     'updateFilter',
     'removeFilter',
-    'setFilterMatch',
+    'addFilterToGroup',
+    'moveFilter',
     'setTableView',
   ],
-  setup(props) {
+  setup(props, { emit }) {
     const visualizations = VISUALIZATIONS.map((id) => ({
       id,
       icon: ICONS[id],
@@ -275,10 +318,88 @@ export default defineComponent({
       return props.visualization === 'kpicard' ? translate('DataExplorer_KpiFirstMetricOnly') : '';
     });
 
-    const filterMatches = [
-      { id: 'all' as FilterMatch, label: translate('DataExplorer_FilterMatchAll') },
-      { id: 'any' as FilterMatch, label: translate('DataExplorer_FilterMatchAny') },
-    ];
+    // the filters of a group are ORed, the groups ANDed
+    const filterGroups = computed(() => {
+      const groups = new Map<number, FilterView[]>();
+      props.filters.forEach((view) => {
+        const group = groups.get(view.filter.group) || [];
+        group.push(view);
+        groups.set(view.filter.group, group);
+      });
+      return [...groups.values()];
+    });
+
+    // "(Country is France or Belgium) and (Device type is Smartphone)", filters with a value only
+    const filterSummary = computed(() => {
+      const parts = filterGroups.value
+        .map((group) => group.filter((view) => view.filter.value.trim() !== ''))
+        .filter((group) => group.length > 0)
+        .map((group) => {
+          const text = group
+            .map((view) => {
+              const operator = translate(`DataExplorer_FilterOperator_${view.filter.operator}`);
+              return `${view.name} ${operator} ${view.filter.value}`;
+            })
+            .join(` ${translate('DataExplorer_FilterOr')} `);
+          return group.length > 1 ? `(${text})` : text;
+        });
+      return parts.length > 1 || (parts.length === 1 && parts[0].startsWith('('))
+        ? parts.join(` ${translate('DataExplorer_FilterAnd')} `)
+        : '';
+    });
+
+    // a filter dragged onto another group joins it (OR), onto the strip below the groups it starts
+    // a new one (AND)
+    const NEW_GROUP = -1;
+    const FILTER_TYPE = 'application/x-dataexplorer-filter';
+    const draggedIndex = ref<number|null>(null);
+    const overGroup = ref<number|null>(null);
+
+    function startFilterDrag(event: DragEvent, index: number) {
+      draggedIndex.value = index;
+      if (event.dataTransfer) {
+        event.dataTransfer.setData(FILTER_TYPE, String(index));
+        event.dataTransfer.effectAllowed = 'move';
+      }
+    }
+
+    function endFilterDrag() {
+      draggedIndex.value = null;
+      overGroup.value = null;
+    }
+
+    function onGroupDragOver(event: DragEvent, group: number) {
+      if (draggedIndex.value === null) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+      }
+      overGroup.value = group;
+    }
+
+    function onGroupDrop(event: DragEvent, group: number) {
+      if (draggedIndex.value === null) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      emit('moveFilter', draggedIndex.value, group);
+      endFilterDrag();
+    }
+
+    // a filter keeps its row (and an open editor) when a filter is inserted or removed before it
+    const keys = new WeakMap<Filter, number>();
+    let nextKey = 0;
+    function filterKey(filter: Filter): number {
+      if (!keys.has(filter)) {
+        nextKey += 1;
+        keys.set(filter, nextKey);
+      }
+      return keys.get(filter) as number;
+    }
 
     const tableViews = [
       { id: 'flat' as TableView, label: translate('DataExplorer_TableViewFlat') },
@@ -287,7 +408,16 @@ export default defineComponent({
 
     return {
       tableViews,
-      filterMatches,
+      filterGroups,
+      filterKey,
+      filterSummary,
+      NEW_GROUP,
+      draggedIndex,
+      overGroup,
+      startFilterDrag,
+      endFilterDrag,
+      onGroupDragOver,
+      onGroupDrop,
       visualizations,
       hasRows,
       maxValues,

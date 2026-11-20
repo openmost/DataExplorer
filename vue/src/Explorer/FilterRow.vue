@@ -140,7 +140,7 @@ export default defineComponent({
     const editing = ref(props.filter.value.trim() === '');
     const draft = reactive({ operator: props.filter.operator, value: props.filter.value });
 
-    const isNumeric = computed(() => ['gt', 'lt'].includes(draft.operator));
+    const isNumeric = computed(() => ['gt', 'gte', 'lt', 'lte'].includes(draft.operator));
 
     function operatorLabel(operator: FilterOperator) {
       return translate(`DataExplorer_FilterOperator_${operator}`);
