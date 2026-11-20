@@ -6,10 +6,14 @@ Explore your Matomo data the way you would in GA4 Explorations, then save the re
 
 ### Features
 
-- **Free-form explorer**: drag dimensions, metrics and segments into rows, columns, values and filters, and see the result as you build it. The preview and the saved report follow the same row limits, so a saved report shows what you previewed.
+- **Free-form explorer**: drag dimensions, metrics and segments into rows, columns, values and filters, and see the result as you build it. It opens on the last 28 days (today excluded) with Page URL and Device type by Visits and Pageviews ready to drop. The preview is always computed live, and follows the same row limits as the saved report, so a saved report shows what you previewed.
+- **Every dimension and metric of your Matomo**: the core ones and those of the active plugins (goals, ecommerce, events, media, forms, crashes, campaigns, weather...), including the rates and averages Matomo computes from them, such as bounce rate or actions per visit. A dimension appears only while its plugin is active.
+- **Filters with AND and OR**: the filters of one group match any of their conditions, groups all match, for example (Device type is Desktop OR Smartphone) AND (Page URL contains /blog). Operators: is exactly, is not, contains, does not contain, starts with, does not start with, ends with, does not end with, matches a regular expression, and greater or less than (or equal to) for numbers.
 - **Visualizations**: the Matomo table, evolution graph, bar chart, pie chart and sparkline (KPI card), the same in the explorer and in the saved report. A table shows a totals row, and any report can apply one saved segment as a filter.
-- **Raw SQL** for super users: a SQL editor with a table and column browser, a validity check before running, CSV export, and placeholders for the site and the period. Queries run with a read-only database user that you create.
+- **Raw SQL** for super users: a SQL editor with a table and column browser, a sample query to start from, a validity check before running, CSV export, and placeholders for the site and the period. The result is drawn as a Matomo table, bar chart, pie chart or KPI card. Queries run with a read-only database user that you create, and a saved raw SQL report can be reopened and edited.
 - **Saved reports in the menu**: a saved report becomes a page of the Matomo reporting menu, in the category and subcategory you pick, for one website, a list of websites or all websites. It also works as a dashboard widget, in the API, in exports and in scheduled reports like any other report. A raw SQL report can be scheduled when every column of its select list has a name (`AS alias` or a plain column), `*` and unnamed expressions are only known once the query ran.
+- **Open a report**: a searchable picker reopens any saved exploration. When a custom reports plugin is active, it also lists its reports: opening one brings its dimensions, metrics, filters and segment into the explorer, where you can update it in place or save it as an exploration in the same category and page. Parts that cannot be translated are listed, never dropped silently.
+- **Descriptions**: a report can carry a description, shown as its documentation in the Matomo menu.
 - **Export**: the explorer result has the Matomo export of reports (CSV, TSV, XML, JSON and more).
 - **Manage explorations**: a page of the Data Explorer menu lists the reports saved on the website, with links to their page and to the explorer, a search and deletion.
 - **Roles**: users with view access open the saved reports and explore the visual explorer (the anonymous user only opens saved reports), users with write access save reports on the websites they can write to, admins edit or delete any report of their websites, and only super users run raw SQL and save a report for all websites.
@@ -67,7 +71,9 @@ Raising the row caps or the number of dimensions makes the archives bigger and s
 
 ### Archiving
 
-Saved visual reports are archived by `core:archive` like the core reports, so they open fast and work with segments, periods, the API and scheduled reports. When you save a report that computes something new (dimensions, metrics, filters, segment, visualization), the last `invalidation_months` months of history are invalidated and rebuilt by the next archiving run. A rename or a move in the menu keeps the history, and placing a report on more websites only builds the history of the added websites. Saving a report on an instance that relies only on browser-triggered archiving fills its history on the next full archiving run, not instantly.
+Saved visual reports are archived by `core:archive` like the core reports, so they open fast and work with segments, periods, the API and scheduled reports. When you save a report that computes something new (dimensions, metrics, filters, segment, visualization), the last `invalidation_months` months of history are invalidated and rebuilt by the next archiving run. A rename or a move in the menu keeps the history, and placing a report on more websites only builds the history of the added websites. When browser archiving is on, a newly saved or edited report is archived the first time it is displayed.
+
+The explorer itself never reads archives: what you build in it is computed live from the log tables, only the reports saved in the menu are archived.
 
 Raw SQL reports are not archived: they run live on the read-only connection, with the time limit, the row limit and the cache above.
 
@@ -81,6 +87,7 @@ Each raw SQL run is logged at the `INFO` level (query hash, user, site, status, 
 - Only the 11 tables listed above can be read. Archive tables and plugin tables are not readable.
 - A report has at most 10 metrics, and a KPI card exactly one.
 - The visual preview uses the same row caps as saved reports (500 rows per table by default, see the Configuration table).
+- The Explore and Manage explorations pages are reserved to the plugin: a report cannot be placed on them.
 - Phase one supports free-form explorations only.
 
 ### FAQ

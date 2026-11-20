@@ -820,7 +820,7 @@ export default defineComponent({
     function loadReports(): Promise<void> {
       return AjaxHelper.fetch<SavedReport[]>(
         { method: 'DataExplorer.getReports', idSite, filter_limit: -1 },
-        { createErrorNotification: false },
+        { createErrorNotification: false, abortable: false },
       ).then((result) => {
         reports.value = Array.isArray(result) ? result : [];
       }).catch(() => {
@@ -869,7 +869,7 @@ export default defineComponent({
       }
       return AjaxHelper.fetch<{ idcustomreport: number, name: string, place?: string }[]>(
         { method: 'DataExplorer.getCustomReports', idSite, filter_limit: -1 },
-        { createErrorNotification: false },
+        { createErrorNotification: false, abortable: false },
       ).then((result) => {
         customReportList.value = Array.isArray(result) ? result : [];
       }).catch(() => {
@@ -1276,7 +1276,8 @@ export default defineComponent({
       Promise.all([
         AjaxHelper.fetch<Catalog>(
           { method: 'DataExplorer.getCatalog', idSite },
-          { createErrorNotification: false },
+          // not tied to the period, so kept when entering switches it to the last 28 days
+          { createErrorNotification: false, abortable: false },
         ).then((result) => {
           catalog.value = result;
         }).catch((e: Error) => {

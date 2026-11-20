@@ -2,7 +2,7 @@
 
 ## 6.2.0
 
-- Filters combine with AND and OR: filters in one group match any of their conditions, groups all match. New operators: does not contain, does not start or end with, at least, at most.
+- Filters combine with AND and OR: filters in one group match any of their conditions, groups all match. New operators: does not contain, does not start with, does not end with, greater than or equal to, less than or equal to.
 - *Open a report* picker with a search field, listing the explorations and, when the custom reports plugin is active, the custom reports of the website. An opened custom report keeps its dimensions, metrics, filters and segment, and can be updated in place or saved as an exploration in the same category and subcategory.
 - Reports take a description, shown as the report documentation.
 - The metric and dimension lists follow the core catalogue: archived and processed metrics of every log table of the active plugins, dimensions shown only when their plugin is active.

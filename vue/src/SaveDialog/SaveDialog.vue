@@ -311,9 +311,14 @@ export default defineComponent({
       value: translate(`DataExplorer_ReportType_${key}`),
     })));
 
-    const reportTypeLabel = computed(
-      () => translate(`DataExplorer_ReportType_${props.reportType}`),
-    );
+    // a bar or pie chart is a table report drawn as a chart: name the chart, not the table
+    const reportTypeLabel = computed(() => {
+      const { chart } = props.definition;
+      if (chart === 'bar' || chart === 'pie') {
+        return translate(`DataExplorer_Visualization_${chart}`);
+      }
+      return translate(`DataExplorer_ReportType_${props.reportType}`);
+    });
 
     const placementOptions = computed(() => {
       const options = [
