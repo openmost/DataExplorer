@@ -26,7 +26,7 @@
       <span
         v-if="max > 1"
         class="dataExplorerDropZone__count"
-      >{{ translate('DataExplorer_ZoneCount', items.length, max) }}</span>
+      >{{ translate('DataExplorer_ZoneCount', usedCount, max) }}</span>
     </div>
     <div
       v-if="disabled && disabledReason"
@@ -44,6 +44,7 @@
         :class="{
           'is-incompatible': !!item.reason,
           'is-inactive': isInactive(index),
+          'is-missing': !!item.missing,
         }"
         :data-id="item.id"
         tabindex="0"
@@ -208,9 +209,12 @@ export default defineComponent({
     const slotButton = ref<HTMLElement|null>(null);
     const headingId = computed(() => `dataExplorerZone-${props.zone}`);
 
+    // items shown struck through take no place
+    const usedCount = computed(() => props.items.filter((item) => !item.missing).length);
+
     const isFull = computed(() => !props.unlimited
       && props.max > 0
-      && props.items.length >= props.max);
+      && usedCount.value >= props.max);
 
     function isInactive(index: number): boolean {
       return props.activeCount > 0 && index >= props.activeCount;
@@ -279,6 +283,7 @@ export default defineComponent({
       slotButton,
       headingId,
       isFull,
+      usedCount,
       isInactive,
       isAccepting,
       onDragOver,

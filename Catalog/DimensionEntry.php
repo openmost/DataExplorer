@@ -23,7 +23,9 @@ final class DimensionEntry
         public readonly ?object $join,
         public readonly ?object $discriminator,
         public readonly string $segment,
-        public readonly string $type
+        public readonly string $type,
+        // the value grouped on when it is not the column itself (HOUR(server_time), days from seconds), '' otherwise
+        public readonly string $sql = ''
     ) {
     }
 

@@ -9,13 +9,16 @@ import { describe, expect, it } from 'vitest';
 import {
   clampToLimits,
   decode,
+  DEFAULT_DIMENSIONS,
+  DEFAULT_METRICS,
   defaultState,
   encode,
   fromDefinition,
+  groupFilters,
   isFilterComplete,
   toDefinition,
 } from './explorationState';
-import type { ExplorationState } from '../types';
+import type { ExplorationState, VisualDefinition } from '../types';
 
 function exploration(): ExplorationState {
   return {
@@ -28,8 +31,9 @@ function exploration(): ExplorationState {
     rows: ['UserCountry.Country'],
     column: 'DevicesDetection.DeviceType',
     values: ['nb_visits', 'nb_actions'],
-    filters: [{ dimension: 'Actions.PageTitle', operator: 'contains', value: 'Élan "100%" & <b>' }],
-    filterMatch: 'any',
+    filters: [{
+      dimension: 'Actions.PageTitle', operator: 'contains', value: 'Élan "100%" & <b>', group: 0,
+    }],
     tableView: 'hierarchical',
     visualization: 'bar',
     segment: 'browserCode==FF',
@@ -74,10 +78,11 @@ describe('explorationState', () => {
       rows: ['UserCountry.Country'],
       column: null,
       values: ['nb_visits'],
-      filters: [{ dimension: 'UserCountry.Country', operator: 'equals', value: '3' }],
+      filters: [{
+        dimension: 'UserCountry.Country', operator: 'equals', value: '3', group: 0,
+      }],
       visualization: 'table',
       segment: '',
-      filterMatch: 'all',
       tableView: 'flat',
     });
   });
@@ -91,8 +96,8 @@ describe('explorationState', () => {
     }));
 
     expect(state.variables).toEqual({
-      dimensions: ['UserCountry.Country'],
-      metrics: ['nb_visits'],
+      dimensions: [...DEFAULT_DIMENSIONS, 'UserCountry.Country'],
+      metrics: DEFAULT_METRICS,
       segments: ['countryCode==fr'],
     });
   });
@@ -106,8 +111,9 @@ describe('explorationState', () => {
       rows: ['UserCountry.Country'],
       column: 'DevicesDetection.DeviceType',
       metrics: ['nb_visits', 'nb_actions'],
-      filters: [{ dimension: 'Actions.PageTitle', operator: 'contains', value: 'Élan "100%" & <b>' }],
-      filter_match: 'any',
+      filters: [{
+        dimension: 'Actions.PageTitle', operator: 'contains', value: 'Élan "100%" & <b>', group: 0,
+      }],
       table_view: 'hierarchical',
       segment: 'browserCode==FF',
     });
@@ -123,7 +129,12 @@ describe('explorationState', () => {
   });
 
   it('leaves out filters without a value', () => {
-    const state = { ...exploration(), filters: [{ dimension: 'Actions.PageTitle', operator: 'equals' as const, value: ' ' }] };
+    const state = {
+      ...exploration(),
+      filters: [{
+        dimension: 'Actions.PageTitle', operator: 'equals' as const, value: ' ', group: 0,
+      }],
+    };
 
     expect(toDefinition(state).filters).toEqual([]);
   });
@@ -152,38 +163,50 @@ describe('explorationState', () => {
       ...defaultState(),
       rows: ['a', 'b', 'c', 'd'],
       values: ['m1', 'm2', 'm3'],
-      filterMatch: 'any' as const,
     };
 
     const clamped = clampToLimits(state, { maxDimensions: 2, maxMetrics: 2, maxColumns: 1 });
     expect(clamped.rows).toEqual(['a', 'b']);
     expect(clamped.values).toEqual(['m1', 'm2']);
-    expect(clamped.variables.dimensions).toEqual([]);
-    expect(clamped.filterMatch).toBe('any');
+    expect(clamped.variables.dimensions).toEqual(DEFAULT_DIMENSIONS);
   });
 
   it('sends a filter once it has a value, a blank value is not a filter yet', () => {
-    expect(isFilterComplete({ dimension: 'UserCountry.Country', operator: 'equals', value: 'France' })).toBe(true);
-    expect(isFilterComplete({ dimension: 'UserCountry.Country', operator: 'equals', value: '  ' })).toBe(false);
+    expect(isFilterComplete({
+      dimension: 'UserCountry.Country', operator: 'equals', value: 'France', group: 0,
+    })).toBe(true);
+    expect(isFilterComplete({
+      dimension: 'UserCountry.Country', operator: 'equals', value: '  ', group: 0,
+    })).toBe(false);
 
     const state = {
       ...exploration(),
       filters: [
-        { dimension: 'UserCountry.Country', operator: 'equals' as const, value: 'France' },
-        { dimension: 'DevicesDetection.DeviceType', operator: 'not_equals' as const, value: '' },
+        {
+          dimension: 'DevicesDetection.DeviceType', operator: 'not_equals' as const, value: '', group: 0,
+        },
+        {
+          dimension: 'UserCountry.Country', operator: 'equals' as const, value: 'France', group: 1,
+        },
       ],
     };
     expect(toDefinition(state).filters).toEqual([
-      { dimension: 'UserCountry.Country', operator: 'equals', value: 'France' },
+      {
+        dimension: 'UserCountry.Country', operator: 'equals', value: 'France', group: 0,
+      },
     ]);
   });
 
   it('keeps every filter operator and its value through the URL hash', () => {
-    const operators = ['equals', 'not_equals', 'contains', 'starts_with', 'regex', 'gt', 'lt'] as const;
+    const operators = [
+      'equals', 'not_equals', 'contains', 'not_contains', 'starts_with', 'not_starts_with',
+      'ends_with', 'not_ends_with', 'regex', 'gt', 'gte', 'lt', 'lte',
+    ] as const;
     const filters = operators.map((operator, index) => ({
       dimension: 'Actions.PageTitle',
       operator,
       value: `v${index} & "x"`,
+      group: index,
     }));
 
     expect(decode(encode({ ...exploration(), filters })).filters).toEqual(filters);
@@ -196,10 +219,12 @@ describe('explorationState', () => {
       filters: [
         { dimension: 'UserCountry.Country', operator: 'like' as 'equals', value: 'fr' },
         { dimension: '', operator: 'equals', value: 'x' },
-      ],
+      ] as VisualDefinition['filters'],
     }, 'table');
 
-    expect(decoded.filters).toEqual([{ dimension: 'UserCountry.Country', operator: 'equals', value: 'fr' }]);
+    expect(decoded.filters).toEqual([{
+      dimension: 'UserCountry.Country', operator: 'equals', value: 'fr', group: 0,
+    }]);
   });
 
   it('reopens a saved table report in the chart it was saved with', () => {
@@ -210,19 +235,35 @@ describe('explorationState', () => {
     expect(fromDefinition({ ...definition, chart: 'pie' }, 'evolution').visualization).toBe('line');
   });
 
-  it('sends how the filters combine and keeps it through the URL hash', () => {
-    const state = {
-      ...exploration(),
-      filters: [
-        { dimension: 'UserCountry.Country', operator: 'equals' as const, value: 'fr' },
-        { dimension: 'UserCountry.Country', operator: 'ends_with' as const, value: 'many' },
-      ],
-      filterMatch: 'any' as const,
-    };
+  it('reads the filters of a link or a report saved before groups', () => {
+    const filters = [
+      { dimension: 'UserCountry.Country', operator: 'equals', value: 'fr' },
+      { dimension: 'UserCountry.Country', operator: 'ends_with', value: 'many' },
+    ];
+    const groups = (match: unknown) => fromDefinition(
+      { filters, filter_match: match } as Partial<VisualDefinition>,
+      'table',
+    ).filters.map((filter) => filter.group);
 
-    expect(toDefinition(state).filter_match).toBe('any');
-    expect(decode(encode(state)).filterMatch).toBe('any');
-    expect(decode(encode({ ...state, filterMatch: 'xor' as 'any' })).filterMatch).toBe('all');
-    expect(fromDefinition({ ...toDefinition(state) }, 'table').filterMatch).toBe('any');
+    expect(groups('any')).toEqual([0, 0]);
+    expect(groups('all')).toEqual([0, 1]);
+    expect(groups('xor')).toEqual([0, 1]);
+    expect(groups(undefined)).toEqual([0, 1]);
+    expect(toDefinition({ ...exploration(), filters: [] })).not.toHaveProperty('filter_match');
+  });
+
+  it('orders the filters by group and numbers the groups from 0', () => {
+    const filter = (value: string, group: number) => ({
+      dimension: 'UserCountry.Country', operator: 'equals' as const, value, group,
+    });
+
+    const grouped = groupFilters([filter('a', 5), filter('b', 2), filter('c', 5), filter('d', 2)]);
+    expect(grouped.map((item) => item.value)).toEqual(['a', 'c', 'b', 'd']);
+    expect(grouped.map((item) => item.group)).toEqual([0, 0, 1, 1]);
+
+    const state = { ...exploration(), filters: [filter('x', 3), filter('y', 1), filter('z', 3)] };
+    expect(decode(encode(state)).filters.map((item) => [item.value, item.group])).toEqual([
+      ['x', 0], ['z', 0], ['y', 1],
+    ]);
   });
 });

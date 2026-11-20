@@ -55,11 +55,11 @@ final class RawSqlRunner
      * @throws NotConfiguredException|NotReadOnlyException|RejectedQueryException
      * @throws \InvalidArgumentException with a translated message when the query fails or times out
      */
-    public function run(string $sql, int $idSite, string $period, string $date, bool $useCache = false): DataTable
+    public function run(string $sql, int $idSite, string $period, string $date, bool $useCache = false, ?int $maxSeconds = null): DataTable
     {
         (new ReportPermissions())->checkCanRunRawSql();
 
-        return $this->runChecked($sql, $this->validate($sql), $idSite, $period, $date, $useCache);
+        return $this->runChecked($sql, $this->validate($sql), $idSite, $period, $date, $useCache, $maxSeconds);
     }
 
     /**

@@ -5,7 +5,8 @@
  * @license https://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  */
 
-export type Scope = 'visit' | 'action' | 'conversion';
+// visit, action, conversion, or the name of another log table of an active plugin (log_media)
+export type Scope = string;
 
 export interface DimensionItem {
   id: string;
@@ -24,6 +25,8 @@ export interface MetricItem {
   aggregation: string;
   isNumeric: boolean;
   additiveScopes: Scope[];
+  // scopes whose dimensions give a row of this metric several rows of a report
+  repeatedBy?: Scope[];
 }
 
 export interface CatalogGroup<T> {
@@ -67,19 +70,22 @@ export type Visualization = 'table' | 'line' | 'bar' | 'pie' | 'kpicard';
 
 export type ReportType = 'table' | 'evolution' | 'kpicard';
 
-export type FilterOperator = 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with'
-  | 'regex' | 'gt' | 'lt';
+export type FilterOperator = 'equals' | 'not_equals' | 'contains' | 'not_contains'
+  | 'starts_with' | 'not_starts_with' | 'ends_with' | 'not_ends_with'
+  | 'regex' | 'gt' | 'gte' | 'lt' | 'lte';
 
-// the filters all apply (AND) or any of them is enough (OR)
+// definitions and links saved before filter groups: every filter applies (all) or any of them (any)
 export type FilterMatch = 'all' | 'any';
 
 // a table of several row dimensions: one row per combination, or parents that open their children
 export type TableView = 'flat' | 'hierarchical';
 
+// filters of the same group are ORed, the groups are ANDed
 export interface Filter {
   dimension: string;
   operator: FilterOperator;
   value: string;
+  group: number;
 }
 
 export interface ExplorationState {
@@ -93,7 +99,6 @@ export interface ExplorationState {
   column: string|null;
   values: string[];
   filters: Filter[];
-  filterMatch: FilterMatch;
   tableView: TableView;
   visualization: Visualization;
   // definition of the applied segment, '' for none (one segment in v1)
@@ -119,10 +124,12 @@ export interface SavedReport {
   name: string;
   type: 'visual' | 'sql';
   report_type: ReportType;
-  definition: Partial<VisualDefinition> & { sql?: string };
+  definition: Partial<VisualDefinition> & { sql?: string, description?: string };
   placement: { all: boolean, sites: number[] };
   category: string;
   subcategory: string;
+  // "Category > Page" in the reporting menu
+  place?: string;
   order: number;
   editable: boolean;
   created_by?: string;
@@ -177,6 +184,8 @@ export interface ZoneItem {
   reason: string;
   // how a metric counts its rows when a dimension of the exploration repeats them
   hint?: string;
+  // struck through: an item of an imported custom report the explorer cannot read, never queried
+  missing?: boolean;
 }
 
 export interface VariableView extends ZoneItem {
@@ -185,6 +194,46 @@ export interface VariableView extends ZoneItem {
 
 export interface FilterView {
   filter: Filter;
+  // position in ExplorationState.filters
+  index: number;
   name: string;
   reason: string;
+}
+
+// a titled group of the report picker, its keys are what the picker emits
+export interface ReportPickerGroup {
+  label: string;
+  // place: where the report sits in the reporting menu, "Category > Page"
+  items: { key: string, name: string, place?: string }[];
+}
+
+// a dimension or metric of an imported custom report the explorer cannot read
+export interface UnsupportedEntry {
+  id: string;
+  name: string;
+  kind: 'dimension' | 'metric';
+  reason: string;
+}
+
+// a custom report opened in the explorer: saving it again keeps its place, sites and children
+export interface ImportedCustomReport {
+  idCustomReport: number;
+  // 0 for a report of all websites
+  idSite: number;
+  name: string;
+  description: string;
+  category: string;
+  // '' when the report has its own page
+  subcategory: string;
+  multipleIdSites: number[];
+  childReportIds: number[];
+  editable: boolean;
+}
+
+// what the save dialog starts from when no saved report is open
+export interface SaveSuggestion {
+  name: string;
+  description: string;
+  category: string;
+  subcategory: string;
 }

@@ -17,6 +17,7 @@ use Piwik\DataAccess\LogAggregator;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionEntry;
+use Piwik\Plugins\DataExplorer\Catalog\LogTables;
 use Piwik\Plugins\DataExplorer\Catalog\MetricCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\MetricEntry;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
@@ -35,46 +36,76 @@ use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
  */
 class VisualQueryBuilder
 {
-    public const OPERATORS = ['equals', 'not_equals', 'contains', 'starts_with', 'ends_with', 'regex', 'gt', 'lt'];
+    public const OPERATORS = [
+        'equals', 'not_equals', 'contains', 'not_contains', 'starts_with', 'not_starts_with', 'ends_with', 'not_ends_with',
+        'regex', 'gt', 'gte', 'lt', 'lte',
+    ];
+
+    // a negative operator keeps the rows without a value, like core segments do
+    public const NEGATIONS = [
+        'not_equals' => 'equals',
+        'not_contains' => 'contains',
+        'not_starts_with' => 'starts_with',
+        'not_ends_with' => 'ends_with',
+    ];
     public const OPERATOR_IN = 'in';
     public const OPERATOR_NOT_IN = 'not_in';
 
+    /** the historical scopes, any other log table is the scope of its own name (see LogTables) */
     public const TABLE_BY_SCOPE = [
         'visit' => 'log_visit',
         'action' => 'log_link_visit_action',
         'conversion' => 'log_conversion',
     ];
 
-    private const DATETIME_COLUMN = [
-        'log_visit' => 'visit_last_action_time',
-        'log_link_visit_action' => 'server_time',
-        'log_conversion' => 'server_time',
-    ];
-
-    /** the columns identifying one row of each metric table */
-    private const GRAIN_COLUMNS = [
-        'log_visit' => ['idvisit'],
-        'log_link_visit_action' => ['idlink_va'],
-        'log_conversion' => ['idvisit', 'idgoal', 'buster'],
-    ];
-
     private const IDENTIFIER = '/^[a-zA-Z0-9_]+$/';
+
+    // alias.column of a log_action row joined for a metric (MetricCatalog::actionAlias())
+    private const ACTION_REFERENCE = '/\b(' . MetricCatalog::ACTION_ALIAS_PREFIX . '[a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)/';
 
     /** @var DimensionCatalog */
     private $dimensionCatalog;
     /** @var MetricCatalog */
     private $metricCatalog;
-    public function __construct(?DimensionCatalog $dimensionCatalog = null, ?MetricCatalog $metricCatalog = null)
+    /** @var LogTables|null */
+    private $logTables;
+
+    public function __construct(?DimensionCatalog $dimensionCatalog = null, ?MetricCatalog $metricCatalog = null, ?LogTables $logTables = null)
     {
         $this->dimensionCatalog = $dimensionCatalog ?: new DimensionCatalog();
         $this->metricCatalog = $metricCatalog ?: new MetricCatalog();
+        $this->logTables = $logTables;
+    }
+
+    private function logTables(): LogTables
+    {
+        if ($this->logTables === null) {
+            $this->logTables = LogTables::get();
+        }
+
+        return $this->logTables;
+    }
+
+    private function tableOf(string $scope): string
+    {
+        $table = self::TABLE_BY_SCOPE[$scope] ?? $this->logTables()->tableOf($scope);
+        if ($table === null) {
+            throw $this->error('DataExplorer_ErrorUnknownMetric', $scope);
+        }
+
+        return $table;
     }
 
     /**
      * Resolves every id of the definition against the catalogue, and checks that a metric read under a dimension
      * that repeats its rows can be counted once per row.
      *
-     * @return array{rows: DimensionEntry[], column: ?DimensionEntry, metrics: MetricEntry[], filters: array, scopes: string[]}
+     * A processed metric (rate, average) is queried as the metrics it is computed from: "metrics" lists what the queries
+     * read, the chosen ones first then the extra ones, "processed" what is computed from them afterwards (in an order
+     * where a metric comes after those it reads), "hidden" the extra ones nobody chose, and "chosen" the ids of the
+     * definition in their order.
+     *
+     * @return array{rows: DimensionEntry[], column: ?DimensionEntry, metrics: MetricEntry[], processed: MetricEntry[], hidden: string[], chosen: string[], filters: array, scopes: string[]}
      * @throws \InvalidArgumentException with a translated message
      */
     public function resolve(ReportDefinition $definition, int $idSite): array
@@ -86,22 +117,34 @@ class VisualQueryBuilder
         $column = $definition->getColumn() === null ? null : $this->dimension($dimensions, $definition->getColumn());
 
         $metrics = [];
+        $processed = [];
         foreach ($definition->getMetrics() as $id) {
             if (!isset($catalogMetrics[$id])) {
                 throw $this->error('DataExplorer_ErrorUnknownMetric', $id);
             }
-            $metrics[] = $catalogMetrics[$id];
+            if (!$catalogMetrics[$id]->isProcessed()) {
+                $metrics[$id] = $catalogMetrics[$id];
+            }
         }
+        $chosenIds = $definition->getMetrics();
+        foreach ($chosenIds as $id) {
+            if ($catalogMetrics[$id]->isProcessed()) {
+                $this->expandProcessed($id, $catalogMetrics, $metrics, $processed, []);
+            }
+        }
+        $hidden = array_values(array_diff(array_merge(array_keys($metrics), array_keys($processed)), $chosenIds));
+        $metrics = array_values($metrics);
 
         $filters = [];
         foreach ($definition->getFilters() as $filter) {
-            $filters[] = $this->filter($this->dimension($dimensions, $filter['dimension']), $filter['operator'], $filter['value']);
+            $filters[] = $this->filter($this->dimension($dimensions, $filter['dimension']), $filter['operator'], $filter['value'])
+                + ['group' => $filter['group']];
         }
 
         $chosen = array_merge($rows, $column ? [$column] : [], array_column($filters, 'dimension'));
         foreach ($chosen as $dimension) {
             foreach ($metrics as $metric) {
-                if ($this->repeatsRows(self::TABLE_BY_SCOPE[$metric->scope], [$dimension->table])) {
+                if ($this->repeatsRows($this->tableOf($metric->scope), [$dimension->table])) {
                     $this->metricColumns($metric, $dimension->name);
                 }
             }
@@ -109,7 +152,43 @@ class VisualQueryBuilder
 
         $scopes = array_values(array_unique(array_map(fn (MetricEntry $m) => $m->scope, $metrics)));
 
-        return ['rows' => $rows, 'column' => $column, 'metrics' => $metrics, 'filters' => $filters, 'scopes' => $scopes];
+        return [
+            'rows' => $rows,
+            'column' => $column,
+            'metrics' => $metrics,
+            'processed' => array_values($processed),
+            'hidden' => $hidden,
+            'chosen' => $chosenIds,
+            'filters' => $filters,
+            'scopes' => $scopes,
+        ];
+    }
+
+    /**
+     * Adds the metrics a processed metric reads, then the processed metric itself.
+     *
+     * @param array<string, MetricEntry> $catalogMetrics
+     * @param array<string, MetricEntry> $metrics queried metrics, by id
+     * @param array<string, MetricEntry> $processed computed metrics, by id, in computing order
+     * @param array<string, true> $seen
+     */
+    private function expandProcessed(string $id, array $catalogMetrics, array &$metrics, array &$processed, array $seen): void
+    {
+        if (isset($processed[$id]) || isset($seen[$id])) {
+            return;
+        }
+        $seen[$id] = true;
+        foreach ($catalogMetrics[$id]->dependents as $dependent) {
+            if (!isset($catalogMetrics[$dependent])) {
+                throw $this->error('DataExplorer_ErrorUnknownMetric', $dependent);
+            }
+            if ($catalogMetrics[$dependent]->isProcessed()) {
+                $this->expandProcessed($dependent, $catalogMetrics, $metrics, $processed, $seen);
+            } elseif (!isset($metrics[$dependent])) {
+                $metrics[$dependent] = $catalogMetrics[$dependent];
+            }
+        }
+        $processed[$id] = $catalogMetrics[$id];
     }
 
     /**
@@ -168,13 +247,22 @@ class VisualQueryBuilder
         $dimensions = array_merge($rows, $column ? [$column] : [], $filterDimensions);
 
         $baseTable = $this->baseTable($scope, $dimensions);
-        $from = array_values(array_unique([$baseTable, self::TABLE_BY_SCOPE[$scope]]));
+        $datedTable = $this->logTables()->datedTable($baseTable);
+        $from = array_values(array_unique([$baseTable, $this->tableOf($scope), $datedTable]));
         foreach ($dimensions as $dimension) {
             if (!in_array($dimension->table, $from, true)) {
                 $from[] = $dimension->table;
             }
         }
-        $metricTable = self::TABLE_BY_SCOPE[$scope];
+        $metricTable = $this->tableOf($scope);
+        foreach ($metrics as $metric) {
+            foreach ($this->metricParentTables($metric) as $table) {
+                if (!in_array($table, $from, true)) {
+                    $from[] = $table;
+                }
+            }
+        }
+        $from = $this->logTables()->joinOrder($from);
         $perGrain = $this->repeatsRows($metricTable, $from) && $this->countsRepeatedRows($metrics);
 
         $joins = [];
@@ -182,8 +270,24 @@ class VisualQueryBuilder
         foreach ($dimensions as $dimension) {
             $this->addJoin($dimension, $joins, $conditions);
         }
+        // a row of a plugin table (a media view, a form, a crash) groups the rows of the metric table of its visit
+        // only: actions or conversions of visits without one are not counted, like visits are not
+        $parents = $this->logTables()->parentsOf($metricTable);
+        foreach ($dimensions as $dimension) {
+            if (isset(LogTables::SCOPE_BY_TABLE[$dimension->table]) || $dimension->table === $metricTable || in_array($dimension->table, $parents, true)) {
+                continue;
+            }
+            $grain = $this->logTables()->grain($dimension->table);
+            if ($grain) {
+                $this->assertIdentifiers($dimension->table, $grain[0]);
+                $conditions[] = $dimension->table . '.' . $grain[0] . ' IS NOT NULL';
+            }
+        }
         foreach ($joins as $join) {
             $from[] = $join['from'];
+        }
+        foreach ($this->actionJoins($metrics, $metricTable) as $actionJoin) {
+            $from[] = $actionJoin;
         }
 
         $rowExpressions = array_map(fn (DimensionEntry $d) => $this->groupExpression($d, $joins), $rows);
@@ -209,13 +313,14 @@ class VisualQueryBuilder
 
         $conditions = array_values(array_unique($conditions));
         $bind = [];
-        $filterConditions = [];
+        $groups = [];
         foreach ($resolved['filters'] as $filter) {
-            [$filterConditions[], $values] = $this->filterCondition($this->expression($filter['dimension'], $joins), $filter);
+            [$condition, $values] = $this->filterCondition($this->expression($filter['dimension'], $joins), $filter);
+            $groups[$filter['group'] ?? 0][] = $condition;
             array_push($bind, ...$values);
         }
-        if ($filterConditions) {
-            $conditions[] = '(' . implode($definition->getFilterMatch() === ReportDefinition::FILTER_MATCH_ANY ? ' OR ' : ' AND ', $filterConditions) . ')';
+        foreach ($groups as $groupConditions) {
+            $conditions[] = '(' . implode(' OR ', $groupConditions) . ')';
         }
         if ($include) {
             $conditions[] = $this->tuplePredicate(array_slice($rowExpressions, 0, (int) $include[0]), $include[1], $bind);
@@ -227,7 +332,7 @@ class VisualQueryBuilder
             $conditions[] = $this->tuplePredicate([$pivotExpression], array_map(fn ($v) => [$v], $pivotIn), $bind);
         }
 
-        $where = $aggregator->getWhereStatement($baseTable, self::DATETIME_COLUMN[$baseTable]);
+        $where = $aggregator->getWhereStatement($datedTable, $this->logTables()->datetimeColumn($datedTable));
         foreach ($conditions as $condition) {
             $where .= ' AND ' . $condition;
         }
@@ -283,7 +388,7 @@ class VisualQueryBuilder
                 $columns[$column] = true;
             }
         }
-        foreach (self::GRAIN_COLUMNS[$metricTable] as $column) {
+        foreach ($this->logTables()->grain($metricTable) as $column) {
             $select[] = $metricTable . '.' . $column . ' AS ' . $column;
             $groupBy[] = $metricTable . '.' . $column;
             unset($columns[$column]);
@@ -291,6 +396,29 @@ class VisualQueryBuilder
         foreach (array_keys($columns) as $column) {
             $select[] = 'MAX(' . $metricTable . '.' . $column . ') AS ' . $column;
         }
+        // the type of the action a row points to, a column of its visit: one value per row, the derived table
+        // carries it as a column of its own
+        $actionColumns = [];
+        $parents = $this->logTables()->parentsOf($metricTable);
+        foreach ($metricSelect as $expression) {
+            preg_match_all(self::ACTION_REFERENCE, $expression, $matches, PREG_SET_ORDER);
+            foreach ($matches as [$reference, $alias, $column]) {
+                $actionColumns[$reference] = $alias . '__' . $column;
+            }
+            preg_match_all('/\b(log_[a-z_]+)\.`?([a-zA-Z0-9_]+)`?/', $expression, $matches, PREG_SET_ORDER);
+            foreach ($matches as [$reference, $table, $column]) {
+                if (in_array($table, $parents, true)) {
+                    $actionColumns[$reference] = $table . '__' . $column;
+                }
+            }
+        }
+        foreach ($actionColumns as $reference => $name) {
+            $select[] = 'MAX(' . $reference . ') AS ' . $name;
+        }
+        $metricSelect = array_map(
+            fn (string $expression) => strtr($expression, array_map(fn (string $name) => $metricTable . '.' . $name, $actionColumns)),
+            $metricSelect
+        );
 
         $inner = $aggregator->generateQuery(implode(', ', $select), $from, $where, implode(', ', $groupBy), '');
 
@@ -303,21 +431,47 @@ class VisualQueryBuilder
     }
 
     /**
-     * Whether a dimension of one of $tables gives a row of $metricTable several rows: a visit has several actions
-     * and conversions, an action or a conversion shares its visit with the conversions or actions of that visit.
+     * The log_action rows the metrics of $metricTable read the type of (pageviews, downloads...), each joined once
+     * on the action column it is named after: one action per row, so the join repeats nothing.
+     *
+     * @param MetricEntry[] $metrics
+     * @return array[] FROM entries of LogAggregator::generateQuery()
+     */
+    private function actionJoins(array $metrics, string $metricTable): array
+    {
+        $joins = [];
+        foreach ($metrics as $metric) {
+            preg_match_all(self::ACTION_REFERENCE, $metric->sql, $matches, PREG_SET_ORDER);
+            foreach ($matches as [, $alias]) {
+                $column = substr($alias, strlen(MetricCatalog::ACTION_ALIAS_PREFIX));
+                $this->assertIdentifiers($metricTable, $column);
+                $joins[$alias] = [
+                    'table' => 'log_action',
+                    'tableAlias' => $alias,
+                    'joinOn' => $metricTable . '.' . $column . ' = ' . $alias . '.idaction',
+                ];
+            }
+        }
+
+        return array_values($joins);
+    }
+
+    /**
+     * Whether a dimension of one of $tables gives a row of $metricTable several rows: a visit has several actions,
+     * conversions, products or media views, an action shares its visit with the conversions of that visit. A table
+     * having one row per row of the metric table (its visit, the crash of a crash event) never repeats it.
      *
      * @param array<int, string|array> $tables
      */
     private function repeatsRows(string $metricTable, array $tables): bool
     {
-        $repeating = [
-            'log_visit' => ['log_link_visit_action', 'log_conversion'],
-            'log_link_visit_action' => ['log_conversion'],
-            'log_conversion' => ['log_link_visit_action'],
-        ];
-        $names = array_filter($tables, 'is_string');
+        foreach (array_filter($tables, 'is_string') as $table) {
+            if ($this->logTables()->repeats($metricTable, $table)) {
+                return true;
+            }
+        }
 
-        return (bool) array_intersect($repeating[$metricTable] ?? [], $names);
+        return false;
     }
 
     /**
@@ -345,11 +499,15 @@ class VisualQueryBuilder
      */
     private function metricColumns(MetricEntry $metric, string $dimensionName): array
     {
-        $table = self::TABLE_BY_SCOPE[$metric->scope];
+        $table = $this->tableOf($metric->scope);
         preg_match_all('/\b(log_[a-z_]+)\.`?([a-zA-Z0-9_]+)`?/', $metric->sql, $matches, PREG_SET_ORDER);
 
+        $parents = $this->logTables()->parentsOf($table);
         $columns = [];
         foreach ($matches as [, $matchedTable, $column]) {
+            if (in_array($matchedTable, $parents, true)) {
+                continue;
+            }
             if ($matchedTable !== $table) {
                 throw $this->error('DataExplorer_ErrorIncompatibleCombination', $metric->name, $dimensionName);
             }
@@ -357,6 +515,19 @@ class VisualQueryBuilder
         }
 
         return array_values($columns);
+    }
+
+    /**
+     * Tables a metric reads besides its own, each with one row per row of it (the visit of a conversion).
+     *
+     * @return string[]
+     */
+    private function metricParentTables(MetricEntry $metric): array
+    {
+        $table = $this->tableOf($metric->scope);
+        preg_match_all('/\b(log_[a-z_]+)\.`?[a-zA-Z0-9_]+`?/', $metric->sql, $matches);
+
+        return array_values(array_intersect(array_unique($matches[1]), $this->logTables()->parentsOf((string) $table)));
     }
 
     /**
@@ -461,7 +632,11 @@ class VisualQueryBuilder
     }
 
     /**
-     * Visit counts next to action dimensions are read from the action rows, so the period applies to the action time.
+     * The first table of the query. Visit counts next to action dimensions are read from the action rows, so the
+     * period applies to the action time, and the same for the rows of a plugin table (products, media views, forms,
+     * crashes): with the visits first, core would group them per visit in a subquery and count each visit under one
+     * value only. The period is then read from that table or, when it has no datetime column, from its visit or the
+     * related table that has one (see LogTables::datedTable()).
      *
      * @param DimensionEntry[] $dimensions
      */
@@ -473,9 +648,22 @@ class VisualQueryBuilder
                     return self::TABLE_BY_SCOPE['action'];
                 }
             }
+            $undated = null;
+            foreach ($dimensions as $dimension) {
+                if (isset(LogTables::SCOPE_BY_TABLE[$dimension->table]) || !$this->logTables()->repeats('log_visit', $dimension->table)) {
+                    continue;
+                }
+                if ($this->logTables()->datetimeColumn($dimension->table) !== '') {
+                    return $dimension->table;
+                }
+                $undated = $undated ?? $dimension->table;
+            }
+            if ($undated !== null) {
+                return $undated;
+            }
         }
 
-        return self::TABLE_BY_SCOPE[$scope];
+        return $this->tableOf($scope);
     }
 
     private function addJoin(DimensionEntry $dimension, array &$joins, array &$conditions): void
@@ -529,6 +717,10 @@ class VisualQueryBuilder
             return $joins[$key]['alias'] . '.' . $joins[$key]['target'];
         }
 
+        if ($dimension->sql !== '') {
+            return $dimension->sql;
+        }
+
         return $dimension->table . '.' . $dimension->column;
     }
 
@@ -553,12 +745,22 @@ class VisualQueryBuilder
                 return [$expression . ' LIKE ?', [$this->escapeLike($value) . '%']];
             case 'ends_with':
                 return [$expression . ' LIKE ?', ['%' . $this->escapeLike($value)]];
+            case 'not_contains':
+            case 'not_starts_with':
+            case 'not_ends_with':
+                [$positive, $values] = $this->filterCondition($expression, ['operator' => self::NEGATIONS[$filter['operator']]] + $filter);
+
+                return ['(' . $expression . ' IS NULL OR ' . str_replace(' LIKE ', ' NOT LIKE ', $positive) . ')', $values];
             case 'regex':
                 return [$expression . ' REGEXP ?', [$value]];
             case 'gt':
                 return [$expression . ' > ?', [$value]];
+            case 'gte':
+                return [$expression . ' >= ?', [$value]];
             case 'lt':
                 return [$expression . ' < ?', [$value]];
+            case 'lte':
+                return [$expression . ' <= ?', [$value]];
             case self::OPERATOR_IN:
                 if (!$value) {
                     return ['1 = 0', []];
@@ -593,7 +795,7 @@ class VisualQueryBuilder
             throw $this->error('DataExplorer_ErrorFiltersInvalid');
         }
 
-        if ($operator === 'gt' || $operator === 'lt') {
+        if (in_array($operator, ['gt', 'gte', 'lt', 'lte'], true)) {
             if (!is_numeric($value)) {
                 throw $this->error('DataExplorer_ErrorFilterValueNotNumeric', $dimension->name);
             }

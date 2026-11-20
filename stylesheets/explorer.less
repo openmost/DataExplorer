@@ -104,6 +104,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px 20px;
+  // the height of the save buttons, so the tabs stay put when the Raw SQL tab hides them
+  min-height: 36px;
   margin-bottom: 16px;
 }
 
@@ -142,11 +144,17 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
 
-  select {
-    min-width: 220px;
-    max-width: 360px;
-  }
+// the opened report differs from what is saved
+.dataExplorer__modified {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: @de-accent-soft;
+  color: @de-accent;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .dataExplorer__reportsLabel {
@@ -572,10 +580,11 @@ html.dataExplorer-panel-open {
   font-size: 12px;
 }
 
-// visualization picker: square buttons like GA4; segmented control for the filter combination
+// visualization picker: square buttons like GA4, spread over the column width
 .dataExplorerVisualizations {
   display: flex;
   flex-wrap: wrap;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -702,6 +711,17 @@ html.dataExplorer-panel-open {
     }
   }
 
+  // an item of an imported custom report the explorer cannot read: listed, never queried
+  &.is-missing {
+    border-left-color: @de-border-strong;
+    border-style: dashed;
+    color: @de-text-lighter;
+
+    .dataExplorerChip__name {
+      text-decoration: line-through;
+    }
+  }
+
   .dataExplorerChip__remove {
     min-width: 22px;
     height: 22px;
@@ -804,8 +824,98 @@ html.dataExplorer-panel-open {
   list-style: none;
 }
 
-.dataExplorerFilterMatch {
-  margin-bottom: 8px;
+// a group of ORed filters, the groups ANDed with one another
+.dataExplorerFilterGroup {
+  margin: 0 0 6px;
+  padding: 6px;
+  border: 1px solid @de-border;
+  border-radius: @de-radius-control;
+
+  .dataExplorerFilters {
+    margin: 0;
+  }
+}
+
+.dataExplorerFilterGroup__join,
+.dataExplorerFilters__or {
+  color: @de-text-light;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dataExplorerFilterGroup__join {
+  margin: 0 0 6px;
+  padding-left: 14px;
+}
+
+.dataExplorerFilters__or {
+  padding-left: 14px;
+}
+
+.dataExplorerFilterOr {
+  position: relative;
+  margin-top: 4px;
+}
+
+.dataExplorerFilterGroup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dataExplorerFilterGroup.is-drop-target,
+.dataExplorerFilterGroup__newDrop.is-drop-target {
+  border-color: @de-accent;
+  background: @de-accent-soft;
+}
+
+// below the groups while a filter is dragged: dropped here, it starts a new group (AND)
+.dataExplorerFilterGroup__newDrop {
+  margin: 0 0 6px;
+  padding: 8px;
+  border: 1px dashed @de-border-strong;
+  border-radius: @de-radius-control;
+  color: @de-text-light;
+  font-size: 12px;
+  text-align: center;
+}
+
+.dataExplorerFilter.is-dragged {
+  opacity: 0.5;
+}
+
+.dataExplorerFilter[draggable="true"] {
+  cursor: grab;
+}
+
+.dataExplorerFilterSummary {
+  margin: 6px 0 0;
+  color: @de-text-light;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.dataExplorerFilterOr__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: @de-radius-control;
+  background: none;
+  color: @de-accent;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: @de-hover;
+  }
+
+  &:focus-visible {
+    outline: 2px solid @de-focus;
+  }
 }
 
 // a filter is a dimension card: its summary line, the condition below while it is edited
@@ -934,7 +1044,8 @@ html.dataExplorer-panel-open {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  min-height: 48px;
+  // the height of the column titles beside it (20px line, 14px padding twice, 1px border), so the lines meet
+  min-height: 49px;
   margin-bottom: 0;
   padding: 8px 16px 8px 20px;
   border-bottom: 1px solid @de-border;
@@ -1181,7 +1292,8 @@ button.dataExplorerCanvas__period {
   min-height: 200px;
   overflow-y: auto;
   margin: 0;
-  padding: 0;
+  // room for the focus outline of a row, the scrolling list clips what it draws past its edges
+  padding: 2px;
   list-style: none;
 
   summary {
@@ -1195,12 +1307,14 @@ button.dataExplorerCanvas__period {
       background: @de-hover;
     }
 
-    // the list scrolls, an outline drawn outside the row would be cut at its edges
+    // core draws the outline on :focus too (a click), inside the row it is never cut
+    &:focus,
     &:focus-visible {
       outline-offset: -2px;
     }
   }
 
+  .dataExplorerSchema__insert:focus,
   .dataExplorerSchema__insert:focus-visible {
     outline-offset: -2px;
   }
@@ -1401,28 +1515,137 @@ button.dataExplorerCanvas__period {
   padding-top: 16px;
 }
 
-// report picker of the toolbar: the Matomo select, inline
-.dataExplorer__reports {
-  .matomo-form-field.row {
-    min-width: 260px;
-    margin: 0;
+// report picker of the toolbar: a select-like trigger, a panel with a search and titled groups
+.dataExplorerReportPicker {
+  position: relative;
+  min-width: 260px;
+  max-width: 360px;
+}
+
+.dataExplorerReportPicker__trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: @de-control-height;
+  padding: 0 10px;
+  border: 1px solid @de-border-strong;
+  border-radius: @de-radius-control;
+  background: @de-surface;
+  color: @de-text;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: @de-accent-line;
   }
 
-  .matomo-form-field > .col {
-    padding: 0;
+  &:focus-visible {
+    outline: 2px solid @de-focus;
+    outline-offset: 1px;
   }
 
-  .matomo-form-field .input-field {
-    margin: 0;
-  }
-
-  .matomo-form-field > .col:empty {
-    display: none;
+  .icon-chevron-down {
+    flex-shrink: 0;
+    color: @de-text-light;
+    font-size: 12px;
   }
 }
 
+.dataExplorerReportPicker__current {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataExplorerReportPicker__panel {
+  position: absolute;
+  z-index: 30;
+  top: ~"calc(100% + 4px)";
+  left: 0;
+  width: ~"max(100%, 320px)";
+  padding: 8px;
+  border: 1px solid @de-border;
+  border-radius: 8px;
+  background: @de-surface;
+  box-shadow: 0 8px 24px @de-shadow;
+}
+
+.dataExplorerReportPicker__list {
+  max-height: 360px;
+  overflow-y: auto;
+  margin-top: 6px;
+  padding: 2px;
+}
+
+.dataExplorerReportPicker__groupLabel {
+  margin: 8px 0 2px;
+  padding: 10px 10px 4px;
+  border-top: 1px solid @de-border-strong;
+  color: @de-text-strong;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dataExplorerReportPicker__item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: @de-radius-control;
+  background: none;
+  color: @de-text;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: @de-hover;
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline-offset: -2px;
+  }
+
+  &.is-selected {
+    background: @de-selected;
+    color: @de-text-strong;
+    font-weight: 500;
+  }
+
+  // the option the arrow keys are on
+  &.is-active {
+    box-shadow: inset 0 0 0 2px @de-focus;
+  }
+}
+
+.dataExplorerReportPicker__name {
+  display: block;
+}
+
+.dataExplorerReportPicker__place {
+  display: block;
+  margin-top: 1px;
+  color: @de-text-lighter;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.dataExplorerReportPicker__empty {
+  padding: 6px 10px;
+  color: @de-text-lighter;
+  font-size: 13px;
+}
+
+// sits 8px from the save button it goes with, the toolbar gap being 20px
 .dataExplorer__saveCustomReport {
-  margin-left: 8px;
+  margin-left: -12px;
 }
 
 .dataExplorerCustomReport__help {
@@ -1432,4 +1655,20 @@ button.dataExplorerCanvas__period {
 .dataExplorerCustomReport__warning {
   margin: 8px 0 12px;
   color: @de-warning;
+}
+
+// the result of the Raw SQL tab: its chart picker above the native visualization
+.dataExplorerSql__resultBlock {
+  margin-top: 16px;
+}
+
+.dataExplorerSql__visualizations {
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+
+.dataExplorerSql__hint {
+  margin: 0 0 8px;
+  color: @de-text-light;
+  font-size: 13px;
 }

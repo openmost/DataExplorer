@@ -174,6 +174,39 @@ class GetReportTest extends IntegrationTestCase
         $this->assertEquals(['France' => 1, 'United States' => 1, 'Germany' => 0], $this->column($table, 'nb_visits | Smartphone'));
     }
 
+    public function test_visualTable_rate_isComputedFromTheArchivedMetrics_perPivotColumnToo(): void
+    {
+        $report = $this->save('visual', 'table', ['rows' => [self::COUNTRY], 'column' => self::DEVICE, 'metrics' => ['bounce_rate']]);
+
+        $table = $this->api()->getReport(1, 'week', self::WEEK, $report);
+
+        // France: desktop visits 1 (3 pages) and 6 (1 page), smartphone visit 2 (1 page)
+        $this->assertEquals(0.5, $table->getRowFromLabel('France')->getColumn('bounce_rate | Desktop'));
+        $this->assertEquals(1, $table->getRowFromLabel('France')->getColumn('bounce_rate | Smartphone'));
+    }
+
+    public function test_visualEvolution_rate_isComputedPerDay(): void
+    {
+        $report = $this->save('visual', 'evolution', ['metrics' => ['visits_conversion_rate']]);
+
+        $map = $this->api()->getReport(1, 'day', '2024-03-01,2024-03-03', $report);
+
+        $rates = [];
+        foreach ($map->getDataTables() as $day) {
+            $rates[] = $day->getFirstRow()->getColumn('visits_conversion_rate');
+        }
+        $this->assertEquals([0.5, 0.5, 0], $rates);
+    }
+
+    public function test_visualKpiCard_rate_overAWeek_isNotASumOfDays(): void
+    {
+        $report = $this->save('visual', 'kpicard', ['metrics' => ['bounce_rate']]);
+
+        $table = $this->api()->getReport(1, 'week', self::WEEK, $report);
+
+        $this->assertEquals(0.5, $table->getFirstRow()->getColumn('bounce_rate'));
+    }
+
     public function test_visualTable_notDefinedValue_showsTheCoreNotDefinedLabel(): void
     {
         $report = $this->save('visual', 'table', ['rows' => ['Referrers.Keyword'], 'metrics' => ['nb_visits']]);

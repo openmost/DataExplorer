@@ -101,16 +101,61 @@ class ReportDefinitionTest extends TestCase
         $this->assertSame('', ReportDefinition::fromArray($this->valid(['report_type' => 'evolution', 'rows' => [], 'chart' => 'pie']))->getChart());
     }
 
-    public function testFilterMatch_anyNeedsTwoFilters(): void
+    public function testFilters_savedBeforeGroups_keepTheirMatch(): void
     {
         $two = [
             ['dimension' => 'UserCountry.Country', 'operator' => 'equals', 'value' => 'fr'],
             ['dimension' => 'UserCountry.Country', 'operator' => 'equals', 'value' => 'de'],
         ];
-        $this->assertSame('any', ReportDefinition::fromArray($this->valid(['filters' => $two, 'filter_match' => 'any']))->getFilterMatch());
-        $this->assertSame('all', ReportDefinition::fromArray($this->valid(['filters' => $two, 'filter_match' => 'or 1=1']))->getFilterMatch());
-        $this->assertSame('all', ReportDefinition::fromArray($this->valid(['filter_match' => 'any']))->getFilterMatch(), 'one filter is always all');
-        $this->assertSame('any', ReportDefinition::fromArray($this->valid(['filters' => $two, 'filter_match' => 'any']))->toArray()['filter_match']);
+        $groups = fn (array $raw) => array_column(ReportDefinition::fromArray($this->valid($raw))->getFilters(), 'group');
+
+        $this->assertSame([0, 0], $groups(['filters' => $two, 'filter_match' => 'any']));
+        $this->assertSame([0, 1], $groups(['filters' => $two, 'filter_match' => 'all']));
+        $this->assertSame([0, 1], $groups(['filters' => $two, 'filter_match' => 'or 1=1']));
+        $this->assertSame([0, 1], $groups(['filters' => $two]));
+        $this->assertArrayNotHasKey('filter_match', ReportDefinition::fromArray($this->valid(['filters' => $two, 'filter_match' => 'any']))->toArray());
+    }
+
+    public function testFilters_areOrderedByGroup_numberedFromZero(): void
+    {
+        $filter = fn (string $value, $group) => ['dimension' => 'UserCountry.Country', 'operator' => 'equals', 'value' => $value, 'group' => $group];
+
+        $filters = ReportDefinition::fromArray($this->valid(['filters' => [
+            $filter('a', 7),
+            $filter('b', 3),
+            $filter('c', '7'),
+            $filter('d', 3),
+        ], 'filter_match' => 'any']))->getFilters();
+
+        $this->assertSame(['a', 'c', 'b', 'd'], array_column($filters, 'value'));
+        $this->assertSame([0, 0, 1, 1], array_column($filters, 'group'));
+    }
+
+    /**
+     * @dataProvider invalidGroups
+     */
+    public function testFilters_rejectAnInvalidGroup($group): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        ReportDefinition::fromArray($this->valid(['filters' => [
+            ['dimension' => 'UserCountry.Country', 'operator' => 'equals', 'value' => 'fr', 'group' => $group],
+        ]]));
+    }
+
+    public function invalidGroups(): array
+    {
+        return [[-1], ['x'], [[1]]];
+    }
+
+    public function testDescription_isTrimmedAndBounded(): void
+    {
+        $this->assertSame('Why', ReportDefinition::fromArray($this->valid(['description' => '  Why ']))->getDescription());
+        $this->assertSame('', ReportDefinition::fromArray($this->valid())->getDescription());
+        $this->assertSame('Why', ReportDefinition::fromArray($this->valid(['description' => 'Why']))->toArray()['description']);
+
+        $this->expectException(\InvalidArgumentException::class);
+        ReportDefinition::fromArray($this->valid(['description' => str_repeat('a', ReportDefinition::MAX_DESCRIPTION_LENGTH + 1)]));
     }
 
     public function testTableView_defaultsToFlat(): void
@@ -151,7 +196,7 @@ class ReportDefinitionTest extends TestCase
         $this->assertSame([], $def->getFilters());
         $this->assertSame('', $def->getSegment());
         $this->assertSame(
-            ['name' => 'Pages by country', 'type' => 'sql', 'technique' => 'freeform', 'report_type' => 'table', 'sql' => 'SELECT 1'],
+            ['name' => 'Pages by country', 'description' => '', 'type' => 'sql', 'technique' => 'freeform', 'report_type' => 'table', 'sql' => 'SELECT 1', 'chart' => ''],
             $def->toArray()
         );
     }

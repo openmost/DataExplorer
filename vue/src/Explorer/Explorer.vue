@@ -30,19 +30,20 @@
       </div>
 
       <div
-        v-if="activeTab === 'explore'"
         class="dataExplorer__reports"
       >
         <span class="dataExplorer__reportsLabel">{{ translate('DataExplorer_OpenReport') }}</span>
-        <Field
-          uicontrol="select"
-          name="dataExplorerOpenReport"
-          :full-width="true"
-          :options="reportOptions"
-          :model-value="editing ? String(editing.idreport) : ''"
-          :ui-control-attributes="{ 'aria-label': translate('DataExplorer_OpenReport') }"
+        <ReportPicker
+          :model-value="pickedReport"
+          :groups="reportGroups"
+          :new-label="translate('DataExplorer_NewExploration')"
+          :label="translate('DataExplorer_OpenReport')"
           @update:model-value="onPickReport($event)"
         />
+        <span
+          v-if="isModified"
+          class="dataExplorer__modified"
+        >{{ translate('DataExplorer_Modified') }}</span>
       </div>
 
       <button
@@ -50,18 +51,22 @@
         ref="saveButton"
         type="button"
         class="btn dataExplorer__save"
+        :class="{ 'btn-outline': !!updatableCustomReport }"
         :disabled="!isRunnable"
         @click="openSave('visual')"
-      >{{ editing && editing.editable && editing.type === 'visual'
+      >{{ isEditingVisual
         ? translate('DataExplorer_EditReport')
         : translate('DataExplorer_SaveReport') }}</button>
       <button
         v-if="customReports && activeTab === 'explore'"
         type="button"
-        class="btn btn-outline dataExplorer__saveCustomReport"
+        class="btn dataExplorer__saveCustomReport"
+        :class="{ 'btn-outline': !updatableCustomReport }"
         :disabled="!isRunnable"
         @click="customReportOpen = true"
-      >{{ translate('DataExplorer_SaveAsCustomReport') }}</button>
+      >{{ translate(updatableCustomReport
+        ? 'DataExplorer_UpdateCustomReport'
+        : 'DataExplorer_SaveAsCustomReport') }}</button>
     </div>
 
     <div aria-live="polite">
@@ -69,7 +74,8 @@
         v-if="notice"
         :context="noticeContext"
         :noclear="true"
-      >{{ notice }}</Notification>
+      >{{ notice }}<template v-if="noticeLink && noticeLink.notice === notice">
+        <a :href="noticeLink.url">{{ noticeLink.label }}</a></template></Notification>
     </div>
 
     <div
@@ -104,9 +110,9 @@
         <TabSettings
           :visualization="state.visualization"
           :limits="catalog.limits"
-          :row-items="rowItems"
+          :row-items="rowZoneItems"
           :column-items="columnItems"
-          :value-items="valueItems"
+          :value-items="valueZoneItems"
           :segment-items="segmentItems"
           :filters="filterViews"
           :dimension-options="dimensionViews"
@@ -115,21 +121,23 @@
           @set-visualization="state.visualization = $event"
           @add="addToZone"
           @remove="removeFromZone"
-          :filter-match="state.filterMatch"
           :table-view="state.tableView"
-          @set-filter-match="state.filterMatch = $event"
           @set-table-view="state.tableView = $event"
+          @add-filter-to-group="addFilterToGroup"
+          @move-filter="moveFilter"
           @update-filter="updateFilter"
           @remove-filter="removeFilter"
         />
         <ExplorerCanvas
           :title="canvasTitle"
           :period-text="periodText"
+          :period-dates="periodDates"
           :segment-text="segmentText"
           @open-period-selector="openPeriodSelector"
           :visualization="state.visualization"
           :hint="hint"
           :widget-params="previewParams"
+          @view-changed="onCanvasView"
         />
       </div>
     </div>
@@ -149,10 +157,34 @@
         :date="date"
         :setup-url="setupUrl"
         :can-save="true"
+        :editing="isEditingSql"
+        :visualization="sqlVisualization"
+        @set-visualization="sqlVisualization = $event"
         @save="openSave('sql')"
       />
     </div>
 
+    <MatomoDialog
+      v-model="leaveConfirmOpen"
+      @yes="confirmLeave"
+    >
+      <div class="ui-confirm">
+        <h2>{{ translate('DataExplorer_LeaveUnsavedConfirm') }}</h2>
+        <!-- the yes/no roles are how MatomoDialog finds its buttons -->
+        <!-- eslint-disable vuejs-accessibility/aria-role -->
+        <input
+          role="yes"
+          type="button"
+          :value="translate('General_Yes')"
+        />
+        <input
+          role="no"
+          type="button"
+          :value="translate('General_No')"
+        />
+        <!-- eslint-enable vuejs-accessibility/aria-role -->
+      </div>
+    </MatomoDialog>
     <SaveDialog
       v-if="canSaveAnything"
       v-model="saveOpen"
@@ -163,6 +195,8 @@
       :report-type="saveReportType"
       :definition="saveDefinition"
       :editing="editing && editing.type === saveType ? editing : null"
+      :suggestion="saveSuggestion"
+      :modified="isModified"
       @saved="onSaved"
       @closed="onSaveClosed"
     />
@@ -171,7 +205,11 @@
       v-model="customReportOpen"
       :definition="definition"
       :default-name="editing ? editing.name : ''"
+      :default-description="editing ? String(editing.definition.description || '') : ''"
+      :custom-report="updatableCustomReport"
+      :modified="isModified"
       @created="onCustomReportCreated"
+      @updated="onCustomReportUpdated"
       @failed="onCustomReportFailed"
     />
   </div>
@@ -193,15 +231,16 @@ import {
   ActivityIndicator,
   AjaxHelper,
   Matomo,
+  MatomoDialog,
   MatomoUrl,
   Notification,
   Periods,
   ReportingMenuStore,
   translate,
 } from 'CoreHome';
-import { Field } from 'CorePluginsAdmin';
 import ExplorerCanvas from './Canvas.vue';
 import TabSettings from './TabSettings.vue';
+import ReportPicker from './ReportPicker.vue';
 import VariablesPanel from './VariablesPanel.vue';
 import RawSqlEditor from '../RawSql/RawSqlEditor.vue';
 import SaveDialog from '../SaveDialog/SaveDialog.vue';
@@ -218,10 +257,16 @@ import {
   isFilterComplete,
   REPORT_HASH_PARAM,
   reportTypeOf,
+  VISUALIZATION_BY_VIEW,
+  VIEW_BY_VISUALIZATION,
   toDefinition,
 } from './explorationState';
 import { distinctNames } from './catalogNames';
 import type {
+  ImportedCustomReport,
+  ReportPickerGroup,
+  SaveSuggestion,
+  UnsupportedEntry,
   Catalog,
   DimensionItem,
   ExplorationState,
@@ -231,10 +276,10 @@ import type {
   PickerGroup,
   PickerItem,
   SavedReport,
-  Scope,
   VariableKind,
   VariableView,
   VisualDefinition,
+  Visualization,
   WritableSite,
   ZoneItem,
 } from '../types';
@@ -250,16 +295,24 @@ type Zone = 'rows' | 'column' | 'values' | 'filters' | 'segment';
  * the save dialog. The exploration lives in the URL hash so a reload or a shared link restores
  * it; a saved report is reopened with idReport in the hash.
  */
+// the chart of the Raw SQL result in the URL, beside the exploration
+const SQL_VIEW_PARAM = 'sqlView';
+
+// period of a new visit of the explorer: the last 28 complete days, today excluded, like GA4
+const DEFAULT_PERIOD = 'range';
+const DEFAULT_DATE = 'previous28';
+
 export default defineComponent({
   name: 'Explorer',
   components: {
     ActivityIndicator,
     ExplorerCanvas,
+    MatomoDialog,
     Notification,
     RawSqlEditor,
     SaveDialog,
     CustomReportDialog,
-    Field,
+    ReportPicker,
     TabSettings,
     VariablesPanel,
   },
@@ -300,14 +353,62 @@ export default defineComponent({
     const editing = ref<SavedReport|null>(null);
     const state = reactive<ExplorationState>(defaultState());
     const sql = ref('');
+    // the chart of the Raw SQL result, saved with the query like the one of an exploration
+    const sqlVisualization = ref<Visualization>('table');
     const activeTab = ref<Tab>('explore');
+
+    // what an opened report computes and shows, to tell whether the exploration changed since
+    const snapshotOf = (value: ExplorationState) => JSON.stringify({
+      definition: toDefinition(value),
+      visualization: value.visualization,
+    });
+    // '' when nothing saved is open
+    const openedSnapshot = ref('');
+    // the query of an opened raw SQL report, null when none is open
+    const openedSql = ref<string|null>(null);
+    const openedSqlVisualization = ref<Visualization>('table');
+    const isModified = computed(() => {
+      if (openedSql.value !== null && editing.value && editing.value.type === 'sql') {
+        return sql.value.trim() !== openedSql.value.trim()
+          || sqlVisualization.value !== openedSqlVisualization.value;
+      }
+      return openedSnapshot.value !== '' && snapshotOf(state) !== openedSnapshot.value;
+    });
+
+    const isEditingVisual = computed(() => !!editing.value && editing.value.editable
+      && editing.value.type === 'visual');
+    const isEditingSql = computed(() => !!editing.value && editing.value.editable
+      && editing.value.type === 'sql');
+
+    // the page of a custom report in the reporting menu: Custom Reports names its own page after
+    // the report id in its default category, after the report name elsewhere
+    function customReportUrl(report: ImportedCustomReport): string {
+      let { subcategory } = report;
+      if (subcategory === '') {
+        subcategory = report.category === 'CustomReports_CustomReports'
+          ? String(report.idCustomReport)
+          : report.name;
+      }
+      const hash = MatomoUrl.stringify({
+        ...MatomoUrl.hashParsed.value,
+        category: report.category,
+        subcategory,
+        [HASH_PARAM]: undefined,
+        [REPORT_HASH_PARAM]: undefined,
+      });
+      return `?${MatomoUrl.stringify(MatomoUrl.urlParsed.value)}#?${hash}`;
+    }
     const sqlOpened = ref(false);
 
     // what the canvas loads: the native visualization of the exploration, null while it cannot run
     const previewParams = ref<Record<string, string>|null>(null);
 
     const notice = ref('');
-    const noticeContext = ref<'success'|'warning'|'error'>('success');
+    // what the opened custom report has that the explorer cannot read, shown struck through
+    const importedUnsupported = ref<UnsupportedEntry[]>([]);
+    // a link shown with one notice only: any other notice replaces it
+    const noticeLink = ref<{ notice: string, url: string, label: string }|null>(null);
+    const noticeContext = ref<'success'|'info'|'warning'|'error'>('success');
 
     const saveOpen = ref(false);
     const saveType = ref<'visual'|'sql'>('visual');
@@ -349,12 +450,23 @@ export default defineComponent({
       return map;
     });
 
-    const periodText = computed(() => {
+    const periodDates = computed(() => {
       try {
         return Periods.parse(period.value, date.value).getPrettyString();
       } catch (e) {
         return `${period.value} ${date.value}`;
       }
+    });
+
+    // a keyword range reads as its name, like the GA4 date picker; its dates stay in the tooltip
+    const periodText = computed(() => {
+      const keyword = period.value === 'range' ? /^(last|previous)(\d+)$/.exec(date.value) : null;
+      if (!keyword) {
+        return periodDates.value;
+      }
+      return keyword[1] === 'previous'
+        ? translate('General_LastDaysShort', keyword[2])
+        : translate('General_LastDays', keyword[2]);
     });
 
     const segmentText = computed(() => {
@@ -380,7 +492,11 @@ export default defineComponent({
       }
     }
 
-    const scopeLabel = (scope: string) => translate(`DataExplorer_Scope_${scope}`);
+    const KNOWN_SCOPES = ['visit', 'action', 'conversion'];
+    // the scope of a plugin table is its name: log_media reads "media"
+    const scopeLabel = (scope: string) => (KNOWN_SCOPES.includes(scope)
+      ? translate(`DataExplorer_Scope_${scope}`)
+      : scope.replace(/^log_/, '').replace(/_/g, ' '));
 
     // the catalogue can hold several items with the same name, the scope tells them apart
     const dimensionLabels = computed(
@@ -438,12 +554,7 @@ export default defineComponent({
     // a visit has several actions and conversions, an action shares its visit with the
     // conversions and the other way round: under such a dimension the metric counts each of
     // its rows once in every row of the report
-    const repeatingScopes: Record<Scope, Scope[]> = {
-      visit: ['action', 'conversion'],
-      action: ['conversion'],
-      conversion: ['action'],
-    };
-    const perRowHints: Record<Scope, string> = {
+    const perRowHints: Record<string, string> = {
       visit: 'DataExplorer_MetricPerVisitHint',
       action: 'DataExplorer_MetricPerActionHint',
       conversion: 'DataExplorer_MetricPerConversionHint',
@@ -456,8 +567,8 @@ export default defineComponent({
       }
       const repeats = usedDimensions.value
         .map((dimensionId) => dimensionsById.value[dimensionId])
-        .some((dimension) => dimension && repeatingScopes[metric.scope].includes(dimension.scope));
-      return repeats ? translate(perRowHints[metric.scope]) : '';
+        .some((dimension) => dimension && (metric.repeatedBy || []).includes(dimension.scope));
+      return repeats ? translate(perRowHints[metric.scope] || 'DataExplorer_MetricPerRowHint') : '';
     }
 
     const dimensionGroups = computed(() => pickerGroups(
@@ -505,12 +616,21 @@ export default defineComponent({
       id, name: metricName(id), reason: metricReason(id), hint: metricHint(id),
     })));
 
+    const missingOf = (kind: UnsupportedEntry['kind']) => importedUnsupported.value
+      .filter((entry) => entry.kind === kind)
+      .map((entry) => ({
+        id: entry.id, name: entry.name, reason: entry.reason, missing: true,
+      }));
+    const rowZoneItems = computed<ZoneItem[]>(() => [...rowItems.value, ...missingOf('dimension')]);
+    const valueZoneItems = computed<ZoneItem[]>(() => [...valueItems.value, ...missingOf('metric')]);
+
     const segmentItems = computed<ZoneItem[]>(() => (state.segment ? [{
       id: state.segment, name: segmentNames.value[state.segment] || state.segment, reason: '',
     }] : []));
 
-    const filterViews = computed<FilterView[]>(() => state.filters.map((filter) => ({
+    const filterViews = computed<FilterView[]>(() => state.filters.map((filter, index) => ({
       filter,
+      index,
       name: dimensionName(filter.dimension),
       reason: dimensionReason(filter.dimension),
     })));
@@ -558,6 +678,20 @@ export default defineComponent({
       return def;
     });
 
+    // the view and layout are sent explicitly: core would otherwise reuse the view this user last
+    // picked in a table footer, and Report settings would no longer describe the canvas
+    function viewParams(): Record<string, string> {
+      const params: Record<string, string> = {
+        viewDataTable: VIEW_BY_VISUALIZATION[state.visualization],
+      };
+      if (state.visualization === 'table' && state.rows.length > 1) {
+        const flat = state.tableView === 'flat';
+        params.flat = flat ? '1' : '0';
+        params.show_dimensions = flat ? '1' : '0';
+      }
+      return params;
+    }
+
     function run() {
       previewParams.value = isRunnable.value
         ? {
@@ -566,8 +700,23 @@ export default defineComponent({
           definition: JSON.stringify(requestDefinition.value),
           period: period.value,
           date: date.value,
+          ...viewParams(),
         }
         : null;
+    }
+
+    // a view or layout picked in the canvas footer becomes the one of the exploration
+    function onCanvasView(event: { viewDataTable: string, flat: boolean }) {
+      const visualization = VISUALIZATION_BY_VIEW[event.viewDataTable];
+      if (visualization && visualization !== state.visualization) {
+        state.visualization = visualization;
+      }
+      if (state.visualization === 'table' && state.rows.length > 1) {
+        const tableView = event.flat ? 'flat' : 'hierarchical';
+        if (tableView !== state.tableView) {
+          state.tableView = tableView;
+        }
+      }
     }
 
     let runTimer: ReturnType<typeof setTimeout>|null = null;
@@ -591,11 +740,17 @@ export default defineComponent({
       }
       const encoded = encode(state);
       const current = MatomoUrl.hashParsed.value;
-      if (encoded === lastEncoded && current[HASH_PARAM] === encoded) {
+      if (encoded === lastEncoded && current[HASH_PARAM] === encoded
+        && (current[SQL_VIEW_PARAM] || 'table') === sqlVisualization.value) {
         return;
       }
       lastEncoded = encoded;
       const params: Record<string, unknown> = { ...current, [HASH_PARAM]: encoded };
+      if (sqlVisualization.value !== 'table') {
+        params[SQL_VIEW_PARAM] = sqlVisualization.value;
+      } else {
+        delete params[SQL_VIEW_PARAM];
+      }
       if (editing.value) {
         params[REPORT_HASH_PARAM] = String(editing.value.idreport);
       } else {
@@ -611,8 +766,16 @@ export default defineComponent({
 
     function openReport(report: SavedReport, keepState: boolean) {
       editing.value = report;
+      openedSql.value = null;
       if (report.type === 'sql') {
         sql.value = report.definition.sql || '';
+        sqlVisualization.value = fromDefinition(
+          { chart: report.definition.chart },
+          report.report_type,
+        ).visualization;
+        openedSqlVisualization.value = sqlVisualization.value;
+        openedSql.value = sql.value;
+        openedSnapshot.value = '';
         sqlOpened.value = true;
         activeTab.value = 'sql';
         return;
@@ -620,6 +783,7 @@ export default defineComponent({
       if (!keepState) {
         applyState(fromDefinition(report.definition, report.report_type));
       }
+      openedSnapshot.value = snapshotOf(fromDefinition(report.definition, report.report_type));
       activeTab.value = 'explore';
     }
 
@@ -639,10 +803,17 @@ export default defineComponent({
         }
       } else if (editing.value) {
         editing.value = null;
+        openedSnapshot.value = '';
+        openedSql.value = null;
       }
 
       if (encoded && encoded !== lastEncoded) {
         applyState(decode(encoded));
+      }
+      const sqlView = String(hash[SQL_VIEW_PARAM] || 'table') as Visualization;
+      const known = !!VIEW_BY_VISUALIZATION[sqlView];
+      if (known && sqlView !== sqlVisualization.value) {
+        sqlVisualization.value = sqlView;
       }
     }
 
@@ -670,22 +841,143 @@ export default defineComponent({
       notice.value = message;
     }
 
-    const reportOptions = computed(() => [
-      { key: '', value: translate('DataExplorer_NewExploration') },
-      ...openableReports.value.map((report) => ({
-        key: String(report.idreport),
-        value: report.name,
-      })),
+    // custom reports open as a new exploration, their key prefixed so it never matches a report id
+    const CUSTOM_REPORT_KEY = 'customReport-';
+    const customReportList = ref<{ idcustomreport: number, name: string, place?: string }[]>([]);
+    const importedCustomReport = ref<ImportedCustomReport|null>(null);
+
+    // the custom report button updates the opened custom report when this user may edit it
+    const updatableCustomReport = computed(() => (
+      !editing.value && importedCustomReport.value && importedCustomReport.value.editable
+        ? importedCustomReport.value
+        : null));
+
+    // saved as an exploration, an opened custom report keeps its name, description and place
+    const saveSuggestion = computed<SaveSuggestion|null>(() => {
+      const report = importedCustomReport.value;
+      return !editing.value && report ? {
+        name: report.name,
+        description: report.description,
+        category: report.category,
+        subcategory: report.subcategory,
+      } : null;
+    });
+
+    function loadCustomReports(): Promise<void> {
+      if (!props.customReports) {
+        return Promise.resolve();
+      }
+      return AjaxHelper.fetch<{ idcustomreport: number, name: string, place?: string }[]>(
+        { method: 'DataExplorer.getCustomReports', idSite, filter_limit: -1 },
+        { createErrorNotification: false },
+      ).then((result) => {
+        customReportList.value = Array.isArray(result) ? result : [];
+      }).catch(() => {
+        customReportList.value = [];
+      });
+    }
+
+    function onCustomReportUpdated(event: {
+      name: string, description: string, category: string, subcategory: string,
+    }) {
+      if (importedCustomReport.value) {
+        importedCustomReport.value = { ...importedCustomReport.value, ...event };
+      }
+      noticeContext.value = 'success';
+      notice.value = translate('DataExplorer_CustomReportUpdated', event.name);
+      noticeLink.value = importedCustomReport.value
+        ? {
+          notice: notice.value,
+          url: customReportUrl(importedCustomReport.value),
+          label: translate('DataExplorer_OpenCustomReport'),
+        }
+        : null;
+      openedSnapshot.value = snapshotOf(state);
+      ReportingMenuStore.reloadMenuItems();
+      loadCustomReports();
+    }
+
+    const pickedReport = computed(() => {
+      if (editing.value) {
+        return String(editing.value.idreport);
+      }
+      return importedCustomReport.value
+        ? `${CUSTOM_REPORT_KEY}${importedCustomReport.value.idCustomReport}`
+        : '';
+    });
+
+    // without Custom Reports the explorations are the only group, and need no title
+    const reportGroups = computed<ReportPickerGroup[]>(() => [
+      {
+        label: props.customReports ? translate('DataExplorer_ExplorationsGroup') : '',
+        items: openableReports.value.map((report) => ({
+          key: String(report.idreport),
+          name: report.name,
+          place: report.place || '',
+        })),
+      },
+      {
+        label: translate('DataExplorer_CustomReportsGroup'),
+        items: customReportList.value.map((report) => ({
+          key: `${CUSTOM_REPORT_KEY}${report.idcustomreport}`,
+          name: report.name,
+          place: report.place || '',
+        })),
+      },
     ]);
 
-    function onPickReport(value: string) {
+    function openCustomReport(idCustomReport: number) {
+      const report = customReportList.value.find((item) => item.idcustomreport === idCustomReport);
+      AjaxHelper.fetch<{
+        definition: VisualDefinition,
+        unsupported: string[],
+        unsupportedEntries?: UnsupportedEntry[],
+        customReport: ImportedCustomReport,
+      }>(
+        { method: 'DataExplorer.getCustomReportDefinition', idSite, idCustomReport },
+        { createErrorNotification: false },
+      ).then((result) => {
+        editing.value = null;
+        importedCustomReport.value = result.customReport;
+        importedUnsupported.value = result.unsupportedEntries || [];
+        activeTab.value = 'explore';
+        applyState(fromDefinition(result.definition, result.definition.report_type));
+        openedSnapshot.value = snapshotOf(state);
+        noticeContext.value = result.unsupported.length ? 'warning' : 'info';
+        notice.value = [
+          translate(
+            result.customReport.editable
+              ? 'DataExplorer_CustomReportOpened'
+              : 'DataExplorer_CustomReportOpenedReadOnly',
+            report ? report.name : String(idCustomReport),
+          ),
+          result.unsupported.length ? translate('DataExplorer_CustomReportNotOpenedHint') : '',
+        ].filter((text) => text !== '').join(' ');
+        syncHash();
+        scheduleRun();
+      }).catch((e: Error) => {
+        noticeContext.value = 'error';
+        notice.value = e.message;
+      });
+    }
+
+    function pickReport(value: string) {
+      notice.value = '';
+      if (String(value).startsWith(CUSTOM_REPORT_KEY)) {
+        openCustomReport(parseInt(String(value).slice(CUSTOM_REPORT_KEY.length), 10));
+        return;
+      }
+      importedCustomReport.value = null;
+      importedUnsupported.value = [];
       const id = parseInt(String(value), 10);
       const report = reports.value.find((item) => item.idreport === id) || null;
-      notice.value = '';
       if (!report) {
         editing.value = null;
+        openedSnapshot.value = '';
+        openedSql.value = null;
         applyState(defaultState());
         sql.value = '';
+        sqlVisualization.value = 'table';
         syncHash();
         scheduleRun();
         return;
@@ -693,6 +985,26 @@ export default defineComponent({
       openReport(report, false);
       lastEncoded = '';
       syncHash();
+    }
+
+    const leaveConfirmOpen = ref(false);
+    let pendingPick: string|null = null;
+
+    // another report, or a new exploration, replaces the changes not saved yet: asked first
+    function onPickReport(value: string) {
+      if (isModified.value && String(value) !== pickedReport.value) {
+        pendingPick = String(value);
+        leaveConfirmOpen.value = true;
+        return;
+      }
+      pickReport(value);
+    }
+
+    function confirmLeave() {
+      if (pendingPick !== null) {
+        pickReport(pendingPick);
+      }
+      pendingPick = null;
     }
 
     function selectTab(tab: Tab) {
@@ -776,13 +1088,20 @@ export default defineComponent({
           state.values.push(id);
         }
       } else if (zone === 'filters') {
-        state.filters.push({ dimension: id, operator: 'equals', value: '' });
+        const group = state.filters.reduce((max, filter) => Math.max(max, filter.group + 1), 0);
+        state.filters.push({
+          dimension: id, operator: 'equals', value: '', group,
+        });
       } else {
         state.segment = id;
       }
     }
 
     function removeFromZone(zone: Zone, id: string) {
+      if (importedUnsupported.value.some((entry) => entry.id === id)) {
+        importedUnsupported.value = importedUnsupported.value.filter((entry) => entry.id !== id);
+        return;
+      }
       if (zone === 'rows') {
         state.rows = state.rows.filter((item) => item !== id);
       } else if (zone === 'column') {
@@ -808,20 +1127,69 @@ export default defineComponent({
       }
     }
 
+    // in place: the rows of the Filters zone are keyed by their filter object
     function updateFilter(index: number, filter: Filter) {
-      state.filters.splice(index, 1, filter);
+      Object.assign(state.filters[index], filter);
     }
 
     function removeFilter(index: number) {
       state.filters.splice(index, 1);
+      const order = new Map<number, number>();
+      state.filters.forEach((filter) => {
+        if (!order.has(filter.group)) {
+          order.set(filter.group, order.size);
+        }
+        filter.group = order.get(filter.group) as number;
+      });
+    }
+
+    // a filter dragged to another group (OR) or to a new one (AND, group -1), groups renumbered
+    function moveFilter(index: number, group: number) {
+      const filter = state.filters[index];
+      if (!filter) {
+        return;
+      }
+      const target = group < 0
+        ? state.filters.reduce((max, item) => Math.max(max, item.group + 1), 0)
+        : group;
+      if (target === filter.group) {
+        return;
+      }
+      state.filters.splice(index, 1);
+      const last = state.filters.map((item) => item.group).lastIndexOf(target);
+      const at = last < 0 ? state.filters.length : last + 1;
+      state.filters.splice(at, 0, { ...filter, group: target });
+      const order = new Map<number, number>();
+      state.filters.forEach((item) => {
+        if (!order.has(item.group)) {
+          order.set(item.group, order.size);
+        }
+        item.group = order.get(item.group) as number;
+      });
+    }
+
+    // a filter ORed with those of the group, placed after them
+    function addFilterToGroup(group: number, id: string) {
+      const filter: Filter = {
+        dimension: id, operator: 'equals', value: '', group,
+      };
+      const last = state.filters.map((item) => item.group).lastIndexOf(group);
+      state.filters.splice(last + 1, 0, filter);
     }
 
     // saving
-    const saveReportType = computed(() => reportTypeOf(state.visualization));
+    const saveReportType = computed(() => reportTypeOf(saveType.value === 'sql'
+      ? sqlVisualization.value
+      : state.visualization));
 
     const saveDefinition = computed<Record<string, unknown>>(() => {
       if (saveType.value === 'sql') {
-        return { sql: sql.value };
+        return {
+          sql: sql.value,
+          chart: sqlVisualization.value === 'bar' || sqlVisualization.value === 'pie'
+            ? sqlVisualization.value
+            : '',
+        };
       }
       const def = { ...definition.value } as Record<string, unknown>;
       delete def.report_type;
@@ -848,6 +1216,11 @@ export default defineComponent({
         const report = reports.value.find((item) => item.idreport === event.idReport);
         if (report) {
           editing.value = report;
+          importedCustomReport.value = null;
+          importedUnsupported.value = [];
+          openedSnapshot.value = report.type === 'visual' ? snapshotOf(state) : '';
+          openedSql.value = report.type === 'sql' ? sql.value : null;
+          openedSqlVisualization.value = sqlVisualization.value;
           lastEncoded = '';
           syncHash();
         }
@@ -883,8 +1256,22 @@ export default defineComponent({
       }
     }
 
+    // entering the explorer (no exploration nor report in the URL: not a reload, not a shared link)
+    // looks at the last 28 days; a period picked inside the explorer is then kept
+    function startOnLast28Days() {
+      const current = MatomoUrl.hashParsed.value;
+      if (!Matomo.helper.isReportingPage() || current[HASH_PARAM] || current[REPORT_HASH_PARAM]) {
+        return;
+      }
+      if (current.period === DEFAULT_PERIOD && current.date === DEFAULT_DATE) {
+        return;
+      }
+      MatomoUrl.updateHash({ ...current, period: DEFAULT_PERIOD, date: DEFAULT_DATE });
+    }
+
     onMounted(() => {
       Matomo.on('ReportingPage.loadPage', keepPageOnUrlChange);
+      startOnLast28Days();
 
       Promise.all([
         AjaxHelper.fetch<Catalog>(
@@ -896,6 +1283,7 @@ export default defineComponent({
           catalogError.value = e.message;
         }),
         loadReports(),
+        loadCustomReports(),
       ]).then(() => {
         readHash();
 
@@ -904,6 +1292,7 @@ export default defineComponent({
           () => scheduleRun(),
         ));
         stopWatchers.push(watch(() => JSON.stringify(state), () => syncHash()));
+        stopWatchers.push(watch(sqlVisualization, () => syncHash()));
         stopWatchers.push(watch(
           () => [MatomoUrl.parsed.value[HASH_PARAM], MatomoUrl.parsed.value[REPORT_HASH_PARAM]],
           () => readHash(),
@@ -926,8 +1315,23 @@ export default defineComponent({
       customReportOpen,
       onCustomReportCreated,
       onCustomReportFailed,
-      reportOptions,
+      reportGroups,
+      pickedReport,
+      sqlVisualization,
+      onCanvasView,
+      updatableCustomReport,
+      isModified,
+      isEditingVisual,
+      isEditingSql,
+      leaveConfirmOpen,
+      confirmLeave,
+      noticeLink,
+      rowZoneItems,
+      valueZoneItems,
+      saveSuggestion,
+      onCustomReportUpdated,
       periodText,
+      periodDates,
       segmentText,
       openPeriodSelector,
       idSite,
@@ -972,6 +1376,8 @@ export default defineComponent({
       useVariable,
       updateFilter,
       removeFilter,
+      addFilterToGroup,
+      moveFilter,
       saveReportType,
       saveDefinition,
       openSave,

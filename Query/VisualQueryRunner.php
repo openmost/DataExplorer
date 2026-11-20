@@ -101,7 +101,10 @@ class VisualQueryRunner
         $this->seconds = Configuration::getMaxExecutionTimeSeconds();
         $this->deadline = ($this->clock)() + $this->seconds;
 
-        return $this->execute($definition, $resolved, $aggregator, $idSite, Configuration::getMaxRowsInMainTable($depth), Configuration::getMaxRowsInSubTable($depth));
+        $table = $this->execute($definition, $resolved, $aggregator, $idSite, Configuration::getMaxRowsInMainTable($depth), Configuration::getMaxRowsInSubTable($depth));
+        (new ProcessedMetrics($resolved['processed'], $idSite))->apply($table);
+
+        return $table;
     }
 
     /**
@@ -159,6 +162,9 @@ class VisualQueryRunner
             $table->setMetadata(DataTableFactory::TABLE_METADATA_SITE_INDEX, $site);
             $map->addTable($table, $subPeriod->getLabel() === 'week' ? $subPeriod->getRangeString() : $subPeriod->getPrettyString());
         }
+        $processed = ProcessedMetrics::forResolved($resolved, $idSite);
+        $processed->apply($map);
+        $processed->decorate($map);
 
         return $map;
     }
@@ -586,7 +592,9 @@ class VisualQueryRunner
     private function resolveLabelFilters(array $resolved, int $idSite): array
     {
         foreach ($resolved['filters'] as $index => $filter) {
-            if (!in_array($filter['operator'], ['equals', 'not_equals', 'contains', 'starts_with', 'ends_with', 'regex'], true)) {
+            $negated = VisualQueryBuilder::NEGATIONS[$filter['operator']] ?? null;
+            $operator = $negated ?? $filter['operator'];
+            if (!in_array($operator, ['equals', 'contains', 'starts_with', 'ends_with', 'regex'], true)) {
                 continue;
             }
 
@@ -601,7 +609,6 @@ class VisualQueryRunner
 
             $matching = [];
             $formatted = false;
-            $negate = $filter['operator'] === 'not_equals';
             foreach ($rows as $row) {
                 $raw = $row['label_0'] ?? null;
                 if ($raw === null) {
@@ -609,7 +616,7 @@ class VisualQueryRunner
                 }
                 $label = $this->label($filter['dimension'], $raw, $idSite);
                 $formatted = $formatted || $label !== (string) $raw;
-                if (LabelFilter::matches($negate ? 'equals' : $filter['operator'], (string) $filter['value'], $label, (string) $raw)) {
+                if (LabelFilter::matches($operator, (string) $filter['value'], $label, (string) $raw)) {
                     $matching[] = $raw;
                 }
             }
@@ -619,8 +626,9 @@ class VisualQueryRunner
 
             $resolved['filters'][$index] = [
                 'dimension' => $filter['dimension'],
-                'operator' => $negate ? VisualQueryBuilder::OPERATOR_NOT_IN : VisualQueryBuilder::OPERATOR_IN,
+                'operator' => $negated !== null ? VisualQueryBuilder::OPERATOR_NOT_IN : VisualQueryBuilder::OPERATOR_IN,
                 'value' => $matching,
+                'group' => $filter['group'],
             ];
         }
 

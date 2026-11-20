@@ -30,13 +30,16 @@ use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionCatalog;
 use Piwik\Plugins\DataExplorer\Catalog\MetricCatalog;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
+use Piwik\Plugins\DataExplorer\Categories\ManageSubcategory;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
 use Piwik\Plugins\DataExplorer\Query\PreviewTree;
+use Piwik\Plugins\DataExplorer\Query\ProcessedMetrics;
 use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\Query\CustomReportExport;
+use Piwik\Plugins\DataExplorer\Query\CustomReportImport;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
 use Piwik\Plugins\DataExplorer\Reports\GetSavedReport;
 use Piwik\Plugins\DataExplorer\Sql\ParsedQuery;
@@ -57,6 +60,9 @@ use Piwik\Site;
  */
 class API extends \Piwik\Plugin\API
 {
+    // pages of the plugin itself, never a place for a saved report
+    private const RESERVED_SUBCATEGORIES = [ExploreSubcategory::ID, ManageSubcategory::ID];
+
     /**
      * Dashboards and the Marketplace teaser use the reporting menu but are not report pages.
      */
@@ -159,6 +165,9 @@ class API extends \Piwik\Plugin\API
             }
         }
 
+        // the cached tree keeps values only: formats and the metrics to drop are set on every table served
+        ProcessedMetrics::forResolved((new VisualQueryBuilder())->resolve($validated, $idSite), $idSite)->decorate($table);
+
         // like an archived report, so core can load and label the subtables of the period
         $site = new Site($idSite);
         $table->setMetadata(DataTableFactory::TABLE_METADATA_SITE_INDEX, $site);
@@ -204,7 +213,7 @@ class API extends \Piwik\Plugin\API
 
         $resolved = (new VisualQueryBuilder())->resolve($validated, $idSite);
         $metricNames = [];
-        foreach ($resolved['metrics'] as $metric) {
+        foreach (array_merge($resolved['metrics'], $resolved['processed']) as $metric) {
             $metricNames[$metric->id] = $metric->name;
         }
         $dimensionNames = [];
@@ -219,6 +228,90 @@ class API extends \Piwik\Plugin\API
             $this->customReportsCatalogue('CustomReports.getAvailableMetrics', 'metrics', $idSite),
             $this->customReportsCatalogue('CustomReports.getAvailableDimensions', 'dimensions', $idSite)
         );
+    }
+
+    /**
+     * The custom reports of a site the explorer can open, id and name only. Empty when that plugin is not active.
+     *
+     * @param int $idSite
+     * @return array{idcustomreport: int, name: string, place: string}[]
+     */
+    public function getCustomReports(int $idSite): array
+    {
+        (new ReportPermissions())->checkCanExplore($idSite);
+        if (!Configuration::isCustomReportsAvailable()) {
+            return [];
+        }
+
+        $reports = (array) \Piwik\API\Request::processRequest('CustomReports.getConfiguredReports', [
+            'idSite' => $idSite,
+            'filter_limit' => -1,
+            'format' => 'original',
+        ], []);
+
+        $result = [];
+        foreach ($reports as $report) {
+            if (isset($report['idcustomreport'], $report['name']) && ($report['status'] ?? 'active') === 'active') {
+                $place = array_filter([(string) ($report['category']['name'] ?? ''), (string) ($report['subcategory']['name'] ?? '')], 'strlen');
+                $result[] = [
+                    'idcustomreport' => (int) $report['idcustomreport'],
+                    'name' => (string) $report['name'],
+                    'place' => implode(' > ', $place),
+                ];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * A custom report as a visual definition the explorer opens: the same dimensions and metrics, its segment as
+     * filter groups where it can be, the rest kept as the segment. "unsupported" names what the explorer has not.
+     *
+     * @param int $idSite
+     * @param int $idCustomReport
+     * @return array{definition: array, unsupported: string[], customReport: array}
+     */
+    public function getCustomReportDefinition(int $idSite, int $idCustomReport): array
+    {
+        (new ReportPermissions())->checkCanExplore($idSite);
+        if (!Configuration::isCustomReportsAvailable()) {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorCustomReportsUnavailable'));
+        }
+
+        $report = (array) \Piwik\API\Request::processRequest('CustomReports.getConfiguredReport', [
+            'idSite' => $idSite,
+            'idCustomReport' => $idCustomReport,
+            'format' => 'original',
+        ], []);
+
+        $metrics = [];
+        foreach ((new MetricCatalog())->all($idSite) as $entry) {
+            $metrics[$entry->id] = $entry->name;
+        }
+
+        $result = (new CustomReportImport())->convert(
+            $report,
+            (new DimensionCatalog())->all($idSite),
+            $metrics,
+            $this->customReportsCatalogue('CustomReports.getAvailableDimensions', 'dimensions', $idSite),
+            $this->customReportsCatalogue('CustomReports.getAvailableMetrics', 'metrics', $idSite)
+        );
+
+        // what saving it again keeps: its place in the menu, its sites, and what an update must send back
+        $result['customReport'] = [
+            'idCustomReport' => (int) ($report['idcustomreport'] ?? $idCustomReport),
+            'idSite' => (int) ($report['idsite'] ?? $idSite),
+            'name' => (string) ($report['name'] ?? ''),
+            'description' => (string) ($report['description'] ?? ''),
+            'category' => (string) ($report['category']['id'] ?? ''),
+            'subcategory' => (string) ($report['subcategory']['id'] ?? ''),
+            'multipleIdSites' => array_values(array_filter(array_map('intval', explode(',', (string) ($report['multiple_idsites'] ?? ''))))),
+            'childReportIds' => array_values(array_map(fn ($child) => (int) ($child['idcustomreport'] ?? 0), (array) ($report['child_reports'] ?? []))),
+            'editable' => !empty($report['allowedToEdit']),
+        ];
+
+        return $result;
     }
 
     /**
@@ -308,6 +401,12 @@ class API extends \Piwik\Plugin\API
     public function getReport(int $idSite, string $period, string $date, int $idExploration, string $segment = '', bool $expanded = false, int $idSubtable = 0, string $definition = '')
     {
         if ($idExploration === 0 && $definition !== '') {
+            $raw = json_decode(Common::unsanitizeInputValue($definition), true);
+            if (is_array($raw) && ($raw['type'] ?? '') === ReportDefinition::TYPE_SQL) {
+                $validated = GetSavedReport::previewDefinition(Common::unsanitizeInputValue($definition));
+
+                return (new SavedReportReader())->readSqlPreview($validated['sql'], $validated['report_type'], $idSite, $period, $date);
+            }
             // runVisual takes its parameters unsanitized; core flattens the flat view from the whole tree
             $flat = $expanded || Common::getRequestVar('flat', 0, 'int') === 1;
             return $this->runVisual($idSite, $period, $date, Common::unsanitizeInputValue($definition), Common::unsanitizeInputValue($segment), $idSubtable, $flat);
@@ -513,6 +612,7 @@ class API extends \Piwik\Plugin\API
                 'placement' => ['all' => $placement->isAllWebsites(), 'sites' => $sites],
                 'category' => $report['category'],
                 'subcategory' => $report['subcategory'],
+                'place' => $this->placeName((string) $report['category'], (string) $report['subcategory']),
                 'order' => $report['order'],
                 'revision' => $report['revision'],
                 'created_by' => $report['created_by'],
@@ -540,6 +640,21 @@ class API extends \Piwik\Plugin\API
     }
 
     /**
+     * "Category > Page" of a saved report in the reporting menu, the category alone for a report on its own page.
+     */
+    private function placeName(string $categoryId, string $subcategoryId): string
+    {
+        $category = CategoryList::get()->getCategory($categoryId !== '' ? $categoryId : ExploreSubcategory::CATEGORY);
+        if (!$category) {
+            return '';
+        }
+        $subcategory = $subcategoryId !== '' ? $category->getSubcategory($subcategoryId) : null;
+        $page = $subcategory ? Piwik::translate($subcategory->getName()) : '';
+
+        return implode(' > ', array_filter([$category->getDisplayName(), $page], 'strlen'));
+    }
+
+    /**
      * Categories of the reporting menu, with their subcategories for the site of the request.
      */
     private function reportingCategories(): array
@@ -552,10 +667,12 @@ class API extends \Piwik\Plugin\API
                 continue;
             }
 
-            // the page of its own of a report is not a page others are saved on
+            // the page of its own of a report is not a page others are saved on, nor are the explorer and the
+            // manage page: a report there would render under the explorer
             $subcategories = array_values(array_filter(
                 $category->getSubcategories(),
                 fn ($subcategory) => !GetSavedReport::isOwnPage((string) $category->getId(), (string) $subcategory->getId())
+                    && !in_array((string) $subcategory->getId(), self::RESERVED_SUBCATEGORIES, true)
             ));
             usort($subcategories, fn ($a, $b) => $a->getOrder() <=> $b->getOrder());
 
@@ -726,6 +843,9 @@ class API extends \Piwik\Plugin\API
         if (mb_strlen($subcategory) > self::MAX_SUBCATEGORY_LENGTH) {
             throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorSubcategoryInvalid', [self::MAX_SUBCATEGORY_LENGTH]));
         }
+        if (in_array($subcategory, self::RESERVED_SUBCATEGORIES, true)) {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorSubcategoryReserved'));
+        }
 
         $stored = $validated->toArray();
         unset($stored['name'], $stored['type'], $stored['report_type']);
@@ -753,8 +873,10 @@ class API extends \Piwik\Plugin\API
         } catch (\InvalidArgumentException $e) {
             return true;
         }
-        // the chart and the table view are read when the report renders, never archived
-        unset($before['name'], $after['name'], $before['chart'], $after['chart'], $before['table_view'], $after['table_view']);
+        // the description, the chart and the table view are read when the report renders, never archived
+        foreach (['name', 'description', 'chart', 'table_view'] as $key) {
+            unset($before[$key], $after[$key]);
+        }
 
         return $before !== $after;
     }

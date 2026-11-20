@@ -40,21 +40,40 @@ class CustomReportExportTest extends TestCase
 
     public function test_filtersBecomeTheSegment_andTheStoredSegmentIsKept(): void
     {
-        $filters = [
-            ['dimension' => $this->dimension('Actions.PageUrl', 'pageUrl'), 'operator' => 'contains', 'value' => 'a/b c'],
-            ['dimension' => $this->dimension('Actions.PageTitle', 'pageTitle'), 'operator' => 'ends_with', 'value' => 'x'],
+        $url = $this->dimension('Actions.PageUrl', 'pageUrl');
+        $title = $this->dimension('Actions.PageTitle', 'pageTitle');
+        $separate = [
+            ['dimension' => $url, 'operator' => 'contains', 'value' => 'a/b c', 'group' => 0],
+            ['dimension' => $title, 'operator' => 'ends_with', 'value' => 'x', 'group' => 1],
+        ];
+        $together = [
+            ['dimension' => $url, 'operator' => 'contains', 'value' => 'a/b c', 'group' => 0],
+            ['dimension' => $title, 'operator' => 'ends_with', 'value' => 'x', 'group' => 0],
         ];
 
-        $all = (new CustomReportExport())->convert($this->definition(), $filters, 1);
-        $any = (new CustomReportExport())->convert($this->definition(['filters' => [
-            ['dimension' => 'Actions.PageUrl', 'operator' => 'contains', 'value' => 'a'],
-            ['dimension' => 'Actions.PageTitle', 'operator' => 'contains', 'value' => 'b'],
-        ], 'filter_match' => 'any']), $filters, 1);
+        $all = (new CustomReportExport())->convert($this->definition(), $separate, 1);
+        $any = (new CustomReportExport())->convert($this->definition(), $together, 1);
 
         $this->assertSame('visitorType==returning;pageUrl=@a%2Fb+c;pageTitle=$x', $all['segmentFilter']);
         $this->assertSame('visitorType==returning;pageUrl=@a%2Fb+c,pageTitle=$x', $any['segmentFilter']);
         $this->assertSame(['Actions.PageUrl'], $all['dimensionIds']);
         $this->assertSame([], $all['unsupported']);
+    }
+
+    public function test_groupsAreAndedAndTheirFiltersOred(): void
+    {
+        $url = $this->dimension('Actions.PageUrl', 'pageUrl');
+        $title = $this->dimension('Actions.PageTitle', 'pageTitle');
+        $filters = [
+            ['dimension' => $url, 'operator' => 'starts_with', 'value' => 'a', 'group' => 0],
+            ['dimension' => $url, 'operator' => 'not_contains', 'value' => 'b', 'group' => 0],
+            ['dimension' => $title, 'operator' => 'not_ends_with', 'value' => 'c', 'group' => 1],
+            ['dimension' => $title, 'operator' => 'not_starts_with', 'value' => 'd', 'group' => 2],
+        ];
+
+        $result = (new CustomReportExport())->convert($this->definition(['segment' => '']), $filters, 1);
+
+        $this->assertSame('pageUrl=^a,pageUrl!@b;pageTitle!$c;pageTitle!^d', $result['segmentFilter']);
     }
 
     public function test_whatACustomReportCannotHold_isListed(): void
