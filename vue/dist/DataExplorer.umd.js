@@ -286,7 +286,7 @@ if (typeof window !== 'undefined') {
 // EXTERNAL MODULE: external {"commonjs":"vue","commonjs2":"vue","root":"Vue"}
 var external_commonjs_vue_commonjs2_vue_root_Vue_ = __webpack_require__("8bbf");
 
-// CONCATENATED MODULE: ./node_modules/@vue/cli-plugin-babel/node_modules/cache-loader/dist/cjs.js??ref--13-0!./node_modules/@vue/cli-plugin-babel/node_modules/thread-loader/dist/cjs.js!./node_modules/babel-loader/lib!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist/templateLoader.js??ref--6!./node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--1-0!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist??ref--1-1!./plugins/DataExplorer/vue/src/Explorer/Explorer.vue?vue&type=template&id=79f5fa47
+// CONCATENATED MODULE: ./node_modules/@vue/cli-plugin-babel/node_modules/cache-loader/dist/cjs.js??ref--13-0!./node_modules/@vue/cli-plugin-babel/node_modules/thread-loader/dist/cjs.js!./node_modules/babel-loader/lib!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist/templateLoader.js??ref--6!./node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--1-0!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist??ref--1-1!./plugins/DataExplorer/vue/src/Explorer/Explorer.vue?vue&type=template&id=335a68dc
 
 const _hoisted_1 = {
   class: "dataExplorer"
@@ -502,7 +502,7 @@ function render(_ctx, _cache, $props, $setup, $data, $options) {
     onFailed: _ctx.onCustomReportFailed
   }, null, 8, ["modelValue", "definition", "default-name", "default-description", "custom-report", "modified", "onCreated", "onUpdated", "onFailed"])) : Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createCommentVNode"])("", true)]);
 }
-// CONCATENATED MODULE: ./plugins/DataExplorer/vue/src/Explorer/Explorer.vue?vue&type=template&id=79f5fa47
+// CONCATENATED MODULE: ./plugins/DataExplorer/vue/src/Explorer/Explorer.vue?vue&type=template&id=335a68dc
 
 // EXTERNAL MODULE: external "CoreHome"
 var external_CoreHome_ = __webpack_require__("19dc");
@@ -5544,7 +5544,10 @@ const DEFAULT_DATE = 'previous28';
         catalogError.value = e.message;
       }), loadReports(), loadCustomReports()]).then(() => {
         readHash();
-        stopWatchers.push(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["watch"])(() => [JSON.stringify(requestDefinition.value), period.value, date.value, segment.value], () => scheduleRun()));
+        stopWatchers.push(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["watch"])(
+        // a string, not an array: a hash update (a variable added) re-reads the URL, and a new
+        // array would count as a change and reload the canvas
+        () => JSON.stringify([requestDefinition.value, period.value, date.value, segment.value]), () => scheduleRun()));
         stopWatchers.push(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["watch"])(() => JSON.stringify(state), () => syncHash()));
         stopWatchers.push(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["watch"])(sqlVisualization, () => syncHash()));
         stopWatchers.push(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["watch"])(() => [external_CoreHome_["MatomoUrl"].parsed.value[HASH_PARAM], external_CoreHome_["MatomoUrl"].parsed.value[REPORT_HASH_PARAM]], () => readHash()));

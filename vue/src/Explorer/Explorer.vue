@@ -1286,7 +1286,9 @@ export default defineComponent({
         readHash();
 
         stopWatchers.push(watch(
-          () => [JSON.stringify(requestDefinition.value), period.value, date.value, segment.value],
+          // a string, not an array: a hash update (a variable added) re-reads the URL, and a new
+          // array would count as a change and reload the canvas
+          () => JSON.stringify([requestDefinition.value, period.value, date.value, segment.value]),
           () => scheduleRun(),
         ));
         stopWatchers.push(watch(() => JSON.stringify(state), () => syncHash()));

@@ -29,6 +29,13 @@ class LabelFilterTest extends TestCase
         $this->assertSame($expected, LabelFilter::matches($operator, $value, $label, $raw));
     }
 
+    public function test_matches_aLabelInEnglish_whateverTheLanguageOfTheUser(): void
+    {
+        $this->assertTrue(LabelFilter::matches('equals', 'Desktop', 'Bureau', 'Desktop', '0'));
+        $this->assertTrue(LabelFilter::matches('equals', 'Bureau', 'Bureau', 'Desktop', '0'));
+        $this->assertFalse(LabelFilter::matches('equals', 'Smartphone', 'Bureau', 'Desktop', '0'));
+    }
+
     public function provideMatches(): array
     {
         return [

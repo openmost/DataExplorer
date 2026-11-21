@@ -14,15 +14,15 @@ namespace Piwik\Plugins\DataExplorer\Query;
 use Piwik\Common;
 
 /**
- * The filter operators applied in PHP to a displayed label and its stored value, case insensitive like the
- * default collation of the log tables.
+ * The filter operators applied in PHP to the labels of a stored value and to the value itself, case insensitive
+ * like the default collation of the log tables.
  */
 final class LabelFilter
 {
-    public static function matches(string $operator, string $value, string $label, string $raw): bool
+    public static function matches(string $operator, string $value, string ...$candidates): bool
     {
         $value = Common::unsanitizeInputValue($value);
-        foreach (array_unique([$label, $raw]) as $candidate) {
+        foreach (array_unique($candidates) as $candidate) {
             if (self::matchesOne($operator, $value, $candidate)) {
                 return true;
             }
