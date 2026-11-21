@@ -4801,60 +4801,60 @@ const CustomReportDialogvue_type_script_lang_ts_DEFAULT_CATEGORY = 'CustomReport
 CustomReportDialogvue_type_script_lang_ts.render = CustomReportDialogvue_type_template_id_4402303d_render
 
 /* harmony default export */ var CustomReportDialog = (CustomReportDialogvue_type_script_lang_ts);
-// CONCATENATED MODULE: ./node_modules/@vue/cli-plugin-babel/node_modules/cache-loader/dist/cjs.js??ref--13-0!./node_modules/@vue/cli-plugin-babel/node_modules/thread-loader/dist/cjs.js!./node_modules/babel-loader/lib!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist/templateLoader.js??ref--6!./node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--1-0!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist??ref--1-1!./plugins/DataExplorer/vue/src/Funnel/FunnelSettings.vue?vue&type=template&id=6d5dca18
+// CONCATENATED MODULE: ./node_modules/@vue/cli-plugin-babel/node_modules/cache-loader/dist/cjs.js??ref--13-0!./node_modules/@vue/cli-plugin-babel/node_modules/thread-loader/dist/cjs.js!./node_modules/babel-loader/lib!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist/templateLoader.js??ref--6!./node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--1-0!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist??ref--1-1!./plugins/DataExplorer/vue/src/Funnel/FunnelSettings.vue?vue&type=template&id=3936e448
 
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_1 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_1 = {
   class: "dataExplorerColumn dataExplorerSettings dataExplorerFunnelSettings"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_2 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_2 = {
   class: "dataExplorerColumn__title"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_3 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_3 = {
   class: "dataExplorerSettings__section"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_4 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_4 = {
   id: "dataExplorerFunnelTypeTitle"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_5 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_5 = {
   class: "dataExplorerSegmented",
   role: "radiogroup",
   "aria-labelledby": "dataExplorerFunnelTypeTitle"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_6 = ["aria-checked", "title", "onClick"];
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_7 = {
-  class: "dataExplorerSettings__hint"
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_6 = ["aria-checked", "title", "onClick"];
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_7 = {
+  class: "dataExplorerFunnelSettings__typeHelp"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_8 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_8 = {
   class: "dataExplorerSettings__section"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_9 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_9 = {
   class: "dataExplorerFunnelSettings__stepsHead"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_10 = ["aria-label", "title"];
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_11 = /*#__PURE__*/Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_10 = ["aria-label", "title"];
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_11 = /*#__PURE__*/Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", {
   class: "icon-edit",
   "aria-hidden": "true"
 }, null, -1);
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_12 = [FunnelSettingsvue_type_template_id_6d5dca18_hoisted_11];
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_13 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_12 = [FunnelSettingsvue_type_template_id_3936e448_hoisted_11];
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_13 = {
   class: "dataExplorerFunnelSettings__steps"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_14 = ["onDragstart", "onDragover", "onDrop"];
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_15 = ["title"];
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_16 = /*#__PURE__*/Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_14 = ["onDragstart", "onDragover", "onDrop"];
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_15 = ["title"];
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_16 = /*#__PURE__*/Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", {
   class: "dataExplorerGrip",
   "aria-hidden": "true"
 }, null, -1);
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_17 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_17 = {
   class: "dataExplorerFunnelSettings__stepText"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_18 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_18 = {
   class: "dataExplorerFunnelSettings__stepName"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_19 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_19 = {
   class: "dataExplorerFunnelSettings__stepConditions"
 };
-const FunnelSettingsvue_type_template_id_6d5dca18_hoisted_20 = {
+const FunnelSettingsvue_type_template_id_3936e448_hoisted_20 = {
   key: 0,
   class: "dataExplorerFunnelSettings__tag"
 };
@@ -4864,10 +4864,10 @@ const _hoisted_21 = {
 };
 const _hoisted_22 = ["value"];
 const _hoisted_23 = ["value"];
-function FunnelSettingsvue_type_template_id_6d5dca18_render(_ctx, _cache, $props, $setup, $data, $options) {
+function FunnelSettingsvue_type_template_id_3936e448_render(_ctx, _cache, $props, $setup, $data, $options) {
   const _component_DropZone = Object(external_commonjs_vue_commonjs2_vue_root_Vue_["resolveComponent"])("DropZone");
   const _component_FunnelStepsEditor = Object(external_commonjs_vue_commonjs2_vue_root_Vue_["resolveComponent"])("FunnelStepsEditor");
-  return Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])("div", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_1, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("h3", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_2, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.translate('DataExplorer_TabSettings')), 1), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("div", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_3, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("h4", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_4, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.translate('DataExplorer_FunnelType')), 1), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("div", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_5, [(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(true), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])(external_commonjs_vue_commonjs2_vue_root_Vue_["Fragment"], null, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["renderList"])(_ctx.types, option => {
+  return Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])("div", FunnelSettingsvue_type_template_id_3936e448_hoisted_1, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("h3", FunnelSettingsvue_type_template_id_3936e448_hoisted_2, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.translate('DataExplorer_TabSettings')), 1), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("div", FunnelSettingsvue_type_template_id_3936e448_hoisted_3, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("h4", FunnelSettingsvue_type_template_id_3936e448_hoisted_4, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.translate('DataExplorer_FunnelType')), 1), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("div", FunnelSettingsvue_type_template_id_3936e448_hoisted_5, [(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(true), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])(external_commonjs_vue_commonjs2_vue_root_Vue_["Fragment"], null, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["renderList"])(_ctx.types, option => {
     return Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])("button", {
       key: option.id,
       type: "button",
@@ -4880,14 +4880,14 @@ function FunnelSettingsvue_type_template_id_6d5dca18_render(_ctx, _cache, $props
       onClick: $event => _ctx.$emit('update', Object.assign(Object.assign({}, _ctx.funnel), {}, {
         open: option.open
       }))
-    }, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(option.label), 11, FunnelSettingsvue_type_template_id_6d5dca18_hoisted_6);
-  }), 128))]), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("p", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_7, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.funnel.open ? _ctx.translate('DataExplorer_FunnelOpenHelp') : _ctx.translate('DataExplorer_FunnelClosedHelp')), 1)]), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("div", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_8, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("div", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_9, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("h4", null, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.translate('DataExplorer_FunnelSteps')), 1), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("button", {
+    }, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(option.label), 11, FunnelSettingsvue_type_template_id_3936e448_hoisted_6);
+  }), 128))]), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("div", FunnelSettingsvue_type_template_id_3936e448_hoisted_7, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.funnel.open ? _ctx.translate('DataExplorer_FunnelOpenHelp') : _ctx.translate('DataExplorer_FunnelClosedHelp')), 1)]), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("div", FunnelSettingsvue_type_template_id_3936e448_hoisted_8, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("div", FunnelSettingsvue_type_template_id_3936e448_hoisted_9, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("h4", null, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.translate('DataExplorer_FunnelSteps')), 1), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("button", {
     type: "button",
     class: "dataExplorerIconButton dataExplorerFunnelSettings__edit",
     "aria-label": _ctx.translate('DataExplorer_FunnelEditSteps'),
     title: _ctx.translate('DataExplorer_FunnelEditSteps'),
     onClick: _cache[0] || (_cache[0] = $event => _ctx.editorOpen = true)
-  }, FunnelSettingsvue_type_template_id_6d5dca18_hoisted_12, 8, FunnelSettingsvue_type_template_id_6d5dca18_hoisted_10)]), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("ol", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_13, [(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(true), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])(external_commonjs_vue_commonjs2_vue_root_Vue_["Fragment"], null, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["renderList"])(_ctx.funnel.steps, (step, index) => {
+  }, FunnelSettingsvue_type_template_id_3936e448_hoisted_12, 8, FunnelSettingsvue_type_template_id_3936e448_hoisted_10)]), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("ol", FunnelSettingsvue_type_template_id_3936e448_hoisted_13, [(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(true), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])(external_commonjs_vue_commonjs2_vue_root_Vue_["Fragment"], null, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["renderList"])(_ctx.funnel.steps, (step, index) => {
     return Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])("li", {
       key: index,
       class: Object(external_commonjs_vue_commonjs2_vue_root_Vue_["normalizeClass"])(["dataExplorerFunnelSettings__step", {
@@ -4908,7 +4908,7 @@ function FunnelSettingsvue_type_template_id_6d5dca18_render(_ctx, _cache, $props
       class: "dataExplorerFunnelSettings__stepButton",
       title: _ctx.translate('DataExplorer_FunnelEditSteps'),
       onClick: _cache[1] || (_cache[1] = $event => _ctx.editorOpen = true)
-    }, [FunnelSettingsvue_type_template_id_6d5dca18_hoisted_16, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_17, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_18, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(step.name), 1), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_19, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.summary(step)), 1)]), step.optional ? (Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])("span", FunnelSettingsvue_type_template_id_6d5dca18_hoisted_20, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.translate('DataExplorer_FunnelOptional')), 1)) : Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createCommentVNode"])("", true)], 8, FunnelSettingsvue_type_template_id_6d5dca18_hoisted_15)], 42, FunnelSettingsvue_type_template_id_6d5dca18_hoisted_14);
+    }, [FunnelSettingsvue_type_template_id_3936e448_hoisted_16, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", FunnelSettingsvue_type_template_id_3936e448_hoisted_17, [Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", FunnelSettingsvue_type_template_id_3936e448_hoisted_18, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(step.name), 1), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementVNode"])("span", FunnelSettingsvue_type_template_id_3936e448_hoisted_19, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.summary(step)), 1)]), step.optional ? (Object(external_commonjs_vue_commonjs2_vue_root_Vue_["openBlock"])(), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createElementBlock"])("span", FunnelSettingsvue_type_template_id_3936e448_hoisted_20, Object(external_commonjs_vue_commonjs2_vue_root_Vue_["toDisplayString"])(_ctx.translate('DataExplorer_FunnelOptional')), 1)) : Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createCommentVNode"])("", true)], 8, FunnelSettingsvue_type_template_id_3936e448_hoisted_15)], 42, FunnelSettingsvue_type_template_id_3936e448_hoisted_14);
   }), 128))])]), Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createVNode"])(_component_DropZone, {
     zone: "breakdown",
     accepts: "dimension",
@@ -4943,7 +4943,7 @@ function FunnelSettingsvue_type_template_id_6d5dca18_render(_ctx, _cache, $props
     })))
   }, null, 8, ["modelValue", "steps", "dimension-options"])]);
 }
-// CONCATENATED MODULE: ./plugins/DataExplorer/vue/src/Funnel/FunnelSettings.vue?vue&type=template&id=6d5dca18
+// CONCATENATED MODULE: ./plugins/DataExplorer/vue/src/Funnel/FunnelSettings.vue?vue&type=template&id=3936e448
 
 // CONCATENATED MODULE: ./node_modules/@vue/cli-plugin-babel/node_modules/cache-loader/dist/cjs.js??ref--13-0!./node_modules/@vue/cli-plugin-babel/node_modules/thread-loader/dist/cjs.js!./node_modules/babel-loader/lib!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist/templateLoader.js??ref--6!./node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--1-0!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist??ref--1-1!./plugins/DataExplorer/vue/src/Funnel/FunnelStepsEditor.vue?vue&type=template&id=962e5226
 
@@ -5640,7 +5640,7 @@ FunnelStepsEditorvue_type_script_lang_ts.render = FunnelStepsEditorvue_type_temp
 
 
 
-FunnelSettingsvue_type_script_lang_ts.render = FunnelSettingsvue_type_template_id_6d5dca18_render
+FunnelSettingsvue_type_script_lang_ts.render = FunnelSettingsvue_type_template_id_3936e448_render
 
 /* harmony default export */ var FunnelSettings = (FunnelSettingsvue_type_script_lang_ts);
 // CONCATENATED MODULE: ./plugins/DataExplorer/vue/src/Explorer/catalogNames.ts

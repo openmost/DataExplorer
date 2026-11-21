@@ -1204,6 +1204,12 @@ button.dataExplorerCanvas__period {
     margin-left: 16px;
   }
 
+  // the Matomo table reaches the column borders with -20px margins, so its block is inset by as much
+  > * > .dataExplorerSql__resultBlock {
+    margin-right: 20px;
+    margin-left: 20px;
+  }
+
   > * > .dataExplorerColumn__title {
     margin-bottom: 14px;
   }
@@ -1821,6 +1827,13 @@ button.dataExplorerCanvas__period {
 .dataExplorerFunnelSettings__stepName {
   color: @de-text-strong;
   font-weight: 500;
+}
+
+.dataExplorerFunnelSettings__typeHelp {
+  margin: 8px 0 0;
+  color: @de-text-lighter;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .dataExplorerFunnelSettings__stepConditions {

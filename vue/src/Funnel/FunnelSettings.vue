@@ -28,9 +28,9 @@
           @click="$emit('update', { ...funnel, open: option.open })"
         >{{ option.label }}</button>
       </div>
-      <p class="dataExplorerSettings__hint">{{ funnel.open
+      <div class="dataExplorerFunnelSettings__typeHelp">{{ funnel.open
         ? translate('DataExplorer_FunnelOpenHelp')
-        : translate('DataExplorer_FunnelClosedHelp') }}</p>
+        : translate('DataExplorer_FunnelClosedHelp') }}</div>
     </div>
 
     <div class="dataExplorerSettings__section">
