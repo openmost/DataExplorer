@@ -9,7 +9,6 @@
   <div class="dataExplorer">
     <div class="dataExplorer__toolbar">
       <div
-        v-if="isSuperUser"
         class="dataExplorer__tabs"
         role="tablist"
         :aria-label="translate('DataExplorer_DataExplorer')"
@@ -58,6 +57,16 @@
         ? translate('DataExplorer_EditReport')
         : translate('DataExplorer_SaveReport') }}</button>
       <button
+        v-if="canSaveAnything && activeTab === 'funnel'"
+        ref="funnelSaveButton"
+        type="button"
+        class="btn dataExplorer__save dataExplorer__saveFunnel"
+        :disabled="!isFunnelRunnable"
+        @click="openSave('funnel')"
+      >{{ isEditingFunnel
+        ? translate('DataExplorer_EditReport')
+        : translate('DataExplorer_SaveReport') }}</button>
+      <button
         v-if="customReports && activeTab === 'explore'"
         type="button"
         class="btn dataExplorer__saveCustomReport"
@@ -81,8 +90,8 @@
     <div
       v-show="activeTab === 'explore'"
       id="dataExplorerPanel-explore"
-      :role="isSuperUser ? 'tabpanel' : undefined"
-      :aria-labelledby="isSuperUser ? 'dataExplorerTab-explore' : undefined"
+      role="tabpanel"
+      aria-labelledby="dataExplorerTab-explore"
       class="dataExplorer__panel"
     >
       <Notification
@@ -139,6 +148,56 @@
           :hint="hint"
           :widget-params="previewParams"
           @view-changed="onCanvasView"
+        />
+      </div>
+    </div>
+
+    <div
+      v-if="funnelOpened"
+      v-show="activeTab === 'funnel'"
+      id="dataExplorerPanel-funnel"
+      role="tabpanel"
+      aria-labelledby="dataExplorerTab-funnel"
+      class="dataExplorer__panel"
+    >
+      <Notification
+        v-if="catalogError"
+        context="error"
+        :noclear="true"
+      >{{ catalogError }}</Notification>
+      <ActivityIndicator :loading="!catalog && !catalogError" />
+
+      <div
+        v-if="catalog"
+        class="dataExplorer__columns"
+      >
+        <VariablesPanel
+          :dimensions="dimensionViews"
+          :metrics="metricViews"
+          :segments="segmentViews"
+          :dimension-groups="dimensionGroups"
+          :metric-groups="metricGroups"
+          :segment-groups="segmentGroups"
+          @add-variable="addVariable"
+          @remove-variable="removeVariable"
+          @use="useFunnelVariable"
+        />
+        <FunnelSettings
+          :funnel="funnel"
+          :dimension-options="dimensionViews"
+          :breakdown-items="breakdownItems"
+          @update="setFunnel"
+        />
+        <ExplorerCanvas
+          :title="funnelTitle"
+          icon="icon-funnel"
+          :period-text="periodText"
+          :period-dates="periodDates"
+          :segment-text="segmentText"
+          @open-period-selector="openPeriodSelector"
+          visualization="table"
+          :hint="funnelHint"
+          :widget-params="funnelParams"
         />
       </div>
     </div>
@@ -247,6 +306,17 @@ import VariablesPanel from './VariablesPanel.vue';
 import RawSqlEditor from '../RawSql/RawSqlEditor.vue';
 import SaveDialog from '../SaveDialog/SaveDialog.vue';
 import CustomReportDialog from '../CustomReport/CustomReportDialog.vue';
+import FunnelSettings from '../Funnel/FunnelSettings.vue';
+import {
+  decodeFunnel,
+  defaultFunnel,
+  encodeFunnel,
+  fromFunnelDefinition,
+  FUNNEL_HASH_PARAM,
+  funnelDimensions,
+  isFunnelRunnable as funnelCanRun,
+  toFunnelDefinition,
+} from './funnelState';
 import {
   clampToLimits,
   decode,
@@ -265,6 +335,7 @@ import {
   toDefinition,
 } from './explorationState';
 import { distinctNames } from './catalogNames';
+import { registerSegments } from './valueSuggestions';
 import type {
   ImportedCustomReport,
   ReportPickerGroup,
@@ -275,6 +346,7 @@ import type {
   ExplorationState,
   Filter,
   FilterView,
+  FunnelState,
   MetricItem,
   PickerGroup,
   PickerItem,
@@ -289,7 +361,10 @@ import type {
 
 const RUN_DELAY_MS = 300;
 
-type Tab = 'explore' | 'sql';
+type Tab = 'explore' | 'funnel' | 'sql';
+
+// the open tab in the URL, when it is not the free form
+const TAB_HASH_PARAM = 'technique';
 type Zone = 'rows' | 'column' | 'values' | 'filters' | 'segment';
 
 /**
@@ -315,6 +390,7 @@ export default defineComponent({
     RawSqlEditor,
     SaveDialog,
     CustomReportDialog,
+    FunnelSettings,
     ReportPicker,
     TabSettings,
     VariablesPanel,
@@ -364,6 +440,10 @@ export default defineComponent({
     // the chart of the Raw SQL result, saved with the query like the one of an exploration
     const sqlVisualization = ref<Visualization>('table');
     const activeTab = ref<Tab>('explore');
+    const funnel = ref<FunnelState>(defaultFunnel());
+    const funnelOpened = ref(false);
+    // the funnel of an opened saved funnel, '' when none is open
+    const openedFunnel = ref('');
 
     // a treemap opened, or kept in the URL, after the Treemap Visualization plugin was deactivated
     watch(() => [state.visualization, sqlVisualization.value], () => {
@@ -389,6 +469,9 @@ export default defineComponent({
     const openedSql = ref<string|null>(null);
     const openedSqlVisualization = ref<Visualization>('table');
     const isModified = computed(() => {
+      if (editing.value && editing.value.type === 'funnel') {
+        return openedFunnel.value !== '' && encodeFunnel(funnel.value) !== openedFunnel.value;
+      }
       if (openedSql.value !== null && editing.value && editing.value.type === 'sql') {
         return sql.value.trim() !== openedSql.value.trim()
           || sqlVisualization.value !== openedSqlVisualization.value;
@@ -400,6 +483,8 @@ export default defineComponent({
       && editing.value.type === 'visual');
     const isEditingSql = computed(() => !!editing.value && editing.value.editable
       && editing.value.type === 'sql');
+    const isEditingFunnel = computed(() => !!editing.value && editing.value.editable
+      && editing.value.type === 'funnel');
 
     // the page of a custom report in the reporting menu: Custom Reports names its own page after
     // the report id in its default category, after the report name elsewhere
@@ -432,14 +517,16 @@ export default defineComponent({
     const noticeContext = ref<'success'|'info'|'warning'|'error'>('success');
 
     const saveOpen = ref(false);
-    const saveType = ref<'visual'|'sql'>('visual');
+    const saveType = ref<'visual'|'sql'|'funnel'>('visual');
     const saveButton = ref<HTMLElement|null>(null);
+    const funnelSaveButton = ref<HTMLElement|null>(null);
 
     const canSaveAnything = computed(() => props.canSave || props.isSuperUser);
 
     const tabs = computed(() => [
       { id: 'explore' as Tab, label: translate('DataExplorer_ExploreTab') },
-      { id: 'sql' as Tab, label: translate('DataExplorer_SqlTab') },
+      { id: 'funnel' as Tab, label: translate('DataExplorer_FunnelTab') },
+      ...(props.isSuperUser ? [{ id: 'sql' as Tab, label: translate('DataExplorer_SqlTab') }] : []),
     ]);
 
     // catalogue lookups
@@ -743,6 +830,84 @@ export default defineComponent({
 
     let runTimer: ReturnType<typeof setTimeout>|null = null;
 
+    // the funnel tab
+    const funnelDefinition = computed(() => toFunnelDefinition(funnel.value, ''));
+    // a dimension of a step or of the breakdown that a funnel cannot read
+    const funnelReason = computed(() => {
+      const bad = funnelDimensions(funnel.value).find((id) => dimensionsById.value[id]
+        && !['visit', 'action', 'conversion'].includes(dimensionsById.value[id].scope));
+      return bad ? translate('DataExplorer_ErrorFunnelDimension', dimensionName(bad)) : '';
+    });
+    const isFunnelRunnable = computed(() => !!catalog.value && funnelCanRun(funnel.value)
+      && funnelReason.value === '');
+    const funnelHint = computed(() => {
+      if (funnelReason.value) {
+        return funnelReason.value;
+      }
+      return funnelCanRun(funnel.value) ? '' : translate('DataExplorer_FunnelHint');
+    });
+    const funnelTitle = computed(() => (editing.value && editing.value.type === 'funnel'
+      ? editing.value.name
+      : translate('DataExplorer_FunnelCanvas')));
+    const funnelParams = ref<Record<string, string>|null>(null);
+    let funnelTimer: ReturnType<typeof setTimeout>|null = null;
+
+    function runFunnel() {
+      funnelParams.value = isFunnelRunnable.value
+        ? {
+          module: 'DataExplorer',
+          action: 'preview',
+          definition: JSON.stringify(funnelDefinition.value),
+          period: period.value,
+          date: date.value,
+          viewDataTable: 'dataExplorerFunnel',
+        }
+        : null;
+    }
+
+    function scheduleFunnelRun() {
+      if (funnelTimer) {
+        clearTimeout(funnelTimer);
+      }
+      funnelTimer = setTimeout(() => {
+        funnelTimer = null;
+        runFunnel();
+      }, RUN_DELAY_MS);
+    }
+
+    const breakdownItems = computed<ZoneItem[]>(() => {
+      const id = funnel.value.breakdown;
+      if (!id) {
+        return [];
+      }
+      const item = dimensionsById.value[id];
+      const reason = item && !['visit', 'action'].includes(item.scope)
+        ? translate('DataExplorer_ErrorFunnelBreakdown', dimensionName(id))
+        : '';
+      return [{ id, name: dimensionName(id), reason }];
+    });
+
+    // the dimensions of the funnel are listed in the variables, like those of the free form
+    function listFunnelDimensions() {
+      funnelDimensions(funnel.value).forEach((id) => {
+        if (!state.variables.dimensions.includes(id)) {
+          state.variables.dimensions.push(id);
+        }
+      });
+    }
+
+    function setFunnel(next: FunnelState) {
+      funnel.value = next;
+      listFunnelDimensions();
+    }
+
+    // a dimension double clicked in the funnel tab breaks the funnel down
+    function useFunnelVariable(kind: VariableKind, id: string) {
+      if (kind === 'dimension') {
+        setFunnel({ ...funnel.value, breakdown: id });
+      }
+    }
+
     function scheduleRun() {
       if (runTimer) {
         clearTimeout(runTimer);
@@ -755,6 +920,7 @@ export default defineComponent({
 
     // URL hash
     let lastEncoded = '';
+    let lastEncodedFunnel = '';
 
     function syncHash() {
       if (!Matomo.helper.isReportingPage()) {
@@ -762,12 +928,27 @@ export default defineComponent({
       }
       const encoded = encode(state);
       const current = MatomoUrl.hashParsed.value;
+      const encodedFunnel = funnelOpened.value ? encodeFunnel(funnel.value) : '';
+      const tab = activeTab.value === 'explore' ? '' : activeTab.value;
       if (encoded === lastEncoded && current[HASH_PARAM] === encoded
-        && (current[SQL_VIEW_PARAM] || 'table') === sqlVisualization.value) {
+        && (current[SQL_VIEW_PARAM] || 'table') === sqlVisualization.value
+        && (current[FUNNEL_HASH_PARAM] || '') === encodedFunnel
+        && (current[TAB_HASH_PARAM] || '') === tab) {
         return;
       }
       lastEncoded = encoded;
+      lastEncodedFunnel = encodedFunnel;
       const params: Record<string, unknown> = { ...current, [HASH_PARAM]: encoded };
+      if (encodedFunnel) {
+        params[FUNNEL_HASH_PARAM] = encodedFunnel;
+      } else {
+        delete params[FUNNEL_HASH_PARAM];
+      }
+      if (tab) {
+        params[TAB_HASH_PARAM] = tab;
+      } else {
+        delete params[TAB_HASH_PARAM];
+      }
       if (sqlVisualization.value !== 'table') {
         params[SQL_VIEW_PARAM] = sqlVisualization.value;
       } else {
@@ -789,6 +970,18 @@ export default defineComponent({
     function openReport(report: SavedReport, keepState: boolean) {
       editing.value = report;
       openedSql.value = null;
+      openedFunnel.value = '';
+      if (report.type === 'funnel') {
+        if (!keepState) {
+          funnel.value = fromFunnelDefinition(report.definition);
+          listFunnelDimensions();
+        }
+        openedFunnel.value = encodeFunnel(fromFunnelDefinition(report.definition));
+        openedSnapshot.value = '';
+        funnelOpened.value = true;
+        activeTab.value = 'funnel';
+        return;
+      }
       if (report.type === 'sql') {
         sql.value = report.definition.sql || '';
         sqlVisualization.value = fromDefinition(
@@ -810,7 +1003,7 @@ export default defineComponent({
     }
 
     const openableReports = computed(() => reports.value.filter(
-      (report) => report.type === 'visual' || props.isSuperUser,
+      (report) => report.type !== 'sql' || props.isSuperUser,
     ));
 
     function readHash() {
@@ -827,10 +1020,28 @@ export default defineComponent({
         editing.value = null;
         openedSnapshot.value = '';
         openedSql.value = null;
+        openedFunnel.value = '';
       }
 
       if (encoded && encoded !== lastEncoded) {
         applyState(decode(encoded));
+      }
+      const encodedFunnel = typeof hash[FUNNEL_HASH_PARAM] === 'string'
+        ? hash[FUNNEL_HASH_PARAM] as string
+        : '';
+      if (encodedFunnel && encodedFunnel !== lastEncodedFunnel) {
+        lastEncodedFunnel = encodedFunnel;
+        funnel.value = decodeFunnel(encodedFunnel);
+        funnelOpened.value = true;
+        listFunnelDimensions();
+      }
+      const tab = String(hash[TAB_HASH_PARAM] || '');
+      if (tab === 'funnel' && activeTab.value !== 'funnel') {
+        activeTab.value = 'funnel';
+        funnelOpened.value = true;
+      } else if (tab === 'sql' && props.isSuperUser && activeTab.value !== 'sql') {
+        activeTab.value = 'sql';
+        sqlOpened.value = true;
       }
       const sqlView = String(hash[SQL_VIEW_PARAM] || 'table') as Visualization;
       const known = !!VIEW_BY_VISUALIZATION[sqlView];
@@ -997,7 +1208,9 @@ export default defineComponent({
         editing.value = null;
         openedSnapshot.value = '';
         openedSql.value = null;
+        openedFunnel.value = '';
         applyState(defaultState());
+        funnel.value = defaultFunnel();
         sql.value = '';
         sqlVisualization.value = 'table';
         syncHash();
@@ -1034,6 +1247,9 @@ export default defineComponent({
       if (tab === 'sql') {
         sqlOpened.value = true;
       }
+      if (tab === 'funnel') {
+        funnelOpened.value = true;
+      }
     }
 
     // variables and drop zones
@@ -1057,6 +1273,14 @@ export default defineComponent({
           state.column = null;
         }
         state.filters = state.filters.filter((filter) => filter.dimension !== id);
+        funnel.value = {
+          ...funnel.value,
+          breakdown: funnel.value.breakdown === id ? null : funnel.value.breakdown,
+          steps: funnel.value.steps.map((step) => ({
+            ...step,
+            conditions: step.conditions.filter((condition) => condition.dimension !== id),
+          })),
+        };
       } else if (kind === 'metric') {
         state.variables.metrics = state.variables.metrics.filter((item) => item !== id);
         state.values = state.values.filter((item) => item !== id);
@@ -1200,11 +1424,20 @@ export default defineComponent({
     }
 
     // saving
-    const saveReportType = computed(() => reportTypeOf(saveType.value === 'sql'
-      ? sqlVisualization.value
-      : state.visualization));
+    const saveReportType = computed(() => {
+      if (saveType.value === 'funnel') {
+        return 'funnel';
+      }
+      return reportTypeOf(saveType.value === 'sql' ? sqlVisualization.value : state.visualization);
+    });
 
     const saveDefinition = computed<Record<string, unknown>>(() => {
+      if (saveType.value === 'funnel') {
+        const def = { ...funnelDefinition.value } as Record<string, unknown>;
+        delete def.type;
+        delete def.report_type;
+        return def;
+      }
       if (saveType.value === 'sql') {
         return {
           sql: sql.value,
@@ -1217,7 +1450,7 @@ export default defineComponent({
       return def;
     });
 
-    function openSave(type: 'visual'|'sql') {
+    function openSave(type: 'visual'|'sql'|'funnel') {
       notice.value = '';
       saveType.value = type;
       saveOpen.value = true;
@@ -1238,6 +1471,7 @@ export default defineComponent({
           importedUnsupported.value = [];
           openedSnapshot.value = report.type === 'visual' ? snapshotOf(state) : '';
           openedSql.value = report.type === 'sql' ? sql.value : null;
+          openedFunnel.value = report.type === 'funnel' ? encodeFunnel(funnel.value) : '';
           openedSqlVisualization.value = sqlVisualization.value;
           lastEncoded = '';
           syncHash();
@@ -1247,9 +1481,12 @@ export default defineComponent({
 
     function onSaveClosed() {
       nextTick(() => {
-        const trigger = saveType.value === 'sql'
+        let trigger = saveType.value === 'sql'
           ? document.querySelector('.dataExplorerSql__save') as HTMLElement|null
           : saveButton.value;
+        if (saveType.value === 'funnel') {
+          trigger = funnelSaveButton.value;
+        }
         if (trigger) {
           trigger.focus();
         }
@@ -1278,7 +1515,8 @@ export default defineComponent({
     // looks at the last 28 days; a period picked inside the explorer is then kept
     function startOnLast28Days() {
       const current = MatomoUrl.hashParsed.value;
-      if (!Matomo.helper.isReportingPage() || current[HASH_PARAM] || current[REPORT_HASH_PARAM]) {
+      if (!Matomo.helper.isReportingPage() || current[HASH_PARAM] || current[REPORT_HASH_PARAM]
+        || current[FUNNEL_HASH_PARAM]) {
         return;
       }
       if (current.period === DEFAULT_PERIOD && current.date === DEFAULT_DATE) {
@@ -1298,12 +1536,19 @@ export default defineComponent({
           { createErrorNotification: false, abortable: false },
         ).then((result) => {
           catalog.value = result;
+          registerSegments(result);
         }).catch((e: Error) => {
           catalogError.value = e.message;
         }),
         loadReports(),
         loadCustomReports(),
       ]).then(() => {
+        // a default variable of a deactivated plugin (Events) is not offered
+        if (catalog.value && !MatomoUrl.parsed.value[HASH_PARAM]) {
+          state.variables.dimensions = state.variables.dimensions
+            .filter((id) => !!dimensionsById.value[id]);
+          state.variables.metrics = state.variables.metrics.filter((id) => !!metricsById.value[id]);
+        }
         readHash();
 
         stopWatchers.push(watch(
@@ -1312,14 +1557,25 @@ export default defineComponent({
           () => JSON.stringify([requestDefinition.value, period.value, date.value, segment.value]),
           () => scheduleRun(),
         ));
+        stopWatchers.push(watch(
+          () => JSON.stringify([funnelDefinition.value, period.value, date.value, segment.value,
+            isFunnelRunnable.value]),
+          () => scheduleFunnelRun(),
+        ));
         stopWatchers.push(watch(() => JSON.stringify(state), () => syncHash()));
         stopWatchers.push(watch(sqlVisualization, () => syncHash()));
         stopWatchers.push(watch(
-          () => [MatomoUrl.parsed.value[HASH_PARAM], MatomoUrl.parsed.value[REPORT_HASH_PARAM]],
+          () => [JSON.stringify(funnel.value), activeTab.value],
+          () => syncHash(),
+        ));
+        stopWatchers.push(watch(
+          () => [MatomoUrl.parsed.value[HASH_PARAM], MatomoUrl.parsed.value[REPORT_HASH_PARAM],
+            MatomoUrl.parsed.value[FUNNEL_HASH_PARAM], MatomoUrl.parsed.value[TAB_HASH_PARAM]],
           () => readHash(),
         ));
 
         run();
+        runFunnel();
       });
     });
 
@@ -1328,6 +1584,9 @@ export default defineComponent({
       stopWatchers.forEach((stop) => stop());
       if (runTimer) {
         clearTimeout(runTimer);
+      }
+      if (funnelTimer) {
+        clearTimeout(funnelTimer);
       }
     });
 
@@ -1344,6 +1603,17 @@ export default defineComponent({
       isModified,
       isEditingVisual,
       isEditingSql,
+      isEditingFunnel,
+      funnel,
+      funnelOpened,
+      funnelHint,
+      funnelTitle,
+      funnelParams,
+      isFunnelRunnable,
+      breakdownItems,
+      setFunnel,
+      useFunnelVariable,
+      funnelSaveButton,
       leaveConfirmOpen,
       confirmLeave,
       noticeLink,

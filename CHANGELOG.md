@@ -1,5 +1,14 @@
 ## Changelog
 
+## 6.4.0
+
+- Funnel technique, between Free form and Raw SQL. Steps match any visit, action or conversion dimension, several conditions on the same hit (event name and its custom dimension), and can be optional, directly or indirectly followed, within a time limit. Closed or open funnel, breakdown by a visit or action dimension. A visit makes a new pass each time it meets the first step again. Computed live on any past period, saved funnels are archived like the other reports.
+- Filters and funnel conditions suggest the values of their dimension, like the segment editor.
+- Charts offer the chosen metrics in their metric picker: several for the bar and line charts, one for the pie and the treemap.
+- A treemap draws the first chosen metric instead of visits, and without evolution (a date range) it is shaded from light to dark with its values.
+- Event Name and Events join the default variables of a new exploration.
+- Data Explorer is listed with the insights plugins of the Marketplace.
+
 ## 6.3.0
 
 - Treemap visualization when the Treemap Visualization plugin is active, for explorations, raw SQL results and saved reports. On a day, week, month or year its rectangles are colored by their evolution against the previous period.

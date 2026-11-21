@@ -239,6 +239,81 @@ class ReportDefinitionTest extends TestCase
         ];
     }
 
+    private function funnel(array $override = []): array
+    {
+        return array_merge([
+            'name' => 'Contact funnel',
+            'type' => 'funnel',
+            'steps' => [
+                ['name' => 'Form start', 'conditions' => [['dimension' => 'Events.EventName', 'operator' => 'equals', 'value' => 'form_start']]],
+                ['name' => 'Lead', 'conditions' => [['dimension' => 'Events.EventName', 'operator' => 'equals', 'value' => 'generate_lead']], 'follow' => 'direct', 'within' => ['value' => 30, 'unit' => 'minutes']],
+            ],
+        ], $override);
+    }
+
+    public function testValidFunnel(): void
+    {
+        $def = ReportDefinition::fromArray($this->funnel(['open' => true, 'breakdown' => 'DevicesDetection.DeviceType', 'breakdown_rows' => 50, 'rows' => ['ignored']]));
+
+        $this->assertTrue($def->isFunnel());
+        $this->assertSame('funnel', $def->getTechnique());
+        $this->assertSame('funnel', $def->getReportType());
+        $this->assertSame([], $def->getRows());
+        $this->assertTrue($def->isOpen());
+        $this->assertSame('DevicesDetection.DeviceType', $def->getBreakdown());
+        $this->assertSame(20, $def->getBreakdownRows());
+        $steps = $def->getSteps();
+        $this->assertSame('indirect', $steps[0]['follow']);
+        $this->assertFalse($steps[0]['optional']);
+        $this->assertSame('direct', $steps[1]['follow']);
+        $this->assertSame(1800, ReportDefinition::withinSeconds($steps[1]));
+        $this->assertNull(ReportDefinition::withinSeconds($steps[0]));
+        $this->assertSame(0, $steps[1]['conditions'][0]['group']);
+        $this->assertSame($def->toArray(), ReportDefinition::fromArray($def->toArray())->toArray());
+    }
+
+    public function testFunnel_firstStepIsNeverOptional(): void
+    {
+        $funnel = $this->funnel();
+        $funnel['steps'][0]['optional'] = true;
+        $funnel['steps'][0]['follow'] = 'direct';
+        $funnel['steps'][0]['within'] = ['value' => 5, 'unit' => 'seconds'];
+
+        $step = ReportDefinition::fromArray($funnel)->getSteps()[0];
+        $this->assertFalse($step['optional']);
+        $this->assertSame('indirect', $step['follow']);
+        $this->assertNull($step['within']);
+    }
+
+    /**
+     * @dataProvider invalidFunnelProvider
+     */
+    public function testInvalidFunnelsAreRefused(callable $change, string $key, array $params = []): void
+    {
+        $funnel = $this->funnel();
+        $change($funnel);
+        try {
+            ReportDefinition::fromArray($funnel);
+            $this->fail('Expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame(Piwik::translate($key, $params), $e->getMessage());
+        }
+    }
+
+    public function invalidFunnelProvider(): array
+    {
+        return [
+            'one step' => [function (&$f) { array_pop($f['steps']); }, 'DataExplorer_ErrorFunnelStepsCount', [2, 10]],
+            'eleven steps' => [function (&$f) { $f['steps'] = array_fill(0, 11, $f['steps'][0]); }, 'DataExplorer_ErrorFunnelStepsCount', [2, 10]],
+            'no name' => [function (&$f) { $f['steps'][1]['name'] = ' '; }, 'DataExplorer_ErrorFunnelStepName', [2, 100]],
+            'no condition' => [function (&$f) { $f['steps'][1]['conditions'] = []; }, 'DataExplorer_ErrorFunnelStepConditions', ['Lead']],
+            'bad time unit' => [function (&$f) { $f['steps'][1]['within']['unit'] = 'weeks'; }, 'DataExplorer_ErrorFunnelStepWithin', ['Lead']],
+            'zero time' => [function (&$f) { $f['steps'][1]['within']['value'] = 0; }, 'DataExplorer_ErrorFunnelStepWithin', ['Lead']],
+            'last step optional' => [function (&$f) { $f['steps'][1]['optional'] = true; }, 'DataExplorer_ErrorFunnelLastStepOptional'],
+            'freeform technique' => [function (&$f) { $f['technique'] = 'freeform'; }, 'DataExplorer_ErrorTechniqueInvalid'],
+        ];
+    }
+
     public function testPlacement(): void
     {
         $all = Placement::fromArray(['all' => true]);

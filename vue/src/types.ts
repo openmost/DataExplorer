@@ -122,12 +122,60 @@ export interface VisualDefinition {
   chart?: '' | Chart;
 }
 
+export type FunnelFollow = 'indirect' | 'direct';
+
+export type FunnelTimeUnit = 'seconds' | 'minutes' | 'hours' | 'days';
+
+// conditions of the same group are ORed, the groups are ANDed, all tested on one action or conversion
+export interface FunnelStep {
+  name: string;
+  conditions: Filter[];
+  optional: boolean;
+  // how the step follows the previous one
+  follow: FunnelFollow;
+  within: { value: number, unit: FunnelTimeUnit }|null;
+}
+
+export interface FunnelState {
+  steps: FunnelStep[];
+  open: boolean;
+  breakdown: string|null;
+  breakdownRows: number;
+}
+
+export interface FunnelDefinition {
+  type: 'funnel';
+  technique: 'funnel';
+  report_type: 'funnel';
+  steps: FunnelStep[];
+  open: boolean;
+  breakdown: string|null;
+  breakdown_rows: number;
+  segment: string;
+}
+
+export interface FunnelValues {
+  label: string;
+  nb_started: number;
+  nb_entered: number;
+  nb_abandoned: number;
+  abandon_rate: number;
+  step_rate: number;
+  overall_rate: number;
+  avg_time_to_step: number;
+}
+
+export interface FunnelStepResult extends FunnelValues {
+  breakdown: FunnelValues[];
+}
+
 export interface SavedReport {
   idreport: number;
   name: string;
-  type: 'visual' | 'sql';
-  report_type: ReportType;
-  definition: Partial<VisualDefinition> & { sql?: string, description?: string };
+  type: 'visual' | 'sql' | 'funnel';
+  report_type: ReportType | 'funnel';
+  definition: Partial<VisualDefinition> & Partial<Omit<FunnelDefinition, 'type' | 'technique' | 'report_type'>>
+    & { sql?: string, description?: string };
   placement: { all: boolean, sites: number[] };
   category: string;
   subcategory: string;

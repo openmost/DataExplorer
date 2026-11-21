@@ -106,6 +106,11 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    // the tab icon, when the canvas shows something else than a visualization of the free form
+    icon: {
+      type: String,
+      default: '',
+    },
     visualization: {
       type: String as PropType<Visualization>,
       required: true,
@@ -121,7 +126,8 @@ export default defineComponent({
   },
   emits: ['openPeriodSelector', 'viewChanged'],
   setup(props, { emit }) {
-    const tabIcon = computed(() => VISUALIZATION_ICONS[props.visualization as Visualization]);
+    const tabIcon = computed(() => props.icon
+      || VISUALIZATION_ICONS[props.visualization as Visualization]);
     const stage = ref<HTMLElement|null>(null);
 
     // the core footer (visualization icons, "Make it flat") reloads the table by itself: its new

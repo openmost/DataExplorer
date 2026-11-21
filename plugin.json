@@ -1,7 +1,7 @@
 {
   "name": "DataExplorer",
   "description": "Build custom reports, funnels on any dimension and guarded raw SQL queries from your Matomo data, then save, share and export them.",
-  "version": "6.3.0",
+  "version": "6.4.0",
   "theme": false,
   "require": {
     "matomo": ">=6.0.0-b1,<7.0.0-b1",
@@ -30,7 +30,9 @@
     "bigquery",
     "ga4",
     "data explorer",
-    "export"
+    "export",
+    "funnel",
+    "funnels"
   ],
   "category": "insights"
 }

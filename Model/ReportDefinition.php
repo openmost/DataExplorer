@@ -25,11 +25,23 @@ class ReportDefinition
 
     public const TYPE_VISUAL = 'visual';
     public const TYPE_SQL = 'sql';
+    public const TYPE_FUNNEL = 'funnel';
     public const TECHNIQUE_FREEFORM = 'freeform';
+    public const TECHNIQUE_FUNNEL = 'funnel';
 
     public const REPORT_TYPE_TABLE = 'table';
     public const REPORT_TYPE_EVOLUTION = 'evolution';
     public const REPORT_TYPE_KPICARD = 'kpicard';
+    public const REPORT_TYPE_FUNNEL = 'funnel';
+
+    public const MIN_FUNNEL_STEPS = 2;
+    public const MAX_FUNNEL_STEPS = 10;
+    public const MAX_STEP_NAME_LENGTH = 100;
+    public const DEFAULT_BREAKDOWN_ROWS = 5;
+    public const MAX_BREAKDOWN_ROWS = 20;
+    public const FOLLOW_INDIRECT = 'indirect';
+    public const FOLLOW_DIRECT = 'direct';
+    public const TIME_UNITS = ['seconds' => 1, 'minutes' => 60, 'hours' => 3600, 'days' => 86400];
 
     // how a table report opens, its footer still offers the other views
     public const CHARTS = ['', 'bar', 'pie', 'treemap'];
@@ -67,6 +79,14 @@ class ReportDefinition
     private $chart = '';
     /** @var string */
     private $tableView = self::TABLE_VIEW_FLAT;
+    /** @var array */
+    private $steps = [];
+    /** @var bool */
+    private $open = false;
+    /** @var string|null */
+    private $breakdown = null;
+    /** @var int */
+    private $breakdownRows = self::DEFAULT_BREAKDOWN_ROWS;
 
     private function __construct()
     {
@@ -90,14 +110,35 @@ class ReportDefinition
             throw self::error('DataExplorer_ErrorDescriptionTooLong', self::MAX_DESCRIPTION_LENGTH);
         }
 
-        $def->technique = self::string($raw, 'technique', self::TECHNIQUE_FREEFORM);
-        if ($def->technique !== self::TECHNIQUE_FREEFORM) {
+        $def->type = self::string($raw, 'type', self::TYPE_VISUAL);
+        if (!in_array($def->type, [self::TYPE_VISUAL, self::TYPE_SQL, self::TYPE_FUNNEL], true)) {
+            throw self::error('DataExplorer_ErrorTypeInvalid');
+        }
+
+        $technique = $def->type === self::TYPE_FUNNEL ? self::TECHNIQUE_FUNNEL : self::TECHNIQUE_FREEFORM;
+        $def->technique = self::string($raw, 'technique', $technique);
+        if ($def->technique !== $technique) {
             throw self::error('DataExplorer_ErrorTechniqueInvalid');
         }
 
-        $def->type = self::string($raw, 'type', self::TYPE_VISUAL);
-        if (!in_array($def->type, [self::TYPE_VISUAL, self::TYPE_SQL], true)) {
-            throw self::error('DataExplorer_ErrorTypeInvalid');
+        if ($def->type === self::TYPE_FUNNEL) {
+            $def->reportType = self::REPORT_TYPE_FUNNEL;
+            $def->rows = [];
+            $def->column = null;
+            $def->metrics = [];
+            $def->filters = [];
+            $def->sql = '';
+            $def->segment = self::string($raw, 'segment', '');
+            $def->steps = self::steps($raw['steps'] ?? null);
+            $def->open = !empty($raw['open']);
+            $breakdown = $raw['breakdown'] ?? null;
+            $def->breakdown = is_string($breakdown) && $breakdown !== '' ? $breakdown : null;
+            $rows = $raw['breakdown_rows'] ?? self::DEFAULT_BREAKDOWN_ROWS;
+            $def->breakdownRows = is_numeric($rows)
+                ? max(1, min(self::MAX_BREAKDOWN_ROWS, (int) $rows))
+                : self::DEFAULT_BREAKDOWN_ROWS;
+
+            return $def;
         }
 
         $def->reportType = self::string($raw, 'report_type', self::REPORT_TYPE_TABLE);
@@ -186,6 +227,57 @@ class ReportDefinition
         if ($this->reportType === self::REPORT_TYPE_KPICARD && count($this->metrics) !== 1) {
             throw self::error('DataExplorer_ErrorKpiCardOneMetric');
         }
+    }
+
+    /**
+     * The steps of a funnel: a name, conditions grouped like filters, and how the step follows the previous one.
+     * The first step is never optional and follows nothing, the last one is never optional.
+     *
+     * @return array<int, array{name: string, conditions: array, optional: bool, follow: string, within: ?array{value: int, unit: string}}>
+     */
+    private static function steps($steps): array
+    {
+        if (!is_array($steps) || count($steps) < self::MIN_FUNNEL_STEPS || count($steps) > self::MAX_FUNNEL_STEPS) {
+            throw self::error('DataExplorer_ErrorFunnelStepsCount', self::MIN_FUNNEL_STEPS, self::MAX_FUNNEL_STEPS);
+        }
+
+        $result = [];
+        foreach (array_values($steps) as $index => $step) {
+            if (!is_array($step)) {
+                throw self::error('DataExplorer_ErrorFunnelStepInvalid', $index + 1);
+            }
+            $name = isset($step['name']) && is_string($step['name']) ? trim($step['name']) : '';
+            if ($name === '' || mb_strlen($name) > self::MAX_STEP_NAME_LENGTH) {
+                throw self::error('DataExplorer_ErrorFunnelStepName', $index + 1, self::MAX_STEP_NAME_LENGTH);
+            }
+            $conditions = self::filters($step['conditions'] ?? null, self::FILTER_MATCH_ALL);
+            if (!$conditions) {
+                throw self::error('DataExplorer_ErrorFunnelStepConditions', $name);
+            }
+
+            $within = null;
+            if ($index > 0 && is_array($step['within'] ?? null)) {
+                $value = $step['within']['value'] ?? null;
+                $unit = $step['within']['unit'] ?? null;
+                if (!is_numeric($value) || (int) $value < 1 || !is_string($unit) || !isset(self::TIME_UNITS[$unit])) {
+                    throw self::error('DataExplorer_ErrorFunnelStepWithin', $name);
+                }
+                $within = ['value' => (int) $value, 'unit' => $unit];
+            }
+
+            $result[] = [
+                'name' => $name,
+                'conditions' => $conditions,
+                'optional' => $index > 0 && !empty($step['optional']),
+                'follow' => $index > 0 && ($step['follow'] ?? '') === self::FOLLOW_DIRECT ? self::FOLLOW_DIRECT : self::FOLLOW_INDIRECT,
+                'within' => $within,
+            ];
+        }
+        if ($result[count($result) - 1]['optional']) {
+            throw self::error('DataExplorer_ErrorFunnelLastStepOptional');
+        }
+
+        return $result;
     }
 
     private static function error(string $key, ...$params): \InvalidArgumentException
@@ -343,8 +435,59 @@ class ReportDefinition
         return $this->sql;
     }
 
+    public function isFunnel(): bool
+    {
+        return $this->type === self::TYPE_FUNNEL;
+    }
+
+    /**
+     * @return array<int, array{name: string, conditions: array, optional: bool, follow: string, within: ?array{value: int, unit: string}}>
+     */
+    public function getSteps(): array
+    {
+        return $this->steps;
+    }
+
+    /**
+     * The time limit of a funnel step in seconds, null without one.
+     */
+    public static function withinSeconds(array $step): ?int
+    {
+        return $step['within'] === null ? null : $step['within']['value'] * self::TIME_UNITS[$step['within']['unit']];
+    }
+
+    public function isOpen(): bool
+    {
+        return $this->open;
+    }
+
+    public function getBreakdown(): ?string
+    {
+        return $this->breakdown;
+    }
+
+    public function getBreakdownRows(): int
+    {
+        return $this->breakdownRows;
+    }
+
     public function toArray(): array
     {
+        if ($this->type === self::TYPE_FUNNEL) {
+            return [
+                'name' => $this->name,
+                'description' => $this->description,
+                'type' => $this->type,
+                'technique' => $this->technique,
+                'report_type' => $this->reportType,
+                'steps' => $this->steps,
+                'open' => $this->open,
+                'breakdown' => $this->breakdown,
+                'breakdown_rows' => $this->breakdownRows,
+                'segment' => $this->segment,
+            ];
+        }
+
         if ($this->type === self::TYPE_SQL) {
             return [
                 'name' => $this->name,

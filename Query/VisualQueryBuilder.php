@@ -60,6 +60,9 @@ class VisualQueryBuilder
 
     private const IDENTIFIER = '/^[a-zA-Z0-9_]+$/';
 
+    /** dimensions of a funnel step that match page views only */
+    public const PAGE_VIEW_DIMENSIONS = ['Actions.PageUrl', 'Actions.PageTitle'];
+
     // alias.column of a log_action row joined for a metric (MetricCatalog::actionAlias())
     private const ACTION_REFERENCE = '/\b(' . MetricCatalog::ACTION_ALIAS_PREFIX . '[a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)/';
 
@@ -370,6 +373,214 @@ class VisualQueryBuilder
         }
 
         return ['sql' => $query['sql'], 'bind' => $this->insertFilterBind($aggregator, $query['sql'], $query['bind'], $bind)];
+    }
+
+    /**
+     * The table of the log a funnel step is tested on: the actions, or the conversions when one of its conditions
+     * reads a conversion dimension. A visit dimension matches every action of its visit.
+     *
+     * @param array[] $conditions resolved filters of the step
+     * @throws \InvalidArgumentException with a translated message for a dimension of another table, or a step
+     *         mixing action and conversion dimensions
+     */
+    public function funnelStepTable(array $conditions, string $stepName): string
+    {
+        $tables = [];
+        foreach ($conditions as $condition) {
+            $tables[$this->funnelTableOf($condition['dimension'])] = true;
+        }
+        unset($tables['log_visit']);
+        if (count($tables) > 1) {
+            throw $this->error('DataExplorer_ErrorFunnelStepMixesTables', $stepName);
+        }
+
+        return $tables ? (string) array_key_first($tables) : 'log_link_visit_action';
+    }
+
+    /**
+     * @throws \InvalidArgumentException with a translated message for a dimension that is not a visit, action or
+     *         conversion dimension
+     */
+    public function funnelTableOf(DimensionEntry $dimension): string
+    {
+        if (!in_array($dimension->table, ['log_visit', 'log_link_visit_action', 'log_conversion'], true)) {
+            throw $this->error('DataExplorer_ErrorFunnelDimension', $dimension->name);
+        }
+
+        return $dimension->table;
+    }
+
+    /**
+     * The actions (or conversions) of the period matching at least one step, in visit order, one flag column per
+     * step (step_<index>, 1 when the row matches it). Columns: idvisit, pos (the action, the one a conversion was
+     * recorded on), prev (the action before pos in the visit, when $withPrevious), ts (seconds), bkey (breakdown
+     * value). Steps tested on another table are left out of $steps.
+     *
+     * The rows are read first, with the period, the segment and the conditions of every step in the WHERE clause,
+     * then flagged by an outer query over their values: the flags come first in the SQL, so do their bound values.
+     *
+     * @param array<int, array[]> $steps resolved filters (dimension, operator, value, group) by step index
+     * @return array{sql: string, bind: array}
+     */
+    public function funnelQuery(LogAggregator $aggregator, string $table, array $steps, ?DimensionEntry $breakdown, bool $withPrevious): array
+    {
+        $dimensions = [];
+        foreach ($steps as $conditions) {
+            foreach ($conditions as $condition) {
+                $dimensions[$condition['dimension']->id] = $condition['dimension'];
+            }
+        }
+        if ($breakdown !== null && in_array($breakdown->table, ['log_visit', $table], true)) {
+            $dimensions[$breakdown->id] = $breakdown;
+        } else {
+            $breakdown = null;
+        }
+
+        $from = [$table];
+        foreach ($dimensions as $dimension) {
+            if (!in_array($dimension->table, $from, true)) {
+                $from[] = $dimension->table;
+            }
+        }
+        $from = $this->logTables()->joinOrder($from);
+
+        $joins = [];
+        $columns = [];
+        foreach (array_values($dimensions) as $index => $dimension) {
+            // a discriminator restricts the value, not the rows: other steps may read the same rows
+            $discriminators = [];
+            $this->addJoin($dimension, $joins, $discriminators);
+            $expression = $this->expression($dimension, $joins);
+            if ($table === 'log_link_visit_action' && in_array($dimension->id, self::PAGE_VIEW_DIMENSIONS, true)) {
+                // an event or a content interaction carries the URL and title of its page: a step on a page means a
+                // page view of it
+                $discriminators[] = $table . '.idaction_event_category IS NULL';
+                $discriminators[] = $table . '.idaction_content_interaction IS NULL';
+            }
+            if ($discriminators) {
+                $expression = 'IF(' . implode(' AND ', $discriminators) . ', ' . $expression . ', NULL)';
+            }
+            $columns[$dimension->id] = ['expression' => $expression, 'alias' => 'c_' . $index];
+        }
+        foreach ($joins as $join) {
+            $from[] = $join['from'];
+        }
+
+        $select = [
+            $table . '.idvisit AS idvisit',
+            $table . '.idlink_va AS pos',
+            "TIMESTAMPDIFF(SECOND, '1970-01-01 00:00:00', " . $table . '.server_time) AS ts',
+        ];
+        if ($withPrevious) {
+            $select[] = '(SELECT MAX(dataexplorer_previous.idlink_va) FROM ' . \Piwik\Common::prefixTable('log_link_visit_action')
+                . ' AS dataexplorer_previous WHERE dataexplorer_previous.idvisit = ' . $table . '.idvisit'
+                . ' AND dataexplorer_previous.idlink_va < ' . $table . '.idlink_va) AS prev';
+        }
+        foreach ($columns as $column) {
+            $select[] = $column['expression'] . ' AS ' . $column['alias'];
+        }
+        $select[] = ($breakdown !== null ? $columns[$breakdown->id]['expression'] : 'NULL') . ' AS bkey';
+
+        $whereBind = [];
+        $any = [];
+        foreach ($steps as $conditions) {
+            [$condition, $values] = $this->funnelStepCondition($conditions, fn (DimensionEntry $d) => $columns[$d->id]['expression']);
+            $any[] = $condition;
+            array_push($whereBind, ...$values);
+        }
+        $where = $aggregator->getWhereStatement($table, 'server_time');
+        $where .= ' AND (' . ($any ? implode(' OR ', $any) : '1 = 0') . ')';
+
+        $inner = $aggregator->generateQuery(implode(', ', $select), $from, $where, '', '');
+        $bind = $this->insertFilterBind($aggregator, $inner['sql'], $inner['bind'], $whereBind);
+
+        $outerBind = [];
+        $outer = ['funnel_rows.idvisit', 'funnel_rows.pos', 'funnel_rows.ts', 'funnel_rows.bkey'];
+        if ($withPrevious) {
+            $outer[] = 'funnel_rows.prev';
+        }
+        foreach ($steps as $index => $conditions) {
+            [$condition, $values] = $this->funnelStepCondition($conditions, fn (DimensionEntry $d) => 'funnel_rows.' . $columns[$d->id]['alias']);
+            $outer[] = 'IF(' . $condition . ', 1, 0) AS step_' . (int) $index;
+            array_push($outerBind, ...$values);
+        }
+
+        $sql = 'SELECT ' . implode(', ', $outer) . ' FROM (' . $inner['sql'] . ') AS funnel_rows'
+            . ' ORDER BY funnel_rows.idvisit, funnel_rows.ts, funnel_rows.pos';
+
+        return ['sql' => $sql, 'bind' => array_merge($outerBind, $bind)];
+    }
+
+    /**
+     * Distinct stored values of a dimension over the period, at most $limit, for the label conditions of a funnel.
+     *
+     * @return array{sql: string, bind: array}
+     */
+    public function distinctValuesQuery(LogAggregator $aggregator, DimensionEntry $dimension, int $limit): array
+    {
+        $table = $dimension->table === 'log_visit' ? 'log_visit' : $this->funnelTableOf($dimension);
+        $joins = [];
+        $discriminators = [];
+        $this->addJoin($dimension, $joins, $discriminators);
+        $from = [$table];
+        foreach ($joins as $join) {
+            $from[] = $join['from'];
+        }
+        $expression = $this->expression($dimension, $joins);
+        $datetime = $table === 'log_visit' ? 'visit_last_action_time' : 'server_time';
+        $where = $aggregator->getWhereStatement($table, $datetime);
+        foreach ($discriminators as $discriminator) {
+            $where .= ' AND ' . $discriminator;
+        }
+
+        $query = $aggregator->generateQuery('DISTINCT ' . $expression . ' AS label_0', $from, $where, '', '');
+        $query['sql'] .= ' LIMIT ' . max(1, $limit);
+
+        return $query;
+    }
+
+    /**
+     * The conditions of a step: OR inside a group, AND between groups.
+     *
+     * @param callable(DimensionEntry): string $expressionOf
+     * @return array{0: string, 1: array}
+     */
+    private function funnelStepCondition(array $conditions, callable $expressionOf): array
+    {
+        $groups = [];
+        $bind = [];
+        foreach ($conditions as $condition) {
+            [$sql, $values] = $this->filterCondition($expressionOf($condition['dimension']), $condition);
+            $groups[$condition['group'] ?? 0][] = $sql;
+            array_push($bind, ...$values);
+        }
+        if (!$groups) {
+            return ['1 = 0', []];
+        }
+
+        return ['(' . implode(' AND ', array_map(fn (array $group) => '(' . implode(' OR ', $group) . ')', $groups)) . ')', $bind];
+    }
+
+    /**
+     * Resolves the conditions of a funnel step like filters: the dimension looked up, the value checked.
+     *
+     * @return array[] dimension (DimensionEntry), operator, value, group
+     */
+    public function resolveConditions(array $conditions, int $idSite): array
+    {
+        $dimensions = $this->dimensionCatalog->all($idSite);
+        $resolved = [];
+        foreach ($conditions as $condition) {
+            $resolved[] = $this->filter($this->dimension($dimensions, $condition['dimension']), $condition['operator'], $condition['value'])
+                + ['group' => $condition['group'] ?? 0];
+        }
+
+        return $resolved;
+    }
+
+    public function resolveDimension(string $id, int $idSite): DimensionEntry
+    {
+        return $this->dimension($this->dimensionCatalog->all($idSite), $id);
     }
 
     /**

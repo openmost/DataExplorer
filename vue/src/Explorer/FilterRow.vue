@@ -73,9 +73,21 @@
         :ui-control-attributes="{
           'aria-label': translate('DataExplorer_FilterValueLabel', dimensionName),
           inputmode: isNumeric ? 'decimal' : 'text',
+          list: suggestions.length ? `${uid}-values` : undefined,
+          autocomplete: 'off',
         }"
         @update:model-value="draft.value = String($event)"
       />
+      <datalist
+        v-if="suggestions.length"
+        :id="`${uid}-values`"
+      >
+        <option
+          v-for="value in suggestions"
+          :key="value"
+          :value="value"
+        />
+      </datalist>
       <div class="dataExplorerFilter__actions">
         <button
           type="button"
@@ -100,10 +112,12 @@ import {
   PropType,
   reactive,
   ref,
+  watch,
 } from 'vue';
 import { translate } from 'CoreHome';
 import { Field } from 'CorePluginsAdmin';
 import { FILTER_OPERATORS } from './explorationState';
+import { suggestedValues } from './valueSuggestions';
 import type { Filter, FilterOperator } from '../types';
 
 let nextId = 0;
@@ -142,6 +156,16 @@ export default defineComponent({
 
     const isNumeric = computed(() => ['gt', 'gte', 'lt', 'lte'].includes(draft.operator));
 
+    // the values of the dimension, offered while the condition is edited
+    const suggestions = ref<string[]>([]);
+    watch(editing, (open) => {
+      if (open && !suggestions.value.length) {
+        suggestedValues(props.filter.dimension).then((values) => {
+          suggestions.value = values;
+        });
+      }
+    }, { immediate: true });
+
     function operatorLabel(operator: FilterOperator) {
       return translate(`DataExplorer_FilterOperator_${operator}`);
     }
@@ -179,6 +203,7 @@ export default defineComponent({
       editing,
       draft,
       isNumeric,
+      suggestions,
       operatorOptions: FILTER_OPERATORS.map((operator) => ({
         key: operator,
         value: operatorLabel(operator),

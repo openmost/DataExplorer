@@ -213,7 +213,7 @@ type Placement = 'site' | 'sites' | 'all';
 interface SaveForm {
   name: string;
   description: string;
-  reportType: ReportType;
+  reportType: ReportType | 'funnel';
   placement: Placement;
   sites: string[];
   category: string;
@@ -254,12 +254,12 @@ export default defineComponent({
       default: () => [],
     },
     type: {
-      type: String as PropType<'visual'|'sql'>,
+      type: String as PropType<'visual'|'sql'|'funnel'>,
       required: true,
     },
     // report type of a visual exploration, chosen in the dialog for raw SQL
     reportType: {
-      type: String as PropType<ReportType>,
+      type: String as PropType<ReportType | 'funnel'>,
       default: 'table',
     },
     definition: {

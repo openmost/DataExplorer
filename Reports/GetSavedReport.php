@@ -35,7 +35,9 @@ use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
+use Piwik\Plugins\DataExplorer\Query\FunnelResult;
 use Piwik\Plugins\DataExplorer\Query\LabelFormatter;
+use Piwik\Plugins\DataExplorer\Visualizations\Funnel as FunnelVisualization;
 use Piwik\Plugins\DataExplorer\Query\ProcessedMetrics;
 use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
@@ -61,6 +63,16 @@ class GetSavedReport extends Report
 
     /** rows of a bar or pie chart of a metric that does not add up across rows, which gets no "Others" slice */
     public const GRAPH_ROWS = 6;
+
+    /** the columns of a funnel shown in tables and exports, with their translation keys */
+    public const FUNNEL_METRICS = [
+        FunnelResult::ENTERED => 'DataExplorer_FunnelEntered',
+        FunnelResult::STEP_RATE => 'DataExplorer_FunnelStepRate',
+        FunnelResult::ABANDONED => 'DataExplorer_FunnelAbandoned',
+        FunnelResult::ABANDON_RATE => 'DataExplorer_FunnelAbandonRate',
+        FunnelResult::OVERALL_RATE => 'DataExplorer_FunnelOverallRate',
+        FunnelResult::AVG_TIME => 'DataExplorer_FunnelAvgTime',
+    ];
 
     /** id of the visualization of the Treemap Visualization plugin, which may not be installed */
     public const TREEMAP_VIEW = 'infoviz-treemap';
@@ -134,7 +146,7 @@ class GetSavedReport extends Report
         // the result of the Raw SQL tab, rendered like a saved raw SQL report: super users only
         if (($raw['type'] ?? '') === ReportDefinition::TYPE_SQL) {
             (new ReportPermissions())->checkCanRunRawSql();
-        } else {
+        } elseif (($raw['type'] ?? '') !== ReportDefinition::TYPE_FUNNEL) {
             $raw['type'] = ReportDefinition::TYPE_VISUAL;
         }
         if (!isset($raw['name']) || !is_string($raw['name']) || trim($raw['name']) === '') {
@@ -252,6 +264,8 @@ class GetSavedReport extends Report
 
         if ($row['type'] === ReportDefinition::TYPE_VISUAL) {
             $this->initVisual($row, $idSite);
+        } elseif ($row['type'] === ReportDefinition::TYPE_FUNNEL) {
+            $this->initFunnel();
         } else {
             $this->initSql($row);
         }
@@ -284,6 +298,8 @@ class GetSavedReport extends Report
     public function getDefaultTypeViewDataTable()
     {
         switch ($this->getReportType()) {
+            case ReportDefinition::REPORT_TYPE_FUNNEL:
+                return FunnelVisualization::ID;
             case ReportDefinition::REPORT_TYPE_EVOLUTION:
                 return Evolution::ID;
             case ReportDefinition::REPORT_TYPE_KPICARD:
@@ -305,13 +321,14 @@ class GetSavedReport extends Report
 
     public function alwaysUseDefaultViewDataTable()
     {
-        return $this->getReportType() === ReportDefinition::REPORT_TYPE_EVOLUTION || $this->getReportType() === ReportDefinition::REPORT_TYPE_KPICARD;
+        return in_array($this->getReportType(), [ReportDefinition::REPORT_TYPE_EVOLUTION, ReportDefinition::REPORT_TYPE_KPICARD, ReportDefinition::REPORT_TYPE_FUNNEL], true);
     }
 
     public function getDefaultSortColumn()
     {
-        // no default sort, so the rows of a raw SQL report keep the order of the query
-        return $this->isSql() ? '' : parent::getDefaultSortColumn();
+        // no default sort, so the rows of a raw SQL report keep the order of the query, those of a funnel the
+        // order of its steps
+        return $this->isSql() || $this->isFunnel() ? '' : parent::getDefaultSortColumn();
     }
 
     public function isEnabled()
@@ -418,6 +435,22 @@ class GetSavedReport extends Report
             $this->configureKpiCard($view);
             return;
         }
+        if ($this->isFunnel()) {
+            // the chart reads every step with its breakdown values
+            $view->requestConfig->request_parameters_to_modify['expanded'] = 1;
+            $view->requestConfig->filter_sort_column = '';
+            $view->config->enable_sort = false;
+            $view->config->footer_icons = [];
+            $view->config->addTranslation('label', Piwik::translate('DataExplorer_FunnelStep'));
+            $view->config->columns_to_display = array_merge(['label'], array_keys(self::FUNNEL_METRICS));
+            $view->config->show_search = false;
+            $view->config->show_flatten_table = false;
+            $view->config->disable_row_evolution = true;
+            if (property_exists($view->config, 'disable_forecast')) {
+                $view->config->disable_forecast = true;
+            }
+            return;
+        }
         if ($this->getReportType() !== ReportDefinition::REPORT_TYPE_TABLE) {
             // the forecast of incomplete periods (Matomo 5.14+) asks the report again without its idExploration and
             // definition, the failed request turns the whole response into a 400
@@ -428,6 +461,13 @@ class GetSavedReport extends Report
             $view->config->footer_icons = [];
             if ($this->hiddenColumns) {
                 $view->config->columns_to_display = $this->metrics;
+            }
+            if ($view instanceof Graph) {
+                // the metric picker of the line chart offers the chosen metrics, all drawn at first
+                $view->config->selectable_columns = $this->metrics;
+                if (Common::getRequestVar('columns', '', 'string') === '') {
+                    $view->config->columns_to_display = $this->metrics;
+                }
             }
             return;
         }
@@ -519,7 +559,20 @@ class GetSavedReport extends Report
             uksort($columns, function ($a, $b) use ($order) {
                 return ($order[self::metricOf((string) $a)] ?? PHP_INT_MAX) <=> ($order[self::metricOf((string) $b)] ?? PHP_INT_MAX);
             });
-            $view->config->columns_to_display = array_values(array_merge(['label'], $columns));
+            $columns = array_values($columns);
+            if ($view instanceof Graph) {
+                // the metric picker under a chart offers the chosen metrics, one at a time for a pie or a treemap
+                $view->config->selectable_columns = $columns;
+                $requested = array_filter(explode(',', Common::getRequestVar('columns', '', 'string')));
+                $picked = array_values(array_intersect($requested, $columns));
+                if ($picked === []) {
+                    $single = in_array($view::getViewDataTableId(), [Pie::ID, self::TREEMAP_VIEW], true);
+                    $picked = $single ? array_slice($columns, 0, 1) : $columns;
+                }
+                $view->config->columns_to_display = array_merge(['label'], $picked);
+            } else {
+                $view->config->columns_to_display = array_merge(['label'], $columns);
+            }
 
             foreach ($columns as $column) {
                 $position = strpos((string) $column, LabelFormatter::PIVOT_SEPARATOR);
@@ -623,6 +676,22 @@ class GetSavedReport extends Report
             $this->metrics[] = $column;
             $this->metricNames[$column] = $column;
         }
+    }
+
+    /**
+     * A funnel reads one row per step, labelled with the step name.
+     */
+    private function initFunnel(): void
+    {
+        foreach (self::FUNNEL_METRICS as $metric => $key) {
+            $this->metrics[] = $metric;
+            $this->metricNames[$metric] = Piwik::translate($key);
+        }
+    }
+
+    public function isFunnel(): bool
+    {
+        return $this->getReportType() === ReportDefinition::REPORT_TYPE_FUNNEL;
     }
 
     private function initVisual(array $row, int $idSite): void
