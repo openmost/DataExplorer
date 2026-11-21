@@ -432,6 +432,11 @@ class GetSavedReport extends Report
             return;
         }
 
+        if ($view::getViewDataTableId() === self::TREEMAP_VIEW && $this->metrics) {
+            // the treemap picks the metric it draws when it loads, before the filters below set the columns
+            $view->config->columns_to_display = ['label', reset($this->metrics)];
+        }
+
         if ($view instanceof Graph && $this->nonAdditiveMetrics) {
             // an "Others" row sums the rows past a limit (the graph's or the archive's), wrong for a metric that does
             // not add up across rows: the chart keeps the top rows only
