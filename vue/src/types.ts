@@ -66,7 +66,10 @@ export interface PickerGroup {
   items: PickerItem[];
 }
 
-export type Visualization = 'table' | 'line' | 'bar' | 'pie' | 'kpicard';
+export type Visualization = 'table' | 'line' | 'bar' | 'pie' | 'treemap' | 'kpicard';
+
+// the charts of a table report
+export type Chart = 'bar' | 'pie' | 'treemap';
 
 export type ReportType = 'table' | 'evolution' | 'kpicard';
 
@@ -116,7 +119,7 @@ export interface VisualDefinition {
   table_view?: TableView;
   segment: string;
   // the view a saved table report opens with
-  chart?: '' | 'bar' | 'pie';
+  chart?: '' | Chart;
 }
 
 export interface SavedReport {

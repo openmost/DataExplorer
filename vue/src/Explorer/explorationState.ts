@@ -7,6 +7,7 @@
 
 import type {
   CatalogLimits,
+  Chart,
   ExplorationState,
   Filter,
   FilterOperator,
@@ -25,17 +26,32 @@ export const VISUALIZATION_ICONS: Record<Visualization, string> = {
   table: 'icon-table',
   bar: 'icon-chart-bar',
   pie: 'icon-chart-pie',
-  line: 'icon-chart-line',
+  treemap: 'dataExplorerTreemapIcon',
+  line: 'dataExplorerLineIcon',
   kpicard: 'dataExplorerKpiIcon',
 };
 
-export const VISUALIZATIONS: Visualization[] = ['table', 'bar', 'pie', 'line', 'kpicard'];
+export const VISUALIZATIONS: Visualization[] = ['table', 'bar', 'pie', 'treemap', 'line', 'kpicard'];
+
+export const CHARTS: Chart[] = ['bar', 'pie', 'treemap'];
+
+export function isChart(visualization: unknown): visualization is Chart {
+  return CHARTS.includes(visualization as Chart);
+}
+
+/**
+ * The visualizations offered: the treemap only when the Treemap Visualization plugin is active.
+ */
+export function availableVisualizations(treemap: boolean): Visualization[] {
+  return VISUALIZATIONS.filter((id) => treemap || id !== 'treemap');
+}
 
 // the core visualization of each chart, and back
 export const VIEW_BY_VISUALIZATION: Record<Visualization, string> = {
   table: 'table',
   bar: 'graphVerticalBar',
   pie: 'graphPie',
+  treemap: 'infoviz-treemap',
   line: 'graphEvolution',
   kpicard: 'sparklines',
 };
@@ -47,6 +63,7 @@ export const VISUALIZATION_BY_VIEW: Record<string, Visualization> = {
   tableGoals: 'table',
   graphVerticalBar: 'bar',
   graphPie: 'pie',
+  'infoviz-treemap': 'treemap',
   graphEvolution: 'line',
   sparklines: 'kpicard',
 };
@@ -326,7 +343,7 @@ export function fromDefinition(
     visualization = 'line';
   } else if (reportType === 'kpicard') {
     visualization = 'kpicard';
-  } else if (definition.chart === 'bar' || definition.chart === 'pie') {
+  } else if (isChart(definition.chart)) {
     visualization = definition.chart;
   }
 

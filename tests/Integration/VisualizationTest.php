@@ -17,8 +17,10 @@ use Piwik\Config;
 use Piwik\Db;
 use Piwik\FrontController;
 use Piwik\Piwik;
+use Piwik\Plugins\DataExplorer\Configuration;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
+use Piwik\Plugins\DataExplorer\Reports\GetSavedReport;
 use Piwik\Plugins\DataExplorer\Sql\ReadOnlyConnection;
 use Piwik\Plugins\DataExplorer\tests\Fixtures\ExplorerFixture;
 use Piwik\Tests\Framework\Fixture;
@@ -81,7 +83,9 @@ class VisualizationTest extends IntegrationTestCase
         $this->assertStringContainsString('dataTableVizHtmlTable', $html);
         $this->assertStringContainsString('France', $html);
         $icons = $this->footerIcons($html);
-        $this->assertSame(['table', 'graphVerticalBar', 'graphPie'], $icons);
+        // the treemap of the Treemap Visualization plugin when it is active
+        $treemap = Configuration::isTreemapAvailable() ? [GetSavedReport::TREEMAP_VIEW] : [];
+        $this->assertSame(array_merge(['table', 'graphVerticalBar', 'graphPie'], $treemap), $icons);
     }
 
     public function test_pivotColumns_areShownWithTheMetricNameAndTheFormattedValue(): void

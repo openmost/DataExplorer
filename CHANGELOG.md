@@ -1,5 +1,10 @@
 ## Changelog
 
+## 6.3.0
+
+- Treemap visualization when the Treemap Visualization plugin is active, for explorations, raw SQL results and saved reports. On a day, week, month or year its rectangles are colored by their evolution against the previous period.
+- New icons for the treemap and the line chart.
+
 ## 6.2.1
 
 - A filter on a dimension stored as a code (country, device type, browser...) also matches the English name, so a report filtered by one user keeps its rows for a user reading Matomo in another language.

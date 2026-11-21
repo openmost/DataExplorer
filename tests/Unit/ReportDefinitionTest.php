@@ -96,6 +96,7 @@ class ReportDefinitionTest extends TestCase
     {
         $this->assertSame('pie', ReportDefinition::fromArray($this->valid(['chart' => 'pie']))->getChart());
         $this->assertSame('bar', ReportDefinition::fromArray($this->valid(['chart' => 'bar']))->toArray()['chart']);
+        $this->assertSame('treemap', ReportDefinition::fromArray($this->valid(['chart' => 'treemap']))->getChart());
         $this->assertSame('', ReportDefinition::fromArray($this->valid(['chart' => 'radar']))->getChart());
         $this->assertSame('', ReportDefinition::fromArray($this->valid())->getChart());
         $this->assertSame('', ReportDefinition::fromArray($this->valid(['report_type' => 'evolution', 'rows' => [], 'chart' => 'pie']))->getChart());

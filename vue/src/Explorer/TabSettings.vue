@@ -217,9 +217,9 @@ import DropZone from './DropZone.vue';
 import FilterRow from './FilterRow.vue';
 import FilterOrButton from './FilterOrButton.vue';
 import {
+  availableVisualizations,
   hasRowDimensions,
   VISUALIZATION_ICONS as ICONS,
-  VISUALIZATIONS,
 } from './explorationState';
 import type {
   CatalogLimits,
@@ -244,6 +244,10 @@ export default defineComponent({
     visualization: {
       type: String as PropType<Visualization>,
       required: true,
+    },
+    treemap: {
+      type: Boolean,
+      default: false,
     },
     limits: {
       type: Object as PropType<CatalogLimits>,
@@ -297,7 +301,7 @@ export default defineComponent({
     'setTableView',
   ],
   setup(props, { emit }) {
-    const visualizations = VISUALIZATIONS.map((id) => ({
+    const visualizations = availableVisualizations(props.treemap).map((id) => ({
       id,
       icon: ICONS[id],
       label: translate(`DataExplorer_Visualization_${id}`),
@@ -305,15 +309,17 @@ export default defineComponent({
 
     const hasRows = computed(() => hasRowDimensions(props.visualization));
 
-    // the pie and the KPI card show one metric: one more can't be added, those already there stay
-    // (hatched) for the visualizations that show them all
-    const singleValue = computed(() => props.visualization === 'pie'
-      || props.visualization === 'kpicard');
+    // the pie, the treemap and the KPI card show one metric: one more can't be added, those
+    // already there stay (hatched) for the visualizations that show them all
+    const singleValue = computed(() => ['pie', 'treemap', 'kpicard'].includes(props.visualization));
     const maxValues = computed(() => (singleValue.value ? 1 : props.limits.maxMetrics));
     const activeValues = computed(() => (singleValue.value ? 1 : 0));
     const inactiveValueReason = computed(() => {
       if (props.visualization === 'pie') {
         return translate('DataExplorer_PieFirstMetricOnly');
+      }
+      if (props.visualization === 'treemap') {
+        return translate('DataExplorer_TreemapFirstMetricOnly');
       }
       return props.visualization === 'kpicard' ? translate('DataExplorer_KpiFirstMetricOnly') : '';
     });

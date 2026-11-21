@@ -231,6 +231,8 @@ describe('explorationState', () => {
     const definition = { rows: ['UserCountry.Country'], metrics: ['nb_visits'] };
     expect(fromDefinition({ ...definition, chart: 'pie' }, 'table').visualization).toBe('pie');
     expect(fromDefinition({ ...definition, chart: 'bar' }, 'table').visualization).toBe('bar');
+    expect(fromDefinition({ ...definition, chart: 'treemap' }, 'table').visualization)
+      .toBe('treemap');
     expect(fromDefinition(definition, 'table').visualization).toBe('table');
     expect(fromDefinition({ ...definition, chart: 'pie' }, 'evolution').visualization).toBe('line');
   });
