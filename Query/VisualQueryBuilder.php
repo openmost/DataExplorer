@@ -60,6 +60,9 @@ class VisualQueryBuilder
 
     private const IDENTIFIER = '/^[a-zA-Z0-9_]+$/';
 
+    /** dimensions of a funnel step that match page views only */
+    public const PAGE_VIEW_DIMENSIONS = ['Actions.PageUrl', 'Actions.PageTitle'];
+
     // alias.column of a log_action row joined for a metric (MetricCatalog::actionAlias())
     private const ACTION_REFERENCE = '/\b(' . MetricCatalog::ACTION_ALIAS_PREFIX . '[a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)/';
 
@@ -448,6 +451,12 @@ class VisualQueryBuilder
             $discriminators = [];
             $this->addJoin($dimension, $joins, $discriminators);
             $expression = $this->expression($dimension, $joins);
+            if ($table === 'log_link_visit_action' && in_array($dimension->id, self::PAGE_VIEW_DIMENSIONS, true)) {
+                // an event or a content interaction carries the URL and title of its page: a step on a page means a
+                // page view of it
+                $discriminators[] = $table . '.idaction_event_category IS NULL';
+                $discriminators[] = $table . '.idaction_content_interaction IS NULL';
+            }
             if ($discriminators) {
                 $expression = 'IF(' . implode(' AND ', $discriminators) . ', ' . $expression . ', NULL)';
             }

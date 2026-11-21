@@ -1540,6 +1540,12 @@ export default defineComponent({
         loadReports(),
         loadCustomReports(),
       ]).then(() => {
+        // a default variable of a deactivated plugin (Events) is not offered
+        if (catalog.value && !MatomoUrl.parsed.value[HASH_PARAM]) {
+          state.variables.dimensions = state.variables.dimensions
+            .filter((id) => !!dimensionsById.value[id]);
+          state.variables.metrics = state.variables.metrics.filter((id) => !!metricsById.value[id]);
+        }
         readHash();
 
         stopWatchers.push(watch(

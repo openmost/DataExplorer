@@ -326,8 +326,9 @@ class GetSavedReport extends Report
 
     public function getDefaultSortColumn()
     {
-        // no default sort, so the rows of a raw SQL report keep the order of the query
-        return $this->isSql() ? '' : parent::getDefaultSortColumn();
+        // no default sort, so the rows of a raw SQL report keep the order of the query, those of a funnel the
+        // order of its steps
+        return $this->isSql() || $this->isFunnel() ? '' : parent::getDefaultSortColumn();
     }
 
     public function isEnabled()
@@ -437,6 +438,8 @@ class GetSavedReport extends Report
         if ($this->isFunnel()) {
             // the chart reads every step with its breakdown values
             $view->requestConfig->request_parameters_to_modify['expanded'] = 1;
+            $view->requestConfig->filter_sort_column = '';
+            $view->config->enable_sort = false;
             $view->config->footer_icons = [];
             $view->config->addTranslation('label', Piwik::translate('DataExplorer_FunnelStep'));
             $view->config->columns_to_display = array_merge(['label'], array_keys(self::FUNNEL_METRICS));

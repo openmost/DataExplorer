@@ -293,7 +293,7 @@ if (typeof window !== 'undefined') {
 // EXTERNAL MODULE: external {"commonjs":"vue","commonjs2":"vue","root":"Vue"}
 var external_commonjs_vue_commonjs2_vue_root_Vue_ = __webpack_require__("8bbf");
 
-// CONCATENATED MODULE: ./node_modules/@vue/cli-plugin-babel/node_modules/cache-loader/dist/cjs.js??ref--13-0!./node_modules/@vue/cli-plugin-babel/node_modules/thread-loader/dist/cjs.js!./node_modules/babel-loader/lib!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist/templateLoader.js??ref--6!./node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--1-0!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist??ref--1-1!./plugins/DataExplorer/vue/src/Explorer/Explorer.vue?vue&type=template&id=17c81808
+// CONCATENATED MODULE: ./node_modules/@vue/cli-plugin-babel/node_modules/cache-loader/dist/cjs.js??ref--13-0!./node_modules/@vue/cli-plugin-babel/node_modules/thread-loader/dist/cjs.js!./node_modules/babel-loader/lib!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist/templateLoader.js??ref--6!./node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--1-0!./node_modules/@vue/cli-service/node_modules/vue-loader-v16/dist??ref--1-1!./plugins/DataExplorer/vue/src/Explorer/Explorer.vue?vue&type=template&id=35f7841c
 
 const _hoisted_1 = {
   class: "dataExplorer"
@@ -564,7 +564,7 @@ function render(_ctx, _cache, $props, $setup, $data, $options) {
     onFailed: _ctx.onCustomReportFailed
   }, null, 8, ["modelValue", "definition", "default-name", "default-description", "custom-report", "modified", "onCreated", "onUpdated", "onFailed"])) : Object(external_commonjs_vue_commonjs2_vue_root_Vue_["createCommentVNode"])("", true)]);
 }
-// CONCATENATED MODULE: ./plugins/DataExplorer/vue/src/Explorer/Explorer.vue?vue&type=template&id=17c81808
+// CONCATENATED MODULE: ./plugins/DataExplorer/vue/src/Explorer/Explorer.vue?vue&type=template&id=35f7841c
 
 // EXTERNAL MODULE: external "CoreHome"
 var external_CoreHome_ = __webpack_require__("19dc");
@@ -683,8 +683,8 @@ const FILTER_OPERATORS = ['equals', 'not_equals', 'contains', 'not_contains', 's
 // a shared link is user input: bound every list so a crafted hash cannot blow up the page
 const MAX_LIST_LENGTH = 100;
 // a new exploration starts with these variables, ready to drag
-const DEFAULT_DIMENSIONS = ['Actions.PageUrl', 'DevicesDetection.DeviceType'];
-const DEFAULT_METRICS = ['nb_visits', 'pageviews'];
+const DEFAULT_DIMENSIONS = ['Actions.PageUrl', 'Events.EventName', 'DevicesDetection.DeviceType'];
+const DEFAULT_METRICS = ['nb_visits', 'pageviews', 'nb_events'];
 function emptyState() {
   return {
     technique: 'freeform',
@@ -6664,6 +6664,11 @@ const DEFAULT_DATE = 'previous28';
       }).catch(e => {
         catalogError.value = e.message;
       }), loadReports(), loadCustomReports()]).then(() => {
+        // a default variable of a deactivated plugin (Events) is not offered
+        if (catalog.value && !external_CoreHome_["MatomoUrl"].parsed.value[HASH_PARAM]) {
+          state.variables.dimensions = state.variables.dimensions.filter(id => !!dimensionsById.value[id]);
+          state.variables.metrics = state.variables.metrics.filter(id => !!metricsById.value[id]);
+        }
         readHash();
         stopWatchers.push(Object(external_commonjs_vue_commonjs2_vue_root_Vue_["watch"])(
         // a string, not an array: a hash update (a variable added) re-reads the URL, and a new

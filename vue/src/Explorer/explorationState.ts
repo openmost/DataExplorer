@@ -88,8 +88,8 @@ export const FILTER_OPERATORS: FilterOperator[] = [
 const MAX_LIST_LENGTH = 100;
 
 // a new exploration starts with these variables, ready to drag
-export const DEFAULT_DIMENSIONS = ['Actions.PageUrl', 'DevicesDetection.DeviceType'];
-export const DEFAULT_METRICS = ['nb_visits', 'pageviews'];
+export const DEFAULT_DIMENSIONS = ['Actions.PageUrl', 'Events.EventName', 'DevicesDetection.DeviceType'];
+export const DEFAULT_METRICS = ['nb_visits', 'pageviews', 'nb_events'];
 
 function emptyState(): ExplorationState {
   return {

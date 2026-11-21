@@ -2,14 +2,16 @@
 
 ## Description
 
-Explore your Matomo data the way you would in GA4 Explorations, then save the result as a report in the Matomo menu. Super users can also write raw SQL on the Matomo tables, run through a read-only database user.
+Explore your Matomo data the way you would in GA4 Explorations, build funnels on any dimension, then save the result as a report in the Matomo menu. Super users can also write raw SQL on the Matomo tables, run through a read-only database user.
 
 ### Features
 
 - **Free-form explorer**: drag dimensions, metrics and segments into rows, columns, values and filters, and see the result as you build it. It opens on the last 28 days (today excluded) with Page URL and Device type by Visits and Pageviews ready to drop. The preview is always computed live, and follows the same row limits as the saved report, so a saved report shows what you previewed.
+- **Funnels, far more flexible than Matomo's own**: a Funnel tab builds a funnel on the fly, on any past period, without waiting for archiving. Each step matches any visit, action or conversion dimension, with several conditions on the same hit (an event name and the custom dimension sent with it, a page URL and its title), OR inside a group and AND between groups. A step can be optional, directly followed (the next action of the visit) or indirectly followed, and reached within a time limit (seconds to days). The funnel is closed (entered at step 1) or open (entered at any step). A visit that meets step 1 again starts a new pass, so a visitor who goes through the funnel twice counts twice. The result shows the passes, passage rate, abandonments, rate from the start and average time from the previous step of each step, broken down by any visit or action dimension. A funnel saves as a report of the menu, archived like the others.
 - **Every dimension and metric of your Matomo**: the core ones and those of the active plugins (goals, ecommerce, events, media, forms, crashes, campaigns, weather...), including the rates and averages Matomo computes from them, such as bounce rate or actions per visit. A dimension appears only while its plugin is active.
+- **Value suggestions**: filters and funnel conditions offer the values of their dimension, like the segment editor.
 - **Filters with AND and OR**: the filters of one group match any of their conditions, groups all match, for example (Device type is Desktop OR Smartphone) AND (Page URL contains /blog). Operators: is exactly, is not, contains, does not contain, starts with, does not start with, ends with, does not end with, matches a regular expression, and greater or less than (or equal to) for numbers.
-- **Visualizations**: the Matomo table, evolution graph, bar chart, pie chart and sparkline (KPI card), the same in the explorer and in the saved report. A table shows a totals row, and any report can apply one saved segment as a filter.
+- **Visualizations**: the Matomo table, evolution graph, bar chart, pie chart and sparkline (KPI card), and the treemap when the Treemap Visualization plugin is active, the same in the explorer and in the saved report. A table shows a totals row, and any report can apply one saved segment as a filter.
 - **Raw SQL** for super users: a SQL editor with a table and column browser, a sample query to start from, a validity check before running, CSV export, and placeholders for the site and the period. The result is drawn as a Matomo table, bar chart, pie chart or KPI card. Queries run with a read-only database user that you create, and a saved raw SQL report can be reopened and edited.
 - **Saved reports in the menu**: a saved report becomes a page of the Matomo reporting menu, in the category and subcategory you pick, for one website, a list of websites or all websites. It also works as a dashboard widget, in the API, in exports and in scheduled reports like any other report. A raw SQL report can be scheduled when every column of its select list has a name (`AS alias` or a plain column), `*` and unnamed expressions are only known once the query ran.
 - **Open a report**: a searchable picker reopens any saved exploration. When a custom reports plugin is active, it also lists its reports: opening one brings its dimensions, metrics, filters and segment into the explorer, where you can update it in place or save it as an exploration in the same category and page. Parts that cannot be translated are listed, never dropped silently.
@@ -88,7 +90,7 @@ Each raw SQL run is logged at the `INFO` level (query hash, user, site, status, 
 - A report has at most 10 metrics, and a KPI card exactly one.
 - The visual preview uses the same row caps as saved reports (500 rows per table by default, see the Configuration table).
 - The Explore and Manage explorations pages are reserved to the plugin: a report cannot be placed on them.
-- Phase one supports free-form explorations only.
+- A funnel has 2 to 10 steps, and its last step cannot be optional. Steps read visit, action and conversion dimensions (goals, ecommerce), the breakdown a visit or action dimension. A Page URL or Page title condition matches page views only: an event or a content interaction carries the URL of its page but is not a view of it.
 
 ### FAQ
 
@@ -97,6 +99,8 @@ Each raw SQL run is logged at the `INFO` level (query hash, user, site, status, 
 **Does raw SQL see other websites?** A query is checked against the website of the report. When the guard cannot prove that every per-site table is filtered with `{idsite}`, the editor flags it and the query cannot be saved on a site or run as a saved report.
 
 **Can I use it without raw SQL?** Yes. The visual explorer needs no extra database user.
+
+**How do these funnels differ from the funnels of Matomo?** A Matomo funnel is defined in advance and reports from the day it is set up. A Data Explorer funnel is computed on any past period as soon as you build it, its steps can read any dimension (several conditions on the same hit), be optional, directly followed or reached within a time limit, it can be open or closed, broken down by a dimension, and a visit that starts it again counts as a new pass. Saved, it is archived and shows in the menu like any report.
 
 ### Privacy and data
 
