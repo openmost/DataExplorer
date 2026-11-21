@@ -586,8 +586,8 @@ class VisualQueryRunner
 
     /**
      * A filter compares what the user reads: "France", "Smartphone", "Chrome". The logs store a code or an id
-     * for those dimensions, so the filter becomes the list of stored values whose label, or the value itself,
-     * matches. Compared as stored, "Smartphone" would even match device type 0 (Desktop): MySQL casts the text to 0.
+     * for those dimensions, so the filter becomes the list of stored values whose label, in the language of the
+     * user or in English, or the value itself, matches. Compared as stored, "Smartphone" would even match device type 0 (Desktop): MySQL casts the text to 0.
      */
     private function resolveLabelFilters(array $resolved, int $idSite): array
     {
@@ -616,7 +616,8 @@ class VisualQueryRunner
                 }
                 $label = $this->label($filter['dimension'], $raw, $idSite);
                 $formatted = $formatted || $label !== (string) $raw;
-                if (LabelFilter::matches($operator, (string) $filter['value'], $label, (string) $raw)) {
+                $english = $this->labels->formatInEnglish($filter['dimension'], $raw, $idSite);
+                if (LabelFilter::matches($operator, (string) $filter['value'], $label, $english, (string) $raw)) {
                     $matching[] = $raw;
                 }
             }

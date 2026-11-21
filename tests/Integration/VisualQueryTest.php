@@ -12,6 +12,7 @@ namespace Piwik\Plugins\DataExplorer\tests\Integration;
 use Piwik\ArchiveProcessor\Parameters;
 use Piwik\Common;
 use Piwik\Config;
+use Piwik\Container\StaticContainer;
 use Piwik\DataAccess\LogAggregator;
 use Piwik\DataTable;
 use Piwik\Db;
@@ -29,6 +30,7 @@ use Piwik\Site;
 use Piwik\Tests\Framework\Fixture;
 use Piwik\Tests\Framework\Mock\FakeAccess;
 use Piwik\Tests\Framework\TestCase\IntegrationTestCase;
+use Piwik\Translation\Translator;
 
 /**
  * @group DataExplorer
@@ -198,6 +200,28 @@ class VisualQueryTest extends IntegrationTestCase
 
         $none = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'Atlantis']]]);
         $this->assertSame([], $this->column($none, 'nb_visits'));
+    }
+
+    public function test_filtersOnCodedDimensions_matchTheEnglishLabelToo_whateverTheLanguageOfTheUser(): void
+    {
+        $translator = StaticContainer::get(Translator::class);
+        $translator->setCurrentLanguage('fr');
+        try {
+            $countries = ['rows' => [self::COUNTRY], 'metrics' => ['nb_visits']];
+            $english = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'Germany']]]);
+            $french = $this->explore($countries + ['filters' => [['dimension' => self::COUNTRY, 'operator' => 'equals', 'value' => 'Allemagne']]]);
+            $this->assertSame(['Allemagne'], array_keys($this->column($english, 'nb_visits')));
+            $this->assertEquals($this->column($french, 'nb_visits'), $this->column($english, 'nb_visits'));
+
+            $devices = $this->explore([
+                'rows' => [self::DEVICE],
+                'metrics' => ['nb_visits'],
+                'filters' => [['dimension' => self::DEVICE, 'operator' => 'equals', 'value' => 'Desktop']],
+            ]);
+            $this->assertSame(['Bureau'], array_keys($this->column($devices, 'nb_visits')));
+        } finally {
+            $translator->setCurrentLanguage('en');
+        }
     }
 
     public function test_filters_matchAll_orAny(): void

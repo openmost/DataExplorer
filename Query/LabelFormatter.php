@@ -13,12 +13,14 @@ namespace Piwik\Plugins\DataExplorer\Query;
 
 use Piwik\Columns\Dimension;
 use Piwik\Columns\DimensionsProvider;
+use Piwik\Container\StaticContainer;
 use Piwik\DataTable;
 use Piwik\DataTable\Row;
 use Piwik\Metrics\Formatter;
 use Piwik\Piwik;
 use Piwik\Plugins\DataExplorer\Catalog\DimensionEntry;
 use Piwik\Plugins\DataExplorer\Catalog\SiteContext;
+use Piwik\Translation\Translator;
 
 /**
  * Turns raw dimension values into display labels with the dimension's own formatter (country codes to names,
@@ -55,6 +57,28 @@ class LabelFormatter
         $formatted = $dimension->formatValue($value, $idSite, $this->formatter);
 
         return $formatted === null || $formatted === '' ? (string) $value : (string) $formatted;
+    }
+
+    /**
+     * The label in English, whatever the language of the user: a filter saved by a user reading English labels
+     * keeps matching for a user reading them in another language.
+     *
+     * @param mixed $value
+     */
+    public function formatInEnglish(DimensionEntry $entry, $value, int $idSite): string
+    {
+        $translator = StaticContainer::get(Translator::class);
+        $language = $translator->getCurrentLanguage();
+        if ($language === 'en') {
+            return $this->format($entry, $value, $idSite);
+        }
+
+        $translator->setCurrentLanguage('en');
+        try {
+            return $this->format($entry, $value, $idSite);
+        } finally {
+            $translator->setCurrentLanguage($language);
+        }
     }
 
     /**

@@ -1,5 +1,11 @@
 ## Changelog
 
+## 6.2.1
+
+- A filter on a dimension stored as a code (country, device type, browser...) also matches the English name, so a report filtered by one user keeps its rows for a user reading Matomo in another language.
+- Adding or removing a variable no longer reloads the result, only a change of the report settings does.
+- An empty drop zone shows its colored edge dashed too.
+
 ## 6.2.0
 
 - Filters combine with AND and OR: filters in one group match any of their conditions, groups all match. New operators: does not contain, does not start with, does not end with, greater than or equal to, less than or equal to.
