@@ -877,6 +877,19 @@ html.dataExplorer-panel-open {
 .dataExplorerFilterOr {
   position: relative;
   margin-top: 4px;
+
+  // the "Or" and "And" buttons are narrow: their menu takes the room of its dimension names
+  .dataExplorerDropZone__menu {
+    right: auto;
+    width: max-content;
+    min-width: 220px;
+    max-width: 360px;
+    overflow-x: hidden;
+
+    button {
+      white-space: normal;
+    }
+  }
 }
 
 .dataExplorerFilterGroup__actions {
