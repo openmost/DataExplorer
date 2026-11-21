@@ -1,6 +1,6 @@
 {
     "DataExplorer": {
-        "PluginDescription": "像 GA4 探索一樣瀏覽 Matomo 資料，或使用受保護的原始 SQL，然後儲存、分享並匯出結果。",
+        "PluginDescription": "根據 Matomo 資料建立自訂報表、任意維度的漏斗和受保護的 SQL 查詢，並儲存、分享和匯出。",
         "ErrorNameInvalid": "報表名稱為必填,且不得超過 %s 個字元。",
         "ErrorTechniqueInvalid": "不支援的探索技術。",
         "ErrorTypeInvalid": "不支援的報表類型。",

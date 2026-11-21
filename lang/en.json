@@ -1,6 +1,6 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Explore your Matomo data like in GA4 Explorations, or with guarded raw SQL, then save, share and export it.",
+        "PluginDescription": "Build custom reports, funnels on any dimension and guarded raw SQL queries from your Matomo data, then save, share and export them.",
         "ErrorNameInvalid": "The report name is required and must be at most %s characters.",
         "ErrorTechniqueInvalid": "Unsupported exploration technique.",
         "ErrorTypeInvalid": "Unsupported report type.",

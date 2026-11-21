@@ -1,6 +1,6 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Verken je Matomo-data zoals in GA4 Explorations, of met beveiligde ruwe SQL, en sla het resultaat op, deel en exporteer het.",
+        "PluginDescription": "Maak aangepaste rapporten, trechters op elke dimensie en beveiligde SQL-query's van uw Matomo-gegevens, en sla ze op, deel en exporteer ze.",
         "ErrorNameInvalid": "De rapportnaam is verplicht en mag maximaal %s tekens bevatten.",
         "ErrorTechniqueInvalid": "Niet-ondersteunde verkenningstechniek.",
         "ErrorTypeInvalid": "Niet-ondersteund rapporttype.",

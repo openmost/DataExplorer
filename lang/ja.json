@@ -1,6 +1,6 @@
 {
     "DataExplorer": {
-        "PluginDescription": "GA4の探索のようにMatomoのデータを調べたり、保護されたSQLを直接実行したりして、結果を保存、共有、エクスポートできます。",
+        "PluginDescription": "Matomo のデータからカスタムレポート、任意のディメンションのファネル、保護された SQL クエリを作成し、保存、共有、エクスポートできます。",
         "ErrorNameInvalid": "レポート名は必須で、%s 文字以内で入力してください。",
         "ErrorTechniqueInvalid": "サポートされていない探索手法です。",
         "ErrorTypeInvalid": "サポートされていないレポートタイプです。",
