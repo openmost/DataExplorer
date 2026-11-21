@@ -1353,6 +1353,10 @@ button.dataExplorerCanvas__period {
   .de-controls();
 
   width: ~"min(520px, 100vw)";
+
+  &.is-wide {
+    width: ~"min(960px, 100vw)";
+  }
 }
 
 .dataExplorerFormPanel__body {
@@ -1523,7 +1527,7 @@ button.dataExplorerCanvas__period {
 }
 
 .dataExplorerLineIcon {
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9q4.5-6 9 0t9 0'/%3E%3Cpath d='M3 18q4.5-6 9 0t9 0'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='M7 11l3-4 3 3 6-6'/%3E%3Cpath d='M7 16l3-2 3 2 6-5'/%3E%3C/svg%3E");
 }
 
 // KPI card visualization: a number reads better than any icon of the Matomo font
@@ -1695,4 +1699,424 @@ button.dataExplorerCanvas__period {
   margin: 0 0 8px;
   color: @de-text-light;
   font-size: 13px;
+}
+
+// funnel tab and funnel visualization
+.dataExplorerFunnelSettings__stepsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+
+  h4 {
+    margin-bottom: 0;
+  }
+}
+
+.dataExplorerFunnelSettings__steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dataExplorerFunnelSettings__step + .dataExplorerFunnelSettings__step {
+  margin-top: 6px;
+}
+
+.dataExplorerFunnelSettings__stepButton {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid @de-border;
+  border-left: 3px solid @de-accent;
+  border-radius: @de-radius-control;
+  background: @de-surface;
+  color: @de-text;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: @de-border-strong;
+    border-left-color: @de-accent;
+    background: @de-hover;
+  }
+
+  .is-incomplete & {
+    border-left-style: dashed;
+    border-left-color: @de-text-lighter;
+  }
+}
+
+.dataExplorerFunnelSettings__stepText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dataExplorerFunnelSettings__stepName {
+  color: @de-text-strong;
+  font-weight: 500;
+}
+
+.dataExplorerFunnelSettings__stepConditions {
+  overflow: hidden;
+  color: @de-text-lighter;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataExplorerFunnelSettings__tag {
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: @de-hover;
+  color: @de-text-light;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.dataExplorerFunnel__stepNumber {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: @de-text-light;
+  color: @de-on-accent;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+// step editor
+.dataExplorerFunnelEditor {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dataExplorerFunnelEditor__step {
+  padding: 12px 16px;
+  border: 1px solid @de-border;
+  border-radius: @de-radius;
+  background: @de-surface;
+}
+
+.dataExplorerFunnelEditor__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+
+  .form-group {
+    margin: 0;
+  }
+}
+
+// one height for every control of the step editor
+.dataExplorerFunnelEditor__name,
+.dataExplorerFunnelEditor__follow,
+.dataExplorerFunnelEditor__withinValue,
+.dataExplorerFunnelEditor__withinUnit {
+  box-sizing: border-box;
+  height: 34px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid @de-border-strong;
+  border-radius: @de-radius-control;
+  background: @de-surface;
+  color: @de-text;
+  font-size: 14px;
+}
+
+// Matomo sizes text inputs by their text: the editor inputs take the height of its selects
+.dataExplorerFunnelEditor input.dataExplorerFunnelEditor__name,
+.dataExplorerFunnelEditor input.dataExplorerFunnelEditor__withinValue {
+  height: 34px;
+  min-height: 34px;
+  line-height: 32px;
+}
+
+.dataExplorerFunnelEditor__name {
+  flex: 1;
+  max-width: 420px;
+  font-weight: 500;
+}
+
+.dataExplorerFunnelEditor__optional,
+.dataExplorerFunnelEditor__within {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: @de-text;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+
+  // the Materialize box sits 35px before its text, too far for an inline option
+  [type="checkbox"] + span:not(.lever) {
+    height: 20px;
+    padding-left: 26px;
+    color: @de-text;
+    font-size: 14px;
+    line-height: 20px;
+  }
+}
+
+.dataExplorerFunnelEditor__menu {
+  position: relative;
+}
+
+.dataExplorerFunnelEditor__menuList {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  right: 0;
+  min-width: 220px;
+  margin: 4px 0 0 0;
+  padding: 4px 0;
+  border: 1px solid @de-border;
+  border-radius: @de-radius-control;
+  background: @de-surface;
+  box-shadow: 0 6px 18px @de-shadow;
+  list-style: none;
+
+  button {
+    width: 100%;
+    padding: 8px 14px;
+    border: 0;
+    background: none;
+    color: @de-text;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: @de-hover;
+    }
+
+    &:disabled {
+      color: @de-text-lighter;
+      cursor: default;
+    }
+  }
+}
+
+.dataExplorerFunnelEditor__link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  padding: 8px 16px;
+  border-radius: @de-radius-control;
+  background: @de-hover;
+
+  .form-group {
+    margin: 0;
+  }
+}
+
+.dataExplorerFunnelEditor__follow,
+.dataExplorerFunnelEditor__withinUnit {
+  display: inline-block;
+  width: auto;
+}
+
+.dataExplorerFunnelEditor__follow {
+  min-width: 240px;
+}
+
+.dataExplorerFunnelEditor__withinValue {
+  width: 80px;
+}
+
+.dataExplorerFunnelEditor__add {
+  margin-top: 12px;
+  border: 1px solid @de-border-strong;
+}
+
+// the step editor is wide: a condition on one line, operator, value and buttons
+.dataExplorerFunnelEditor .dataExplorerFilter__fields {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+
+  .dataExplorerFilter__label {
+    flex-basis: 100%;
+  }
+
+  .dataExplorerFilter__operator {
+    flex: 0 0 220px;
+  }
+
+  .dataExplorerFilter__value {
+    flex: 1 1 200px;
+  }
+
+  .dataExplorerFilter__actions {
+    margin-top: 0;
+  }
+}
+
+// the step editor closes from the right, its buttons too
+.dataExplorerFormPanel.is-wide .dataExplorerFormPanel__actions {
+  justify-content: flex-end;
+}
+
+.dataExplorerFunnelEditor__error {
+  margin-top: 8px;
+  color: @de-danger;
+}
+
+// funnel chart
+.dataExplorerFunnel {
+  padding: 4px 0 8px;
+}
+
+.dataExplorerFunnel__empty {
+  color: @de-text-light;
+}
+
+.dataExplorerFunnel__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 0 0 16px 0;
+  padding: 0;
+  color: @de-text-light;
+  list-style: none;
+
+  strong {
+    margin-right: 4px;
+    color: @de-text-strong;
+    font-size: 20px;
+    font-weight: 600;
+  }
+}
+
+.dataExplorerFunnel__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0 0 12px 0;
+  padding: 0;
+  color: @de-text;
+  font-size: 12px;
+  list-style: none;
+}
+
+.dataExplorerFunnel__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+}
+
+.dataExplorerFunnel__chart {
+  display: grid;
+  grid-template-columns: repeat(var(--de-funnel-steps), minmax(0, 1fr));
+  gap: 0;
+  margin: 0 0 20px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dataExplorerFunnel__step {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 6px;
+
+  & + & {
+    border-left: 1px dashed @de-border;
+  }
+}
+
+.dataExplorerFunnel__stepHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.dataExplorerFunnel__stepName {
+  overflow: hidden;
+  color: @de-text-strong;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataExplorerFunnel__stepValue {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: @de-text-light;
+
+  strong {
+    color: @de-text-strong;
+    font-size: 18px;
+    font-weight: 600;
+  }
+}
+
+.dataExplorerFunnel__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 220px;
+  padding: 0 4px;
+  background: repeating-linear-gradient(-45deg, @de-hover 0, @de-hover 4px, transparent 4px, transparent 8px);
+}
+
+.dataExplorerFunnel__barSlot {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.dataExplorerFunnel__bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  transition: height .2s ease;
+}
+
+.dataExplorerFunnel__drop {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  color: @de-text-light;
+  font-size: 12px;
+}
+
+.dataExplorerFunnel__dropValue {
+  color: @de-danger;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dataExplorerFunnel__table {
+  width: 100%;
+
+  td:not(.label),
+  th:not(.label) {
+    text-align: right;
+  }
+}
+
+.dataExplorerFunnel__stepRow td {
+  font-weight: 500;
+}
+
+.dataExplorerFunnel__valueRow td.label {
+  padding-left: 32px;
+  color: @de-text-light;
 }

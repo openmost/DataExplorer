@@ -22,6 +22,7 @@
         v-if="modelValue"
         ref="panel"
         class="dataExplorerPanel dataExplorerFormPanel"
+        :class="{ 'is-wide': wide }"
         role="dialog"
         aria-modal="true"
         :aria-labelledby="titleId"
@@ -97,6 +98,11 @@ export default defineComponent({
     title: {
       type: String,
       required: true,
+    },
+    // room for a form of several columns, like the funnel steps
+    wide: {
+      type: Boolean,
+      default: false,
     },
     // selector of the element focused on open, the first focusable element otherwise
     focusSelector: {

@@ -213,6 +213,9 @@ export default defineComponent({
     });
 
     function typeText(report: SavedReport) {
+      if (report.type === 'funnel') {
+        return translate('DataExplorer_FunnelTab');
+      }
       const technique = report.type === 'sql'
         ? translate('DataExplorer_SqlTab')
         : translate('DataExplorer_ExploreTab');
@@ -270,7 +273,7 @@ export default defineComponent({
     }
 
     function canOpen(report: SavedReport) {
-      return report.editable && (report.type === 'visual' || props.isSuperUser);
+      return report.editable && (report.type !== 'sql' || props.isSuperUser);
     }
 
     function askDelete(report: SavedReport) {

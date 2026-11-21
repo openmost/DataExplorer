@@ -25,6 +25,8 @@ use Piwik\Plugins\DataExplorer\Catalog\MetricEntry;
 use Piwik\Plugins\DataExplorer\Configuration;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
+use Piwik\Plugins\DataExplorer\Query\FunnelQueryRunner;
+use Piwik\Plugins\DataExplorer\Query\FunnelResult;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryBuilder;
 use Piwik\Plugins\DataExplorer\Query\VisualQueryRunner;
 use Piwik\Segment;
@@ -96,7 +98,7 @@ class SavedReport extends RecordBuilder
 
     public function isEnabled(ArchiveProcessor $archiveProcessor): bool
     {
-        if (($this->report['type'] ?? '') !== ReportDefinition::TYPE_VISUAL) {
+        if (!in_array($this->report['type'] ?? '', [ReportDefinition::TYPE_VISUAL, ReportDefinition::TYPE_FUNNEL], true)) {
             return false;
         }
 
@@ -112,6 +114,15 @@ class SavedReport extends RecordBuilder
     public function getRecordMetadata(ArchiveProcessor $archiveProcessor): array
     {
         $definition = $this->definition();
+        if ($definition !== null && $definition->isFunnel()) {
+            // the steps, each with its breakdown values: every column adds up across days
+            return [
+                Record::make(Record::TYPE_BLOB, $this->name())
+                    ->setMaxRowsInTable(ReportDefinition::MAX_FUNNEL_STEPS)
+                    ->setMaxRowsInSubtable(ReportDefinition::MAX_BREAKDOWN_ROWS + 1)
+                    ->setColumnToSortByBeforeTruncation(FunnelResult::STARTED),
+            ];
+        }
         if ($definition === null || $definition->getType() !== ReportDefinition::TYPE_VISUAL) {
             return [];
         }
@@ -206,6 +217,22 @@ class SavedReport extends RecordBuilder
         $definition = $this->definition();
         if ($definition === null) {
             return [];
+        }
+
+        if ($definition->isFunnel()) {
+            try {
+                $table = (new FunnelQueryRunner($this->builder))->runForArchive(
+                    $definition,
+                    $this->aggregator($archiveProcessor, $definition),
+                    $this->idSite($archiveProcessor)
+                );
+            } catch (\InvalidArgumentException $e) {
+                $this->warn('archiving failed', $e);
+
+                return [];
+            }
+
+            return [$this->name() => $table];
         }
 
         try {
@@ -319,7 +346,16 @@ class SavedReport extends RecordBuilder
         if (!array_key_exists($idSite, $this->resolved)) {
             $definition = $this->definition();
             $this->resolved[$idSite] = null;
-            if ($definition !== null && $definition->getType() === ReportDefinition::TYPE_VISUAL) {
+            if ($definition !== null && $definition->isFunnel()) {
+                try {
+                    foreach ($definition->getSteps() as $step) {
+                        $this->builder->funnelStepTable($this->builder->resolveConditions($step['conditions'], $idSite), $step['name']);
+                    }
+                    $this->resolved[$idSite] = ['metrics' => []];
+                } catch (\Throwable $e) {
+                    $this->warn('funnel no longer matches the catalogue of site ' . $idSite, $e);
+                }
+            } elseif ($definition !== null && $definition->getType() === ReportDefinition::TYPE_VISUAL) {
                 try {
                     $this->resolved[$idSite] = $this->builder->resolve($definition, $idSite);
                 } catch (\Throwable $e) {

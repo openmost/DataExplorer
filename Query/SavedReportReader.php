@@ -71,6 +71,9 @@ class SavedReportReader
         }
 
         $definition = ReportDefinition::fromReport($report);
+        if ($definition->isFunnel()) {
+            return $this->readFunnel($report, $definition, $idSite, $period, $date, $segment);
+        }
         if ($definition->getReportType() === ReportDefinition::REPORT_TYPE_TABLE) {
             return $this->readTable($report, $definition, $idSite, $period, $date, $segment, $expanded, $idSubtable);
         }
@@ -87,6 +90,23 @@ class SavedReportReader
         $processed = ProcessedMetrics::forResolved($resolved, $idSite);
         $processed->apply($table);
         $processed->decorate($table);
+
+        return $table;
+    }
+
+    /**
+     * The archived steps of a saved funnel with their breakdown values, rates and average times computed.
+     */
+    private function readFunnel(array $report, ReportDefinition $definition, int $idSite, string $period, string $date, string $segment): DataTableInterface
+    {
+        $recordName = SavedReport::recordName((int) $report['idreport'], (int) $report['revision']);
+        $this->browserArchiver->archiveMissingRecords($report, [$recordName], $idSite, $period, $date, $segment);
+
+        $table = Archive::createDataTableFromArchive($recordName, $idSite, $period, $date, $segment, true, false);
+        $breakdown = $definition->getBreakdown() === null ? null : (new VisualQueryBuilder())->resolveDimension($definition->getBreakdown(), $idSite);
+        $table->filter(function (DataTable $table) use ($definition, $breakdown, $idSite) {
+            FunnelResult::present($table, $definition, $breakdown, $idSite, $this->labels);
+        });
 
         return $table;
     }

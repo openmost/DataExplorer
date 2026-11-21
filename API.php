@@ -35,6 +35,8 @@ use Piwik\Plugins\DataExplorer\Categories\ManageSubcategory;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
 use Piwik\Plugins\DataExplorer\Model\Placement;
 use Piwik\Plugins\DataExplorer\Model\ReportDefinition;
+use Piwik\Plugins\DataExplorer\Query\FunnelQueryRunner;
+use Piwik\Plugins\DataExplorer\Query\FunnelResult;
 use Piwik\Plugins\DataExplorer\Query\PreviewTree;
 use Piwik\Plugins\DataExplorer\Query\ProcessedMetrics;
 use Piwik\Plugins\DataExplorer\Query\SavedReportReader;
@@ -111,6 +113,77 @@ class API extends \Piwik\Plugin\API
                 'maxColumns' => 1,
             ],
         ];
+    }
+
+    /**
+     * Runs an unsaved funnel live: one row per step, with a subtable per step of the breakdown values when the
+     * funnel has a breakdown.
+     *
+     * @unsanitized
+     * @param int $idSite
+     * @param string $period
+     * @param string $date
+     * @param string $definition JSON of the funnel, same shape as a saved funnel definition
+     * @param string $segment combined (AND) with the segment stored in the definition
+     * @return DataTable|DataTable\Map
+     */
+    public function runFunnel(int $idSite, string $period, string $date, string $definition, string $segment = ''): DataTable\DataTableInterface
+    {
+        (new ReportPermissions())->checkCanExplore($idSite);
+
+        $raw = json_decode($definition, true);
+        if (!is_array($raw)) {
+            throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorDefinitionInvalid'));
+        }
+        $raw['type'] = ReportDefinition::TYPE_FUNNEL;
+        if (!isset($raw['name']) || !is_string($raw['name']) || trim($raw['name']) === '') {
+            $raw['name'] = 'preview';
+        }
+        $validated = ReportDefinition::fromArray($raw);
+
+        if (Period::isMultiplePeriod($date, $period)) {
+            $site = new Site($idSite);
+            $map = new DataTable\Map();
+            $map->setKeyName('date');
+            foreach (array_slice((new Range($period, $date, $site->getTimezone()))->getSubperiods(), -Configuration::getRawSqlMaxPoints()) as $subPeriod) {
+                $map->addTable($this->runFunnel($idSite, $subPeriod->getLabel(), $subPeriod->getDateStart()->toString(), $definition, $segment), $subPeriod->getPrettyString());
+            }
+
+            return $map;
+        }
+
+        $cache = Cache::getLazyCache();
+        $cacheId = 'DataExplorer_funnel_' . md5(implode('|', [$idSite, $period, $date, $segment, json_encode($validated->toArray())]));
+        $rows = $cache->fetch($cacheId);
+        if (!is_array($rows)) {
+            $rows = (new FunnelQueryRunner())->run($validated, $idSite, $period, $date, $segment)->getRows();
+            $rows = array_map(fn (DataTable\Row $row) => [
+                'columns' => $row->getColumns(),
+                'subtable' => $row->getSubtable() instanceof DataTable ? array_map(fn (DataTable\Row $sub) => $sub->getColumns(), $row->getSubtable()->getRows()) : null,
+            ], $rows);
+            $cache->save($cacheId, $rows, self::PREVIEW_CACHE_TTL);
+        }
+
+        $table = new DataTable();
+        foreach ($rows as $row) {
+            $stepRow = new DataTable\Row([DataTable\Row::COLUMNS => $row['columns']]);
+            if ($row['subtable'] !== null) {
+                $subtable = new DataTable();
+                foreach ($row['subtable'] as $columns) {
+                    $subtable->addRow(new DataTable\Row([DataTable\Row::COLUMNS => $columns]));
+                }
+                $stepRow->setSubtable($subtable);
+            }
+            $table->addRow($stepRow);
+        }
+        $breakdown = $validated->getBreakdown() === null ? null : (new VisualQueryBuilder())->resolveDimension($validated->getBreakdown(), $idSite);
+        FunnelResult::present($table, $validated, $breakdown, $idSite);
+
+        $site = new Site($idSite);
+        $table->setMetadata(DataTableFactory::TABLE_METADATA_SITE_INDEX, $site);
+        $table->setMetadata(DataTableFactory::TABLE_METADATA_PERIOD_INDEX, PeriodFactory::build($period, $date, $site->getTimezone()));
+
+        return $table;
     }
 
     /**
@@ -417,6 +490,9 @@ class API extends \Piwik\Plugin\API
     {
         if ($idExploration === 0 && $definition !== '') {
             $raw = json_decode(Common::unsanitizeInputValue($definition), true);
+            if (is_array($raw) && ($raw['type'] ?? '') === ReportDefinition::TYPE_FUNNEL) {
+                return $this->runFunnel($idSite, $period, $date, Common::unsanitizeInputValue($definition), Common::unsanitizeInputValue($segment));
+            }
             if (is_array($raw) && ($raw['type'] ?? '') === ReportDefinition::TYPE_SQL) {
                 $validated = GetSavedReport::previewDefinition(Common::unsanitizeInputValue($definition));
 
@@ -812,7 +888,19 @@ class API extends \Piwik\Plugin\API
 
         $builder = new VisualQueryBuilder();
         foreach ($siteIds as $idSite) {
-            $builder->resolve($definition, $idSite);
+            if ($definition->isFunnel()) {
+                foreach ($definition->getSteps() as $step) {
+                    $builder->funnelStepTable($builder->resolveConditions($step['conditions'], $idSite), $step['name']);
+                }
+                if ($definition->getBreakdown() !== null) {
+                    $breakdown = $builder->resolveDimension($definition->getBreakdown(), $idSite);
+                    if (!in_array($breakdown->table, ['log_visit', 'log_link_visit_action'], true)) {
+                        throw new \InvalidArgumentException(Piwik::translate('DataExplorer_ErrorFunnelBreakdown', [$breakdown->name]));
+                    }
+                }
+            } else {
+                $builder->resolve($definition, $idSite);
+            }
 
             if ($definition->getSegment() !== '') {
                 try {
@@ -924,14 +1012,14 @@ class API extends \Piwik\Plugin\API
         ReportsDao::clearCache();
         Cache::getTransientCache()->flushAll();
 
-        if ($report === null || $report['type'] !== ReportDefinition::TYPE_VISUAL || $onlySites === []) {
+        if ($report === null || !in_array($report['type'], [ReportDefinition::TYPE_VISUAL, ReportDefinition::TYPE_FUNNEL], true) || $onlySites === []) {
             return;
         }
 
         $placement = $onlySites === null ? $report['placement'] : Placement::fromArray(['sites' => $onlySites]);
 
         PluginManager::getInstance()->getLoadedPlugin('DataExplorer')->invalidateHistory([
-            'type' => ReportDefinition::TYPE_VISUAL,
+            'type' => $report['type'],
             'placement' => $placement,
         ]);
     }

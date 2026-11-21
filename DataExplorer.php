@@ -230,6 +230,61 @@ class DataExplorer extends \Piwik\Plugin
         'General_Save',
         'General_Cancel',
         'General_Close',
+        'DataExplorer_ReportType_funnel',
+        'DataExplorer_FunnelTab',
+        'DataExplorer_FunnelCanvas',
+        'DataExplorer_FunnelHint',
+        'DataExplorer_FunnelType',
+        'DataExplorer_FunnelClosed',
+        'DataExplorer_FunnelOpen',
+        'DataExplorer_FunnelClosedHelp',
+        'DataExplorer_FunnelOpenHelp',
+        'DataExplorer_FunnelSteps',
+        'DataExplorer_FunnelEditSteps',
+        'DataExplorer_FunnelOptional',
+        'DataExplorer_FunnelNoCondition',
+        'DataExplorer_FunnelBreakdown',
+        'DataExplorer_FunnelBreakdownRows',
+        'DataExplorer_FunnelStepDefaultName',
+        'DataExplorer_FunnelFollowLabel',
+        'DataExplorer_FunnelFollowIndirect',
+        'DataExplorer_FunnelFollowDirect',
+        'DataExplorer_FunnelWithin',
+        'DataExplorer_FunnelWithinValue',
+        'DataExplorer_FunnelWithinUnit',
+        'DataExplorer_FunnelUnit_seconds',
+        'DataExplorer_FunnelUnit_minutes',
+        'DataExplorer_FunnelUnit_hours',
+        'DataExplorer_FunnelUnit_days',
+        'DataExplorer_FunnelStepName',
+        'DataExplorer_FunnelStepActions',
+        'DataExplorer_FunnelCopyStep',
+        'DataExplorer_FunnelAddStepAbove',
+        'DataExplorer_FunnelAddStepBelow',
+        'DataExplorer_FunnelDeleteStep',
+        'DataExplorer_FunnelAddCondition',
+        'DataExplorer_FunnelAddConditionLabel',
+        'DataExplorer_FunnelAddStep',
+        'DataExplorer_FunnelStepNameRequired',
+        'DataExplorer_FunnelWithinInvalid',
+        'DataExplorer_FunnelStepCopyName',
+        'DataExplorer_FunnelPassesStarted',
+        'DataExplorer_FunnelPassesCompleted',
+        'DataExplorer_FunnelConversionRate',
+        'DataExplorer_FunnelAbandonedShort',
+        'DataExplorer_FunnelStep',
+        'DataExplorer_FunnelEntered',
+        'DataExplorer_FunnelStepRate',
+        'DataExplorer_FunnelAbandoned',
+        'DataExplorer_FunnelAbandonRate',
+        'DataExplorer_FunnelOverallRate',
+        'DataExplorer_FunnelAvgTime',
+        'DataExplorer_ErrorFunnelDimension',
+        'DataExplorer_ErrorFunnelBreakdown',
+        'CoreHome_ThereIsNoDataForThisReport',
+        'Intl_NSecondsShort',
+        'Intl_NMinutesShort',
+        'Intl_NHoursShort',
     ];
 
     public function registerEvents()
@@ -279,14 +334,14 @@ class DataExplorer extends \Piwik\Plugin
     }
 
     /**
-     * One SavedReport per visual report of every site: the event carries no site and core caches the list per
-     * requested site, while one request can archive several sites. Each builder checks the archived site against
-     * its placement in isEnabled().
+     * One SavedReport per visual report and funnel of every site: the event carries no site and core caches the
+     * list per requested site, while one request can archive several sites. Each builder checks the archived site
+     * against its placement in isEnabled().
      */
     public function addRecordBuilders(array &$recordBuilders): void
     {
         foreach ((new ReportsDao())->getAll() as $report) {
-            if ($report['type'] === ReportDefinition::TYPE_VISUAL) {
+            if (in_array($report['type'], [ReportDefinition::TYPE_VISUAL, ReportDefinition::TYPE_FUNNEL], true)) {
                 $recordBuilders[] = new SavedReport($report);
             }
         }
@@ -418,7 +473,7 @@ class DataExplorer extends \Piwik\Plugin
     public function invalidateHistory(array $report): void
     {
         $placement = $report['placement'] ?? null;
-        if (($report['type'] ?? '') !== ReportDefinition::TYPE_VISUAL || !$placement instanceof Placement) {
+        if (!in_array($report['type'] ?? '', [ReportDefinition::TYPE_VISUAL, ReportDefinition::TYPE_FUNNEL], true) || !$placement instanceof Placement) {
             return;
         }
 

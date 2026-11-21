@@ -127,7 +127,7 @@ export function hasRowDimensions(visualization: Visualization): boolean {
 }
 
 // UTF-8 bytes through percent-encoding: the Matomo 5 test runner has no TextEncoder
-function toBase64Url(text: string): string {
+export function toBase64Url(text: string): string {
   const binary = encodeURIComponent(text).replace(
     /%([0-9A-F]{2})/g,
     (match, hex: string) => String.fromCharCode(parseInt(hex, 16)),
@@ -135,7 +135,7 @@ function toBase64Url(text: string): string {
   return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function fromBase64Url(encoded: string): string {
+export function fromBase64Url(encoded: string): string {
   const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
   const binary = window.atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
   let percentEncoded = '';
@@ -178,7 +178,7 @@ export function groupFilters(filters: Filter[]): Filter[] {
  * Filters of a link or a definition. Without groups (saved before them), "any" puts every filter
  * in one group and anything else each filter in its own.
  */
-function filterList(value: unknown, legacyMatch: unknown): Filter[] {
+export function filterList(value: unknown, legacyMatch: unknown): Filter[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -336,7 +336,7 @@ export function toDefinition(state: ExplorationState): VisualDefinition {
  */
 export function fromDefinition(
   definition: Partial<VisualDefinition>,
-  reportType: ReportType,
+  reportType: ReportType | 'funnel',
 ): ExplorationState {
   let visualization: Visualization = 'table';
   if (reportType === 'evolution') {
