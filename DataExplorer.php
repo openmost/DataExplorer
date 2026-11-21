@@ -301,6 +301,7 @@ class DataExplorer extends \Piwik\Plugin
             // after the other plugins, to see the subcategories they add
             'Category.addSubcategories' => ['function' => 'addSubcategories', 'after' => true],
             'AssetManager.getStylesheetFiles' => 'getStylesheetFiles',
+            'AssetManager.getJavaScriptFiles' => 'getJsFiles',
             'Translate.getClientSideTranslationKeys' => 'getClientSideTranslationKeys',
             // after ScheduledReports lists the reports
             'ScheduledReports.getReportMetadata' => ['function' => 'removeReportsWithoutKnownColumns', 'after' => true],
@@ -436,6 +437,11 @@ class DataExplorer extends \Piwik\Plugin
     public function getStylesheetFiles(array &$stylesheets): void
     {
         $stylesheets[] = 'plugins/DataExplorer/stylesheets/explorer.less';
+    }
+
+    public function getJsFiles(array &$jsFiles): void
+    {
+        $jsFiles[] = 'plugins/DataExplorer/javascripts/treemapColors.js';
     }
 
     public function getClientSideTranslationKeys(array &$translationKeys): void

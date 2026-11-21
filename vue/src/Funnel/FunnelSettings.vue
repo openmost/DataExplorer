@@ -51,14 +51,27 @@
           v-for="(step, index) in funnel.steps"
           :key="index"
           class="dataExplorerFunnelSettings__step"
-          :class="{ 'is-incomplete': !isComplete(step) }"
+          :class="{
+            'is-incomplete': !isComplete(step),
+            'is-dragged': dragged === index,
+            'is-drop-target': over === index && dragged !== index,
+          }"
+          draggable="true"
+          @dragstart="startDrag($event, index)"
+          @dragend="dragged = null; over = null"
+          @dragover.prevent="over = index"
+          @drop.prevent="drop(index)"
         >
           <button
             type="button"
             class="dataExplorerFunnelSettings__stepButton"
+            :title="translate('DataExplorer_FunnelEditSteps')"
             @click="editorOpen = true"
           >
-            <span class="dataExplorerFunnel__stepNumber">{{ index + 1 }}</span>
+            <span
+              class="dataExplorerGrip"
+              aria-hidden="true"
+            ></span>
             <span class="dataExplorerFunnelSettings__stepText">
               <span class="dataExplorerFunnelSettings__stepName">{{ step.name }}</span>
               <span class="dataExplorerFunnelSettings__stepConditions">{{ summary(step) }}</span>
@@ -84,19 +97,23 @@
       @add="$emit('update', { ...funnel, breakdown: $event })"
       @remove="$emit('update', { ...funnel, breakdown: null })"
     />
-    <div
+    <label
       v-if="funnel.breakdown"
-      class="dataExplorerSettings__section"
+      class="dataExplorerFunnelSettings__rows"
     >
-      <Field
-        uicontrol="select"
-        name="dataExplorerFunnelBreakdownRows"
-        :title="translate('DataExplorer_FunnelBreakdownRows')"
-        :options="breakdownRowOptions"
-        :model-value="String(funnel.breakdownRows)"
-        @update:model-value="$emit('update', { ...funnel, breakdownRows: parseInt($event, 10) })"
-      />
-    </div>
+      <span>{{ translate('DataExplorer_FunnelBreakdownRows') }}</span>
+      <select
+        class="browser-default"
+        :value="String(funnel.breakdownRows)"
+        @change="setBreakdownRows($event)"
+      >
+        <option
+          v-for="option in breakdownRowOptions"
+          :key="option.key"
+          :value="option.key"
+        >{{ option.value }}</option>
+      </select>
+    </label>
 
     <FunnelStepsEditor
       v-model="editorOpen"
@@ -115,7 +132,6 @@ import {
   ref,
 } from 'vue';
 import { translate } from 'CoreHome';
-import { Field } from 'CorePluginsAdmin';
 import DropZone from '../Explorer/DropZone.vue';
 import FunnelStepsEditor from './FunnelStepsEditor.vue';
 import { BREAKDOWN_ROWS } from '../Explorer/funnelState';
@@ -135,7 +151,6 @@ export default defineComponent({
   name: 'FunnelSettings',
   components: {
     DropZone,
-    Field,
     FunnelStepsEditor,
   },
   props: {
@@ -154,8 +169,45 @@ export default defineComponent({
     },
   },
   emits: ['update'],
-  setup(props) {
+  setup(props, { emit }) {
     const editorOpen = ref(false);
+
+    // steps reordered by drag and drop: the first step is never optional and follows nothing,
+    // the last one is never optional
+    const dragged = ref<number|null>(null);
+    const over = ref<number|null>(null);
+
+    function startDrag(event: DragEvent, index: number) {
+      dragged.value = index;
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+      }
+    }
+
+    function drop(index: number) {
+      const from = dragged.value;
+      dragged.value = null;
+      over.value = null;
+      if (from === null || from === index) {
+        return;
+      }
+      const steps = props.funnel.steps.map((step) => ({ ...step }));
+      const [moved] = steps.splice(from, 1);
+      steps.splice(index, 0, moved);
+      steps[0] = {
+        ...steps[0], optional: false, follow: 'indirect', within: null,
+      };
+      steps[steps.length - 1] = { ...steps[steps.length - 1], optional: false };
+      emit('update', { ...props.funnel, steps });
+    }
+
+    function setBreakdownRows(event: Event) {
+      emit('update', {
+        ...props.funnel,
+        breakdownRows: parseInt((event.target as HTMLSelectElement).value, 10),
+      });
+    }
 
     const types = [
       {
@@ -197,6 +249,11 @@ export default defineComponent({
 
     return {
       editorOpen,
+      dragged,
+      over,
+      startDrag,
+      drop,
+      setBreakdownRows,
       types,
       summary,
       isComplete,

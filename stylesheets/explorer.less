@@ -612,6 +612,27 @@ html.dataExplorer-panel-open {
   }
 }
 
+// six visualizations (the treemap is offered): smaller buttons, all on one line
+.dataExplorerVisualizations.is-compact {
+  gap: 6px;
+
+  .dataExplorerVisualizations__button {
+    width: 34px;
+    height: 34px;
+    font-size: 15px;
+  }
+
+  .dataExplorerTreemapIcon,
+  .dataExplorerLineIcon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .dataExplorerKpiIcon::before {
+    font-size: 10px;
+  }
+}
+
 .dataExplorerSegmented {
   display: inline-flex;
   flex-wrap: wrap;
@@ -1713,6 +1734,29 @@ button.dataExplorerCanvas__period {
   }
 }
 
+// rows per breakdown value, right under the breakdown chip
+.dataExplorerFunnelSettings__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: -6px 16px 14px;
+  color: @de-text-light;
+  font-size: 12px;
+
+  select {
+    box-sizing: border-box;
+    width: 100%;
+    height: 32px;
+    margin: 0;
+    padding: 0 8px;
+    border: 1px solid @de-border-strong;
+    border-radius: @de-radius-control;
+    background: @de-surface;
+    color: @de-text;
+    font-size: 13px;
+  }
+}
+
 .dataExplorerFunnelSettings__steps {
   margin: 0;
   padding: 0;
@@ -1725,29 +1769,34 @@ button.dataExplorerCanvas__period {
 
 .dataExplorerFunnelSettings__stepButton {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid @de-border;
-  border-left: 3px solid @de-accent;
+  border: 1px solid @de-border-strong;
   border-radius: @de-radius-control;
   background: @de-surface;
   color: @de-text;
   text-align: left;
-  cursor: pointer;
+  cursor: grab;
 
   &:hover {
-    border-color: @de-border-strong;
-    border-left-color: @de-accent;
     background: @de-hover;
   }
 
   .is-incomplete & {
-    border-left-style: dashed;
-    border-left-color: @de-text-lighter;
+    border-style: dashed;
+  }
+
+  .is-dragged & {
+    opacity: .4;
+  }
+
+  .is-drop-target & {
+    border-color: @de-accent;
   }
 }
+
 
 .dataExplorerFunnelSettings__stepText {
   display: flex;
@@ -2036,6 +2085,15 @@ button.dataExplorerCanvas__period {
   & + & {
     border-left: 1px dashed @de-border;
   }
+}
+
+// discreet step number in the chart
+.dataExplorerFunnel__stepHead .dataExplorerFunnel__stepNumber {
+  width: 18px;
+  height: 18px;
+  background: @de-hover;
+  color: @de-text-light;
+  font-size: 11px;
 }
 
 .dataExplorerFunnel__stepHead {

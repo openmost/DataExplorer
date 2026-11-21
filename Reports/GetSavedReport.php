@@ -462,6 +462,13 @@ class GetSavedReport extends Report
             if ($this->hiddenColumns) {
                 $view->config->columns_to_display = $this->metrics;
             }
+            if ($view instanceof Graph) {
+                // the metric picker of the line chart offers the chosen metrics, all drawn at first
+                $view->config->selectable_columns = $this->metrics;
+                if (Common::getRequestVar('columns', '', 'string') === '') {
+                    $view->config->columns_to_display = $this->metrics;
+                }
+            }
             return;
         }
 
@@ -552,7 +559,20 @@ class GetSavedReport extends Report
             uksort($columns, function ($a, $b) use ($order) {
                 return ($order[self::metricOf((string) $a)] ?? PHP_INT_MAX) <=> ($order[self::metricOf((string) $b)] ?? PHP_INT_MAX);
             });
-            $view->config->columns_to_display = array_values(array_merge(['label'], $columns));
+            $columns = array_values($columns);
+            if ($view instanceof Graph) {
+                // the metric picker under a chart offers the chosen metrics, one at a time for a pie or a treemap
+                $view->config->selectable_columns = $columns;
+                $requested = array_filter(explode(',', Common::getRequestVar('columns', '', 'string')));
+                $picked = array_values(array_intersect($requested, $columns));
+                if ($picked === []) {
+                    $single = in_array($view::getViewDataTableId(), [Pie::ID, self::TREEMAP_VIEW], true);
+                    $picked = $single ? array_slice($columns, 0, 1) : $columns;
+                }
+                $view->config->columns_to_display = array_merge(['label'], $picked);
+            } else {
+                $view->config->columns_to_display = array_merge(['label'], $columns);
+            }
 
             foreach ($columns as $column) {
                 $position = strpos((string) $column, LabelFormatter::PIVOT_SEPARATOR);
