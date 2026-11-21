@@ -1,6 +1,6 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Eksploruj dane Matomo jak w eksploracjach GA4 lub za pomocą zabezpieczonego surowego SQL, a następnie zapisuj, udostępniaj i eksportuj wynik.",
+        "PluginDescription": "Twórz raporty niestandardowe, lejki na dowolnym wymiarze i zabezpieczone zapytania SQL z danych Matomo, a następnie zapisuj, udostępniaj i eksportuj je.",
         "ErrorNameInvalid": "Nazwa raportu jest wymagana i może mieć najwyżej %s znaków.",
         "ErrorTechniqueInvalid": "Nieobsługiwana technika eksploracji.",
         "ErrorTypeInvalid": "Nieobsługiwany typ raportu.",

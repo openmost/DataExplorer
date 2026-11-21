@@ -1,6 +1,6 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Esplora i tuoi dati Matomo come nelle esplorazioni di GA4, o con SQL diretto protetto, poi salva, condividi ed esporta il risultato.",
+        "PluginDescription": "Crea report personalizzati, funnel su qualsiasi dimensione e query SQL protette dai tuoi dati Matomo, poi salvali, condividili ed esportali.",
         "ErrorNameInvalid": "Il nome del report è obbligatorio e può contenere al massimo %s caratteri.",
         "ErrorTechniqueInvalid": "Tecnica di esplorazione non supportata.",
         "ErrorTypeInvalid": "Tipo di report non supportato.",

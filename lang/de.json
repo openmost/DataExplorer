@@ -1,6 +1,6 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Erkunden Sie Ihre Matomo-Daten wie in GA4 Explorations oder mit abgesichertem Roh-SQL, und speichern, teilen und exportieren Sie das Ergebnis.",
+        "PluginDescription": "Erstellen Sie aus Ihren Matomo-Daten benutzerdefinierte Berichte, Trichter auf jeder Dimension und abgesicherte SQL-Abfragen, und speichern, teilen und exportieren Sie sie.",
         "ErrorNameInvalid": "Der Berichtsname ist erforderlich und darf höchstens %s Zeichen lang sein.",
         "ErrorTechniqueInvalid": "Nicht unterstützte Explorationstechnik.",
         "ErrorTypeInvalid": "Nicht unterstützter Berichtstyp.",

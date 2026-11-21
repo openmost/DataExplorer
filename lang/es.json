@@ -1,6 +1,6 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Explore sus datos de Matomo como en las exploraciones de GA4, o con SQL directo controlado, y luego guarde, comparta y exporte el resultado.",
+        "PluginDescription": "Cree informes personalizados, embudos sobre cualquier dimensión y consultas SQL protegidas a partir de sus datos de Matomo, y guárdelos, compártalos y expórtelos.",
         "ErrorNameInvalid": "El nombre del informe es obligatorio y admite como máximo %s caracteres.",
         "ErrorTechniqueInvalid": "Técnica de exploración no compatible.",
         "ErrorTypeInvalid": "Tipo de informe no compatible.",

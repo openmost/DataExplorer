@@ -1,6 +1,6 @@
 {
     "DataExplorer": {
-        "PluginDescription": "Explorez vos données Matomo comme dans les explorations GA4, ou avec du SQL brut encadré, puis enregistrez, partagez et exportez le résultat.",
+        "PluginDescription": "Créez des rapports personnalisés, des entonnoirs sur n'importe quelle dimension et des requêtes SQL brutes encadrées à partir de vos données Matomo, puis enregistrez, partagez et exportez-les.",
         "ErrorNameInvalid": "Le nom du rapport est obligatoire et limité à %s caractères.",
         "ErrorTechniqueInvalid": "Technique d'exploration non prise en charge.",
         "ErrorTypeInvalid": "Type de rapport non pris en charge.",
