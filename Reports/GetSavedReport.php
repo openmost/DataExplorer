@@ -28,6 +28,7 @@ use Piwik\Plugin\ViewDataTable;
 use Piwik\ViewDataTable\Manager as ViewDataTableManager;
 use Piwik\Plugins\CoreVisualizations\Visualizations\HtmlTable;
 use Piwik\Plugins\DataExplorer\Catalog\SiteContext;
+use Piwik\Plugins\DataExplorer\Configuration;
 use Piwik\Plugins\DataExplorer\Categories\ExploreSubcategory;
 use Piwik\Plugins\DataExplorer\Categories\ManageSubcategory;
 use Piwik\Plugins\DataExplorer\Dao\ReportsDao;
@@ -60,6 +61,9 @@ class GetSavedReport extends Report
 
     /** rows of a bar or pie chart of a metric that does not add up across rows, which gets no "Others" slice */
     public const GRAPH_ROWS = 6;
+
+    /** id of the visualization of the Treemap Visualization plugin, which may not be installed */
+    public const TREEMAP_VIEW = 'infoviz-treemap';
 
     /** page id prefix of a report shown on a page of its own outside the Data Explorer category */
     public const OWN_PAGE_PREFIX = 'dataexplorer-report-';
@@ -292,6 +296,8 @@ class GetSavedReport extends Report
                 return Bar::ID;
             case 'pie':
                 return Pie::ID;
+            case 'treemap':
+                return Configuration::isTreemapAvailable() ? self::TREEMAP_VIEW : HtmlTable::ID;
             default:
                 return HtmlTable::ID;
         }
@@ -440,7 +446,11 @@ class GetSavedReport extends Report
         $view->config->show_goals = false;
         $view->config->show_insights = false;
         $view->config->show_table_all_columns = false;
-        $view->config->footer_icons = $this->allowedFooterIcons($view, [HtmlTable::ID, Bar::ID, Pie::ID]);
+        $views = [HtmlTable::ID, Bar::ID, Pie::ID];
+        if (Configuration::isTreemapAvailable()) {
+            $views[] = self::TREEMAP_VIEW;
+        }
+        $view->config->footer_icons = $this->allowedFooterIcons($view, $views);
 
         if ($this->isSql()) {
             // the rows keep the order of the query
@@ -448,7 +458,8 @@ class GetSavedReport extends Report
         }
 
         $definition = is_array($this->row['definition'] ?? null) ? $this->row['definition'] : [];
-        if (!$this->isSql() && count((array) ($definition['rows'] ?? [])) > 1) {
+        // the treemap draws the first level and opens a rectangle into the next one, a flat table has no levels
+        if (!$this->isSql() && count((array) ($definition['rows'] ?? [])) > 1 && $view::getViewDataTableId() !== self::TREEMAP_VIEW) {
             $view->config->show_flatten_table = true;
             // the view the report was saved with, unless the URL asks for the other one
             $request = Request::fromRequest();

@@ -24,6 +24,7 @@ use Piwik\Db;
 use Piwik\NoAccessException;
 use Piwik\Period;
 use Piwik\Period\Factory as PeriodFactory;
+use Piwik\Period\Range;
 use Piwik\Piwik;
 use Piwik\Plugin\Manager as PluginManager;
 use Piwik\Plugins\DataExplorer\Access\ReportPermissions;
@@ -145,6 +146,20 @@ class API extends \Piwik\Plugin\API
             || ($validated->getReportType() === ReportDefinition::REPORT_TYPE_KPICARD && Period::isMultiplePeriod($date, $period))
         ) {
             return (new VisualQueryRunner())->runEvolution($validated, $idSite, $period, $date, $segment);
+        }
+
+        // a table over several periods, such as the previous and current period of a treemap's evolution colors
+        if (Period::isMultiplePeriod($date, $period)) {
+            $site = new Site($idSite);
+            $subPeriods = (new Range($period, $date, $site->getTimezone()))->getSubperiods();
+            $map = new DataTable\Map();
+            $map->setKeyName('date');
+            foreach (array_slice($subPeriods, -Configuration::getRawSqlMaxPoints()) as $subPeriod) {
+                $table = $this->runVisual($idSite, $subPeriod->getLabel(), $subPeriod->getDateStart()->toString(), $definition, $segment, $idSubtable, $flat);
+                $map->addTable($table, $subPeriod->getPrettyString());
+            }
+
+            return $map;
         }
 
         // the native data table of the canvas asks again on every sort, page or opened row: one run serves them

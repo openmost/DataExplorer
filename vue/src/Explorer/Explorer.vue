@@ -109,6 +109,7 @@
         />
         <TabSettings
           :visualization="state.visualization"
+          :treemap="treemap"
           :limits="catalog.limits"
           :row-items="rowZoneItems"
           :column-items="columnItems"
@@ -159,6 +160,7 @@
         :can-save="true"
         :editing="isEditingSql"
         :visualization="sqlVisualization"
+        :treemap="treemap"
         @set-visualization="sqlVisualization = $event"
         @save="openSave('sql')"
       />
@@ -251,6 +253,7 @@ import {
   fromDefinition,
   hasRowDimensions,
   HASH_PARAM,
+  isChart,
   isFilterComplete,
   REPORT_HASH_PARAM,
   reportTypeOf,
@@ -335,6 +338,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // the Treemap Visualization plugin is activated
+    treemap: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
     const idSite = parseInt(String(Matomo.idSite), 10);
@@ -353,6 +361,19 @@ export default defineComponent({
     // the chart of the Raw SQL result, saved with the query like the one of an exploration
     const sqlVisualization = ref<Visualization>('table');
     const activeTab = ref<Tab>('explore');
+
+    // a treemap opened, or kept in the URL, after the Treemap Visualization plugin was deactivated
+    watch(() => [state.visualization, sqlVisualization.value], () => {
+      if (props.treemap) {
+        return;
+      }
+      if (state.visualization === 'treemap') {
+        state.visualization = 'table';
+      }
+      if (sqlVisualization.value === 'treemap') {
+        sqlVisualization.value = 'table';
+      }
+    }, { immediate: true });
 
     // what an opened report computes and shows, to tell whether the exploration changed since
     const snapshotOf = (value: ExplorationState) => JSON.stringify({
@@ -664,7 +685,7 @@ export default defineComponent({
     // what the canvas requests: the bar and pie charts read the first row dimension only
     const requestDefinition = computed<VisualDefinition>(() => {
       const def = definition.value;
-      if (state.visualization === 'bar' || state.visualization === 'pie') {
+      if (isChart(state.visualization)) {
         return {
           ...def,
           rows: def.rows.slice(0, 1),
@@ -705,7 +726,8 @@ export default defineComponent({
     // a view or layout picked in the canvas footer becomes the one of the exploration
     function onCanvasView(event: { viewDataTable: string, flat: boolean }) {
       const visualization = VISUALIZATION_BY_VIEW[event.viewDataTable];
-      if (visualization && visualization !== state.visualization) {
+      if (visualization && visualization !== state.visualization
+        && (props.treemap || visualization !== 'treemap')) {
         state.visualization = visualization;
       }
       if (state.visualization === 'table' && state.rows.length > 1) {
@@ -1183,16 +1205,12 @@ export default defineComponent({
       if (saveType.value === 'sql') {
         return {
           sql: sql.value,
-          chart: sqlVisualization.value === 'bar' || sqlVisualization.value === 'pie'
-            ? sqlVisualization.value
-            : '',
+          chart: isChart(sqlVisualization.value) ? sqlVisualization.value : '',
         };
       }
       const def = { ...definition.value } as Record<string, unknown>;
       delete def.report_type;
-      def.chart = state.visualization === 'bar' || state.visualization === 'pie'
-        ? state.visualization
-        : '';
+      def.chart = isChart(state.visualization) ? state.visualization : '';
       return def;
     });
 

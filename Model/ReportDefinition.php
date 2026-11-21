@@ -32,7 +32,7 @@ class ReportDefinition
     public const REPORT_TYPE_KPICARD = 'kpicard';
 
     // how a table report opens, its footer still offers the other views
-    public const CHARTS = ['', 'bar', 'pie'];
+    public const CHARTS = ['', 'bar', 'pie', 'treemap'];
 
     // definitions saved before filter groups: every filter applies (AND) or any of them is enough (OR)
     public const FILTER_MATCH_ALL = 'all';

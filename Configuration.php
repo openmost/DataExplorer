@@ -48,11 +48,24 @@ class Configuration
      */
     public static function isCustomReportsAvailable(): bool
     {
+        return self::isPluginAvailable('CustomReports');
+    }
+
+    /**
+     * The Treemap Visualization plugin is available: explorations and reports can be drawn as a treemap.
+     */
+    public static function isTreemapAvailable(): bool
+    {
+        return self::isPluginAvailable('TreemapVisualization');
+    }
+
+    private static function isPluginAvailable(string $plugin): bool
+    {
         $manager = \Piwik\Plugin\Manager::getInstance();
 
-        return $manager->isPluginInstalled('CustomReports', true)
-            && $manager->isPluginActivated('CustomReports')
-            && $manager->isPluginLoaded('CustomReports');
+        return $manager->isPluginInstalled($plugin, true)
+            && $manager->isPluginActivated($plugin)
+            && $manager->isPluginLoaded($plugin);
     }
 
     /**

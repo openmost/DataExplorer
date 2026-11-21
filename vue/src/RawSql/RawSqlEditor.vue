@@ -162,10 +162,11 @@ import { toDiagnostics } from './sqlDiagnostics';
 import { runKeymap } from './runKeymap';
 import { createCodeTheme } from '../codeTheme';
 import {
+  availableVisualizations,
+  isChart,
   reportTypeOf,
   VISUALIZATION_BY_VIEW,
   VISUALIZATION_ICONS,
-  VISUALIZATIONS,
   VIEW_BY_VISUALIZATION,
 } from '../Explorer/explorationState';
 import type { Diagnostic, EditorView } from './codeMirrorModules';
@@ -246,6 +247,10 @@ export default defineComponent({
       type: String as PropType<Visualization>,
       default: 'table',
     },
+    treemap: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['update:modelValue', 'save', 'validity', 'setVisualization'],
   setup(props, { emit }) {
@@ -258,7 +263,7 @@ export default defineComponent({
     // the result of Run: the native visualization of the query, like a saved raw SQL report
     const resultParams = ref<Record<string, string>|null>(null);
     const ranSql = ref('');
-    const visualizations = VISUALIZATIONS.map((id) => ({
+    const visualizations = availableVisualizations(props.treemap).map((id) => ({
       id,
       icon: VISUALIZATION_ICONS[id],
       label: translate(`DataExplorer_Visualization_${id}`),
@@ -320,9 +325,7 @@ export default defineComponent({
     }
 
     function load() {
-      const chart = props.visualization === 'bar' || props.visualization === 'pie'
-        ? props.visualization
-        : '';
+      const chart = isChart(props.visualization) ? props.visualization : '';
       resultParams.value = {
         module: 'DataExplorer',
         action: 'preview',

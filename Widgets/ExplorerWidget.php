@@ -60,6 +60,7 @@ class ExplorerWidget extends Widget
                 'writable-sites' => $writableSites,
                 'custom-reports' => Piwik::isUserHasWriteAccess($idSite)
                     && Configuration::isCustomReportsAvailable(),
+                'treemap' => Configuration::isTreemapAvailable(),
                 'setup-url' => $isSuperUser ? 'index.php?' . Url::getQueryStringFromParameters([
                     'module' => 'DataExplorer',
                     'action' => 'setup',

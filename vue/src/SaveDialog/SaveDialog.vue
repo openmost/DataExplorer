@@ -190,6 +190,7 @@ import {
 } from 'CoreHome';
 import { Field, SaveButton } from 'CorePluginsAdmin';
 import SidePanel from '../SidePanel/SidePanel.vue';
+import { isChart } from '../Explorer/explorationState';
 import type {
   ReportCategory,
   ReportType,
@@ -311,10 +312,10 @@ export default defineComponent({
       value: translate(`DataExplorer_ReportType_${key}`),
     })));
 
-    // a bar or pie chart is a table report drawn as a chart: name the chart, not the table
+    // a chart is a table report drawn as a chart: name the chart, not the table
     const reportTypeLabel = computed(() => {
       const { chart } = props.definition;
-      if (chart === 'bar' || chart === 'pie') {
+      if (isChart(chart)) {
         return translate(`DataExplorer_Visualization_${chart}`);
       }
       return translate(`DataExplorer_ReportType_${props.reportType}`);
