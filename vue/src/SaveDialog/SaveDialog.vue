@@ -152,6 +152,16 @@
           :title="translate('DataExplorer_SaveOrder')"
           :inline-help="translate('DataExplorer_SaveOrderHelp')"
         />
+
+        <Field
+          v-if="type !== 'sql'"
+          :full-width="true"
+          uicontrol="checkbox"
+          name="dataExplorerSaveProcessSegments"
+          v-model="form.processSegments"
+          :title="translate('DataExplorer_SaveProcessSegments')"
+          :inline-help="translate('DataExplorer_SaveProcessSegmentsHelp')"
+        />
       </div>
     </div>
     <template #actions>
@@ -220,6 +230,7 @@ interface SaveForm {
   subcategory: string;
   newSubcategory: string;
   order: string|number;
+  processSegments: boolean;
 }
 
 /**
@@ -297,6 +308,7 @@ export default defineComponent({
       subcategory: OWN_PAGE,
       newSubcategory: '',
       order: DEFAULT_ORDER,
+      processSegments: true,
     });
 
     const title = computed(() => translate(props.editing
@@ -468,6 +480,7 @@ export default defineComponent({
       }
       form.reportType = props.reportType;
       form.order = report ? report.order : DEFAULT_ORDER;
+      form.processSegments = !report || report.definition.process_segments !== false;
 
       if (report && report.placement.all) {
         form.placement = props.isSuperUser ? 'all' : 'site';
@@ -564,6 +577,7 @@ export default defineComponent({
           ...props.definition,
           report_type: reportType,
           description: form.description.trim(),
+          process_segments: form.processSegments,
         }),
         placement: placementJson(),
         category: form.category,

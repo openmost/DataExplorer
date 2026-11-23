@@ -980,8 +980,13 @@ class API extends \Piwik\Plugin\API
         foreach (['name', 'description', 'chart', 'table_view'] as $key) {
             unset($before[$key], $after[$key]);
         }
+        // segments switched off keep the archives of the whole traffic; switched back on, the segment archives
+        // already built without the report must be rebuilt
+        $segmentsBefore = $before['process_segments'] ?? true;
+        $segmentsAfter = $after['process_segments'] ?? true;
+        unset($before['process_segments'], $after['process_segments']);
 
-        return $before !== $after;
+        return $before !== $after || (!$segmentsBefore && $segmentsAfter);
     }
 
     /**

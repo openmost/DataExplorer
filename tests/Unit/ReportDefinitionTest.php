@@ -92,6 +92,16 @@ class ReportDefinitionTest extends TestCase
         $this->assertSame($def->toArray(), ReportDefinition::fromArray($def->toArray())->toArray());
     }
 
+    public function testSegmentProcessing_isOnByDefault_andCanBeTurnedOff(): void
+    {
+        $this->assertTrue(ReportDefinition::fromArray($this->valid())->processesSegments());
+        $this->assertTrue(ReportDefinition::fromArray($this->valid(['process_segments' => true]))->processesSegments());
+
+        $off = ReportDefinition::fromArray($this->valid(['process_segments' => false]));
+        $this->assertFalse($off->processesSegments());
+        $this->assertFalse(ReportDefinition::fromArray($off->toArray())->processesSegments());
+    }
+
     public function testChart_isKeptForTables_only(): void
     {
         $this->assertSame('pie', ReportDefinition::fromArray($this->valid(['chart' => 'pie']))->getChart());
