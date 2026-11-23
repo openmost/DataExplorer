@@ -1,5 +1,13 @@
 ## Changelog
 
+### 5.5.0
+
+- Segment processing per saved report: turned off, the report is only available for All visits and `core:archive` skips it for every segment, which shortens archiving on instances with many pre-processed segments.
+- Usable on tablets and phones: the columns of the explorer stack, the funnel chart and table and the list of explorations scroll sideways instead of widening the page.
+- The chart buttons of a raw SQL result appear with the result, not above a loading table.
+- The explorer opens on the last 7 days.
+- Filters imported from a custom report keep their slashes and other special characters, and filters written back to a custom report are encoded like the segment editor does.
+
 ### 5.4.1
 
 - The documentation and the FAQ have their own tabs on the Marketplace page.
