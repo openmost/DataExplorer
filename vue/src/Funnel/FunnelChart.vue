@@ -88,48 +88,50 @@
         </li>
       </ol>
 
-      <table class="entityTable dataTable dataExplorerFunnel__table">
-        <thead>
-          <tr>
-            <th class="label">{{ translate('DataExplorer_FunnelStep') }}</th>
-            <th>{{ translate('DataExplorer_FunnelEntered') }}</th>
-            <th>{{ translate('DataExplorer_FunnelStepRate') }}</th>
-            <th>{{ translate('DataExplorer_FunnelAbandoned') }}</th>
-            <th>{{ translate('DataExplorer_FunnelAbandonRate') }}</th>
-            <th>{{ translate('DataExplorer_FunnelOverallRate') }}</th>
-            <th>{{ translate('DataExplorer_FunnelAvgTime') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template
-            v-for="(step, index) in steps"
-            :key="index"
-          >
-            <tr class="dataExplorerFunnel__stepRow">
-              <td class="label">{{ index + 1 }}. {{ step.label }}</td>
-              <td>{{ formatNumber(step.nb_entered) }}</td>
-              <td>{{ formatPercent(step.step_rate) }}</td>
-              <td>{{ isLast(index) ? '' : formatNumber(step.nb_abandoned) }}</td>
-              <td>{{ isLast(index) ? '' : formatPercent(step.abandon_rate) }}</td>
-              <td>{{ formatPercent(step.overall_rate) }}</td>
-              <td>{{ index > 0 ? formatTime(step.avg_time_to_step) : '' }}</td>
+      <div class="dataExplorerFunnel__tableScroller">
+        <table class="entityTable dataTable dataExplorerFunnel__table">
+          <thead>
+            <tr>
+              <th class="label">{{ translate('DataExplorer_FunnelStep') }}</th>
+              <th>{{ translate('DataExplorer_FunnelEntered') }}</th>
+              <th>{{ translate('DataExplorer_FunnelStepRate') }}</th>
+              <th>{{ translate('DataExplorer_FunnelAbandoned') }}</th>
+              <th>{{ translate('DataExplorer_FunnelAbandonRate') }}</th>
+              <th>{{ translate('DataExplorer_FunnelOverallRate') }}</th>
+              <th>{{ translate('DataExplorer_FunnelAvgTime') }}</th>
             </tr>
-            <tr
-              v-for="value in valuesOf(step)"
-              :key="`${index}-${value.label}`"
-              class="dataExplorerFunnel__valueRow"
+          </thead>
+          <tbody>
+            <template
+              v-for="(step, index) in steps"
+              :key="index"
             >
-              <td class="label">{{ value.label }}</td>
-              <td>{{ formatNumber(value.nb_entered) }}</td>
-              <td>{{ formatPercent(value.step_rate) }}</td>
-              <td>{{ isLast(index) ? '' : formatNumber(value.nb_abandoned) }}</td>
-              <td>{{ isLast(index) ? '' : formatPercent(value.abandon_rate) }}</td>
-              <td>{{ formatPercent(value.overall_rate) }}</td>
-              <td>{{ index > 0 ? formatTime(value.avg_time_to_step) : '' }}</td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
+              <tr class="dataExplorerFunnel__stepRow">
+                <td class="label">{{ index + 1 }}. {{ step.label }}</td>
+                <td>{{ formatNumber(step.nb_entered) }}</td>
+                <td>{{ formatPercent(step.step_rate) }}</td>
+                <td>{{ isLast(index) ? '' : formatNumber(step.nb_abandoned) }}</td>
+                <td>{{ isLast(index) ? '' : formatPercent(step.abandon_rate) }}</td>
+                <td>{{ formatPercent(step.overall_rate) }}</td>
+                <td>{{ index > 0 ? formatTime(step.avg_time_to_step) : '' }}</td>
+              </tr>
+              <tr
+                v-for="value in valuesOf(step)"
+                :key="`${index}-${value.label}`"
+                class="dataExplorerFunnel__valueRow"
+              >
+                <td class="label">{{ value.label }}</td>
+                <td>{{ formatNumber(value.nb_entered) }}</td>
+                <td>{{ formatPercent(value.step_rate) }}</td>
+                <td>{{ isLast(index) ? '' : formatNumber(value.nb_abandoned) }}</td>
+                <td>{{ isLast(index) ? '' : formatPercent(value.abandon_rate) }}</td>
+                <td>{{ formatPercent(value.overall_rate) }}</td>
+                <td>{{ index > 0 ? formatTime(value.avg_time_to_step) : '' }}</td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
     </template>
   </div>
 </template>

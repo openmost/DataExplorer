@@ -195,7 +195,8 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 
     .dataExplorerCanvas {
-      grid-column: 1 / -1;
+      // escaped: Less would compute 1 / -1 as a division and place the canvas in an extra column
+      grid-column: ~"1 / -1";
       border-left: 0;
       border-top: 1px solid @de-border;
     }
@@ -1716,6 +1717,25 @@ button.dataExplorerCanvas__period {
   margin-left: -12px;
 }
 
+@media (max-width: 700px) {
+  // a phone: the report picker and each save button take a full line
+  .dataExplorer__reports {
+    flex: 1 1 100%;
+    min-width: 0;
+
+    > :last-child {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  .dataExplorer__save,
+  .dataExplorer__saveCustomReport {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+}
+
 .dataExplorerCustomReport__help {
   margin: 0 0 12px;
 }
@@ -2095,8 +2115,10 @@ button.dataExplorerCanvas__period {
 
 .dataExplorerFunnel__chart {
   display: grid;
-  grid-template-columns: repeat(var(--de-funnel-steps), minmax(0, 1fr));
+  // a step keeps room for its numbers: on a narrow screen the chart scrolls sideways instead
+  grid-template-columns: repeat(var(--de-funnel-steps), minmax(88px, 1fr));
   gap: 0;
+  overflow-x: auto;
   margin: 0 0 20px 0;
   padding: 0;
   list-style: none;
@@ -2187,8 +2209,14 @@ button.dataExplorerCanvas__period {
   font-weight: 600;
 }
 
+// the table keeps its columns readable and scrolls sideways on a narrow screen
+.dataExplorerFunnel__tableScroller {
+  overflow-x: auto;
+}
+
 .dataExplorerFunnel__table {
   width: 100%;
+  white-space: nowrap;
 
   td:not(.label),
   th:not(.label) {
