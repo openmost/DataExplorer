@@ -306,9 +306,6 @@
     },
     "OpenmostCommunication": {
         "Dismiss": "Ausblenden",
-        "Matomo6Title": "Matomo 6 ist da",
-        "Matomo6Body": "Jetzt zu aktualisieren ist einfacher, als in einigen Monaten aufzuholen: Neue Funktionen und Sicherheitsverbesserungen erscheinen zuerst in Matomo 6, und wir bringen Sie dorthin, ohne dass Berichte oder Tracking verloren gehen.",
-        "Matomo6Cta": "Mein Matomo-6-Upgrade planen",
         "WidgetName": "Openmost: Tipps und Neuigkeiten",
         "AIChatbotsTitle": "Brauchen Sie Hilfe beim Einrichten des KI-Chatbot-Trackings?",
         "AIChatbotsBody": "Openmost richtet das KI-Chatbot-Tracking für Sie ein, auf Matomo On-Premise oder Cloud.",

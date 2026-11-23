@@ -306,9 +306,6 @@
     },
     "OpenmostCommunication": {
         "Dismiss": "Dismiss",
-        "Matomo6Title": "Matomo 6 is here",
-        "Matomo6Body": "Upgrading now is simpler than catching up in a few months: new features and security improvements land on Matomo 6 first, and we move you there with your reports and tracking intact.",
-        "Matomo6Cta": "Plan my Matomo 6 upgrade",
         "WidgetName": "Openmost: tips and news",
         "AIChatbotsTitle": "Need help setting up AI chatbot tracking?",
         "AIChatbotsBody": "Openmost can configure AI chatbot tracking for you, on Matomo On-Premise or Cloud.",

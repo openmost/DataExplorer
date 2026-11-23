@@ -306,9 +306,6 @@
     },
     "OpenmostCommunication": {
         "Dismiss": "Dispensar",
-        "Matomo6Title": "O Matomo 6 chegou",
-        "Matomo6Body": "Atualizar agora é mais simples do que recuperar o atraso daqui a alguns meses: as novidades e as melhorias de segurança chegam primeiro ao Matomo 6, e levamos a sua instância até lá com os relatórios e o seguimento intactos.",
-        "Matomo6Cta": "Planear a minha atualização para o Matomo 6",
         "WidgetName": "Openmost: dicas e novidades",
         "AIChatbotsTitle": "Precisa de ajuda para configurar o seguimento de chatbots de IA?",
         "AIChatbotsBody": "A Openmost pode configurar o seguimento de chatbots de IA por si, no Matomo On-Premise ou Cloud.",

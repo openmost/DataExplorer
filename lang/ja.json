@@ -306,9 +306,6 @@
     },
     "OpenmostCommunication": {
         "Dismiss": "閉じる",
-        "Matomo6Title": "Matomo 6 が登場しました",
-        "Matomo6Body": "数か月後に追いつくより、今アップグレードする方が簡単です。新機能とセキュリティの改善はまず Matomo 6 に提供されます。レポートとトラッキングをそのままに、Matomo 6 への移行をお手伝いします。",
-        "Matomo6Cta": "Matomo 6 へのアップグレードを計画する",
         "WidgetName": "Openmost: ヒントとお知らせ",
         "AIChatbotsTitle": "AI チャットボットトラッキングの設定でお困りですか？",
         "AIChatbotsBody": "Openmost が、Matomo On-Premise でも Cloud でも、AI チャットボットトラッキングを代わりに設定します。",

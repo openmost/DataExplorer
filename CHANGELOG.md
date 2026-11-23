@@ -1,5 +1,9 @@
 ## Changelog
 
+### 6.5.1
+
+- Unused translation strings removed.
+
 ### 6.5.0
 
 - Segment processing per saved report: turned off, the report is only available for All visits and `core:archive` skips it for every segment, which shortens archiving on instances with many pre-processed segments.
