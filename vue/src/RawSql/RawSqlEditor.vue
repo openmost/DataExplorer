@@ -104,6 +104,7 @@
           class="dataExplorerSql__resultBlock"
         >
           <div
+            v-if="resultLoaded"
             class="dataExplorerVisualizations dataExplorerSql__visualizations"
             role="group"
             :aria-label="translate('DataExplorer_Visualization')"
@@ -123,7 +124,7 @@
             </button>
           </div>
           <p
-            v-if="visualization === 'kpicard'"
+            v-if="resultLoaded && visualization === 'kpicard'"
             class="dataExplorerSql__hint"
           >{{ translate('DataExplorer_SqlKpiHint') }}</p>
           <div
@@ -262,6 +263,8 @@ export default defineComponent({
     const problems = ref<Diagnostic[]>([]);
     // the result of Run: the native visualization of the query, like a saved raw SQL report
     const resultParams = ref<Record<string, string>|null>(null);
+    // the chart buttons wait for the first result of a query, not shown above a loading table
+    const resultLoaded = ref(false);
     const ranSql = ref('');
     const visualizations = availableVisualizations(props.treemap).map((id) => ({
       id,
@@ -347,6 +350,7 @@ export default defineComponent({
         return;
       }
       ranSql.value = view.state.doc.toString();
+      resultLoaded.value = false;
       load();
     }
 
@@ -367,13 +371,22 @@ export default defineComponent({
       });
     }
     let bound: HTMLElement|null = null;
+    // every chart is not a DataTable that triggers piwik:dataTableLoaded: the report HTML
+    // inserted by the widget loader marks the end of the loading
+    const contentObserver = new MutationObserver(() => {
+      if (bound && bound.querySelector('.theWidgetContent > *')) {
+        resultLoaded.value = true;
+      }
+    });
     watch(resultElement, (element) => {
       if (bound) {
         $(bound).off('piwik:dataTableLoaded', onLoaded);
+        contentObserver.disconnect();
       }
       bound = element;
       if (bound) {
         $(bound).on('piwik:dataTableLoaded', onLoaded);
+        contentObserver.observe(bound, { childList: true, subtree: true });
       }
     });
 
@@ -491,6 +504,7 @@ export default defineComponent({
       }
       // another query opened: the result of the previous one no longer belongs here
       resultParams.value = null;
+      resultLoaded.value = false;
       if (offerStarter(value)) {
         return;
       }
@@ -502,6 +516,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       unmounted = true;
+      contentObserver.disconnect();
       if (view) {
         view.destroy();
         view = null;
@@ -516,6 +531,7 @@ export default defineComponent({
       validity,
       problems,
       resultParams,
+      resultLoaded,
       resultElement,
       visualizations,
       isReady,

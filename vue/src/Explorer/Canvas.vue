@@ -101,7 +101,7 @@ export default defineComponent({
       type: String,
       default: '',
     },
-    // the dates of the period, when the pill shows its name (Last 28 days)
+    // the dates of the period, when the pill shows its name (Last 7 days)
     periodDates: {
       type: String,
       default: '',

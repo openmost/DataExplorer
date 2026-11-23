@@ -376,9 +376,9 @@ type Zone = 'rows' | 'column' | 'values' | 'filters' | 'segment';
 // the chart of the Raw SQL result in the URL, beside the exploration
 const SQL_VIEW_PARAM = 'sqlView';
 
-// period of a new visit of the explorer: the last 28 complete days, today excluded, like GA4
+// period of a new visit of the explorer: the last 7 complete days, today excluded, like GA4
 const DEFAULT_PERIOD = 'range';
-const DEFAULT_DATE = 'previous28';
+const DEFAULT_DATE = 'previous7';
 
 export default defineComponent({
   name: 'Explorer',
@@ -1512,7 +1512,7 @@ export default defineComponent({
     }
 
     // entering the explorer (no exploration nor report in the URL: not a reload, not a shared link)
-    // looks at the last 28 days; a period picked inside the explorer is then kept
+    // looks at the last 7 days; a period picked inside the explorer is then kept
     function startOnLast28Days() {
       const current = MatomoUrl.hashParsed.value;
       if (!Matomo.helper.isReportingPage() || current[HASH_PARAM] || current[REPORT_HASH_PARAM]
@@ -1532,7 +1532,7 @@ export default defineComponent({
       Promise.all([
         AjaxHelper.fetch<Catalog>(
           { method: 'DataExplorer.getCatalog', idSite },
-          // not tied to the period, so kept when entering switches it to the last 28 days
+          // not tied to the period, so kept when entering switches it to the last 7 days
           { createErrorNotification: false, abortable: false },
         ).then((result) => {
           catalog.value = result;
