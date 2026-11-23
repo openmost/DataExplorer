@@ -54,8 +54,8 @@ class CustomReportExportTest extends TestCase
         $all = (new CustomReportExport())->convert($this->definition(), $separate, 1);
         $any = (new CustomReportExport())->convert($this->definition(), $together, 1);
 
-        $this->assertSame('visitorType==returning;pageUrl=@a%2Fb+c;pageTitle=$x', $all['segmentFilter']);
-        $this->assertSame('visitorType==returning;pageUrl=@a%2Fb+c,pageTitle=$x', $any['segmentFilter']);
+        $this->assertSame('visitorType==returning;pageUrl=@a%252Fb%2520c;pageTitle=$x', $all['segmentFilter']);
+        $this->assertSame('visitorType==returning;pageUrl=@a%252Fb%2520c,pageTitle=$x', $any['segmentFilter']);
         $this->assertSame(['Actions.PageUrl'], $all['dimensionIds']);
         $this->assertSame([], $all['unsupported']);
     }
