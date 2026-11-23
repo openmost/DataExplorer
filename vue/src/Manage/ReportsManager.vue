@@ -30,71 +30,73 @@
       />
     </div>
 
-    <table v-content-table>
-      <thead>
-        <tr>
-          <th class="first">{{ translate('General_Id') }}</th>
-          <th>{{ translate('General_Name') }}</th>
-          <th>{{ translate('DataExplorer_ManageColumnType') }}</th>
-          <th>{{ translate('DataExplorer_ManageColumnLocation') }}</th>
-          <th>{{ translate('DataExplorer_SaveSites') }}</th>
-          <th>{{ translate('DataExplorer_ManageColumnAuthor') }}</th>
-          <th>{{ translate('DataExplorer_ManageColumnUpdated') }}</th>
-          <th class="dataExplorerManage__actions">{{ translate('General_Actions') }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-if="loading">
-          <td colspan="8">
-            <ActivityIndicator :loading="true" />
-          </td>
-        </tr>
-        <tr v-else-if="!rows.length">
-          <td colspan="8">
-            <br />
-            {{ reports.length
-              ? translate('DataExplorer_ManageNoMatch')
-              : translate('DataExplorer_ManageEmpty') }}
-            <br /><br />
-          </td>
-        </tr>
-        <tr
-          v-for="report in rows"
-          :key="report.idreport"
-        >
-          <td class="first">{{ report.idreport }}</td>
-          <td>{{ report.name }}</td>
-          <td>{{ typeText(report) }}</td>
-          <td>{{ locationText(report) }}</td>
-          <td>{{ sitesText(report) }}</td>
-          <td>{{ report.created_by || translate('DataExplorer_ManageAuthorDeleted') }}</td>
-          <td>{{ report.updated_date || report.created_date }}</td>
-          <td class="entityTable_ActionCell entityTable_ActionCell-3 dataExplorerManage__actions">
-            <a
-              class="table-action icon-show"
-              :href="reportUrl(report)"
-              :title="translate('DataExplorer_ManageView', report.name)"
-              :aria-label="translate('DataExplorer_ManageView', report.name)"
-            />
-            <a
-              v-if="canOpen(report)"
-              class="table-action icon-edit"
-              :href="explorerUrl(report)"
-              :title="translate('DataExplorer_ManageEdit', report.name)"
-              :aria-label="translate('DataExplorer_ManageEdit', report.name)"
-            />
-            <button
-              v-if="report.editable"
-              type="button"
-              class="table-action icon-delete"
-              :title="translate('DataExplorer_ManageDelete', report.name)"
-              :aria-label="translate('DataExplorer_ManageDelete', report.name)"
-              @click="askDelete(report)"
-            />
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="dataExplorerManage__tableScroller">
+      <table v-content-table>
+        <thead>
+          <tr>
+            <th class="first">{{ translate('General_Id') }}</th>
+            <th>{{ translate('General_Name') }}</th>
+            <th>{{ translate('DataExplorer_ManageColumnType') }}</th>
+            <th>{{ translate('DataExplorer_ManageColumnLocation') }}</th>
+            <th>{{ translate('DataExplorer_SaveSites') }}</th>
+            <th>{{ translate('DataExplorer_ManageColumnAuthor') }}</th>
+            <th>{{ translate('DataExplorer_ManageColumnUpdated') }}</th>
+            <th class="dataExplorerManage__actions">{{ translate('General_Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="loading">
+            <td colspan="8">
+              <ActivityIndicator :loading="true" />
+            </td>
+          </tr>
+          <tr v-else-if="!rows.length">
+            <td colspan="8">
+              <br />
+              {{ reports.length
+                ? translate('DataExplorer_ManageNoMatch')
+                : translate('DataExplorer_ManageEmpty') }}
+              <br /><br />
+            </td>
+          </tr>
+          <tr
+            v-for="report in rows"
+            :key="report.idreport"
+          >
+            <td class="first">{{ report.idreport }}</td>
+            <td>{{ report.name }}</td>
+            <td>{{ typeText(report) }}</td>
+            <td>{{ locationText(report) }}</td>
+            <td>{{ sitesText(report) }}</td>
+            <td>{{ report.created_by || translate('DataExplorer_ManageAuthorDeleted') }}</td>
+            <td>{{ report.updated_date || report.created_date }}</td>
+            <td class="entityTable_ActionCell entityTable_ActionCell-3 dataExplorerManage__actions">
+              <a
+                class="table-action icon-show"
+                :href="reportUrl(report)"
+                :title="translate('DataExplorer_ManageView', report.name)"
+                :aria-label="translate('DataExplorer_ManageView', report.name)"
+              />
+              <a
+                v-if="canOpen(report)"
+                class="table-action icon-edit"
+                :href="explorerUrl(report)"
+                :title="translate('DataExplorer_ManageEdit', report.name)"
+                :aria-label="translate('DataExplorer_ManageEdit', report.name)"
+              />
+              <button
+                v-if="report.editable"
+                type="button"
+                class="table-action icon-delete"
+                :title="translate('DataExplorer_ManageDelete', report.name)"
+                :aria-label="translate('DataExplorer_ManageDelete', report.name)"
+                @click="askDelete(report)"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <div class="tableActionBar">
       <a
