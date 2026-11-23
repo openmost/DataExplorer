@@ -205,6 +205,8 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_SaveOwnPageOption',
         'DataExplorer_SaveOrder',
         'DataExplorer_SaveOrderHelp',
+        'DataExplorer_SaveProcessSegments',
+        'DataExplorer_SaveProcessSegmentsHelp',
         'DataExplorer_SaveAsNew',
         'DataExplorer_SqlOpenSetup',
         'DataExplorer_SqlSchema',

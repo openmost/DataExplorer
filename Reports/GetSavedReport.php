@@ -427,6 +427,9 @@ class GetSavedReport extends Report
             $view->requestConfig->request_parameters_to_modify[$name] = $value;
             $view->config->custom_parameters[$name] = $value;
         }
+        if (!$this->processesSegments() && trim(Common::getRequestVar('segment', '', 'string')) !== '') {
+            $view->config->show_footer_message = Piwik::translate('DataExplorer_NotProcessedForSegments');
+        }
         $view->config->custom_parameters['dataExplorerReportType'] = $this->getReportType();
         $view->config->custom_parameters['dataExplorerNonAdditive'] = $this->nonAdditiveMetrics;
         $view->config->addTranslations($this->metricNames);
@@ -687,6 +690,16 @@ class GetSavedReport extends Report
             $this->metrics[] = $metric;
             $this->metricNames[$metric] = Piwik::translate($key);
         }
+    }
+
+    /**
+     * False when the report was saved with segment processing off: a segmented view of it has no data.
+     */
+    public function processesSegments(): bool
+    {
+        return $this->row === null || $this->isSql()
+            || !array_key_exists('process_segments', (array) ($this->row['definition'] ?? []))
+            || !empty($this->row['definition']['process_segments']);
     }
 
     public function isFunnel(): bool

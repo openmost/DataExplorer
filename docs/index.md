@@ -48,6 +48,8 @@ Raising the row caps or the number of dimensions makes the archives bigger and s
 
 Saved visual reports are archived by `core:archive` like the core reports, so they open fast and work with segments, periods, the API and scheduled reports. When you save a report that computes something new (dimensions, metrics, filters, segment, visualization), the last `invalidation_months` months of history are invalidated and rebuilt by the next archiving run. A rename or a move in the menu keeps the history, and placing a report on more websites only builds the history of the added websites. When browser archiving is on, a newly saved or edited report is archived the first time it is displayed.
 
+A report that nobody opens with a segment can skip segment processing: uncheck *Process this report for segments* when you save it. Archiving then builds it for all visits only, which saves time on instances with many pre-processed segments. Opened with a segment, the report says it is not processed for segments. Turning the option off keeps the archived history; turning it back on rebuilds it, so the segments get the report too.
+
 The explorer itself never reads archives: what you build in it is computed live from the log tables, only the reports saved in the menu are archived.
 
 Raw SQL reports are not archived: they run live on the read-only connection, with the time limit, the row limit and the cache above.

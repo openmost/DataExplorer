@@ -57,6 +57,8 @@ class ReportDefinition
     private $name;
     /** @var string */
     private $description = '';
+    /** @var bool false: archiving skips the report for segments, only the whole traffic is processed */
+    private $processSegments = true;
     /** @var string */
     private $type;
     /** @var string */
@@ -106,6 +108,7 @@ class ReportDefinition
         $def->name = $name;
 
         $def->description = trim(self::string($raw, 'description', ''));
+        $def->processSegments = !array_key_exists('process_segments', $raw) || !empty($raw['process_segments']);
         if (mb_strlen($def->description) > self::MAX_DESCRIPTION_LENGTH) {
             throw self::error('DataExplorer_ErrorDescriptionTooLong', self::MAX_DESCRIPTION_LENGTH);
         }
@@ -456,6 +459,11 @@ class ReportDefinition
         return $step['within'] === null ? null : $step['within']['value'] * self::TIME_UNITS[$step['within']['unit']];
     }
 
+    public function processesSegments(): bool
+    {
+        return $this->type === self::TYPE_SQL || $this->processSegments;
+    }
+
     public function isOpen(): bool
     {
         return $this->open;
@@ -485,6 +493,7 @@ class ReportDefinition
                 'breakdown' => $this->breakdown,
                 'breakdown_rows' => $this->breakdownRows,
                 'segment' => $this->segment,
+                'process_segments' => $this->processSegments,
             ];
         }
 
@@ -514,6 +523,7 @@ class ReportDefinition
             'sql' => $this->sql,
             'chart' => $this->chart,
             'table_view' => $this->tableView,
+            'process_segments' => $this->processSegments,
         ];
     }
 }

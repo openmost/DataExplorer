@@ -229,6 +229,14 @@ class ArchivingTest extends IntegrationTestCase
         $this->assertSame(['fr' => 3], $this->column($noSegment, 'nb_visits'));
     }
 
+    public function test_segmentProcessingOff_skipsSegmentArchives_only(): void
+    {
+        $report = $this->save(['rows' => [self::COUNTRY], 'metrics' => ['nb_visits'], 'process_segments' => false]);
+
+        $this->assertNotEmpty($this->column($this->table($report, 'week', self::WEEK), 'nb_visits'));
+        $this->assertSame([], $this->column($this->table($report, 'week', self::WEEK, 'deviceType==desktop'), 'nb_visits'));
+    }
+
     public function test_conversionsUnderAnActionSegment_countEveryConversion(): void
     {
         $definition = ['rows' => [self::COUNTRY], 'metrics' => ['nb_conversions']];

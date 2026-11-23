@@ -175,7 +175,7 @@ export interface SavedReport {
   type: 'visual' | 'sql' | 'funnel';
   report_type: ReportType | 'funnel';
   definition: Partial<VisualDefinition> & Partial<Omit<FunnelDefinition, 'type' | 'technique' | 'report_type'>>
-    & { sql?: string, description?: string };
+    & { sql?: string, description?: string, process_segments?: boolean };
   placement: { all: boolean, sites: number[] };
   category: string;
   subcategory: string;

@@ -108,6 +108,12 @@ class SavedReport extends RecordBuilder
             return false;
         }
 
+        $definition = $this->definition();
+        if ($definition !== null && !$definition->processesSegments()
+            && !$archiveProcessor->getParams()->getSegment()->isEmpty()) {
+            return false;
+        }
+
         return $this->resolve($idSite) !== null;
     }
 

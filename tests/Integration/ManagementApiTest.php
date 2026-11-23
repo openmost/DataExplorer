@@ -368,6 +368,25 @@ class ManagementApiTest extends IntegrationTestCase
         $this->assertSame([], $this->invalidatedSites());
     }
 
+    public function test_segmentProcessingOff_keepsTheRevision_backOn_bumpsIt(): void
+    {
+        $this->as([1], [1]);
+        $id = $this->add();
+        $this->clearInvalidations();
+
+        $definition = json_decode(self::VISUAL, true);
+        $this->api->updateReport($id, 'Countries', 'visual', 'table', json_encode(['process_segments' => false] + $definition), '{"sites":[1]}', 'General_Visitors', 'Explorations');
+        $report = (new ReportsDao())->get($id);
+        $this->assertFalse($report['definition']['process_segments']);
+        $this->assertSame(1, $report['revision']);
+        $this->assertSame([], $this->invalidatedSites());
+
+        // the segment archives built while it was off lack the report
+        $this->api->updateReport($id, 'Countries', 'visual', 'table', json_encode(['process_segments' => true] + $definition), '{"sites":[1]}', 'General_Visitors', 'Explorations');
+        $this->assertSame(2, (new ReportsDao())->get($id)['revision']);
+        $this->assertSame([1], $this->invalidatedSites());
+    }
+
     public function test_placementChange_invalidatesTheAddedSitesOnly_andKeepsTheRevision(): void
     {
         $this->as([1, 2, 3], [1, 2, 3]);
