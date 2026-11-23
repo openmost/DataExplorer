@@ -67,6 +67,16 @@ class CustomReportImportTest extends TestCase
         $this->assertSame('', $result['definition']['segment']);
     }
 
+    public function test_valuesOfADefinitionEncodedTwice_areDecodedLikeCore(): void
+    {
+        $result = $this->import(['segment_filter' => 'pageUrl=@%252Fladeinfrastruktur%252F,pageUrl=@a%252Cb']);
+
+        $this->assertSame([
+            ['dimension' => 'Actions.PageUrl', 'operator' => 'contains', 'value' => '/ladeinfrastruktur/', 'group' => 0],
+            ['dimension' => 'Actions.PageUrl', 'operator' => 'contains', 'value' => 'a,b', 'group' => 0],
+        ], $result['definition']['filters']);
+    }
+
     public function test_partsAFilterCannotHold_stayInTheSegment(): void
     {
         $result = $this->import(['segment_filter' => 'deviceType==smartphone;pageUrl=@a,visitorType==new;pageTitle==;pageTitle==t']);

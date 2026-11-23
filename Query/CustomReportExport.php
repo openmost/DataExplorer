@@ -144,10 +144,11 @@ final class CustomReportExport
         return $segment . self::SEGMENT_OPERATORS[$operator] . self::encode($filter['value']);
     }
 
-    // the logs and the filters hold sanitized text, a segment value is the plain text, URL encoded
+    // the logs and the filters hold sanitized text, a segment value is the plain text encoded twice, as the segment
+    // editor stores it: core decodes the whole definition, then each value, so a comma in a value stays in it
     private static function encode($value): string
     {
-        return urlencode(Common::unsanitizeInputValue((string) $value));
+        return rawurlencode(rawurlencode(Common::unsanitizeInputValue((string) $value)));
     }
 
     /**

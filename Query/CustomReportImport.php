@@ -123,6 +123,13 @@ final class CustomReportImport
      */
     private function filters(string $segment, array $dimensions): array
     {
+        // like core Segment: a definition stored urlencoded as a whole (values then read %252F) is decoded once
+        // before its values, unless decoding it loses conditions
+        $decoded = urldecode($segment);
+        if ($decoded !== $segment && self::conditionCount($decoded) >= self::conditionCount($segment)) {
+            $segment = $decoded;
+        }
+
         $bySegment = [];
         foreach ($dimensions as $entry) {
             if ($entry->segment !== '' && !isset($bySegment[$entry->segment])) {
@@ -155,6 +162,11 @@ final class CustomReportImport
         }
 
         return [$filters, implode(';', $kept)];
+    }
+
+    private static function conditionCount(string $segment): int
+    {
+        return count(array_filter(preg_split('/[;,]/', $segment), fn (string $part) => trim($part) !== ''));
     }
 
     /**
