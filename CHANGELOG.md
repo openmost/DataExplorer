@@ -1,5 +1,9 @@
 ## Changelog
 
+### 5.5.1
+
+- Funnel steps keep a condition whose value was typed or picked from the suggestions without clicking its own Apply: the Apply of the steps panel takes it.
+
 ### 5.5.0
 
 - Segment processing per saved report: turned off, the report is only available for All visits and `core:archive` skips it for every segment, which shortens archiving on instances with many pre-processed segments.
