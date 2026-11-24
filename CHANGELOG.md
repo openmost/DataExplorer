@@ -1,6 +1,6 @@
 ## Changelog
 
-### 6.5.1
+### 6.5.2
 
 - Funnel steps keep a condition whose value was typed or picked from the suggestions without clicking its own Apply: the Apply of the steps panel takes it.
 
