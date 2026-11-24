@@ -47,6 +47,7 @@
     <div
       v-if="editing"
       class="dataExplorerFilter__fields"
+      @input="onInput"
       @keydown.enter.prevent="apply"
       @keydown.esc.stop.prevent="cancel"
     >
@@ -198,6 +199,21 @@ export default defineComponent({
       editing.value = false;
     }
 
+    // a suggestion picked in the datalist only fires input, which the core text field ignores
+    function onInput(event: Event) {
+      const target = event.target as HTMLElement;
+      if (target instanceof HTMLInputElement && target.closest('.dataExplorerFilter__value')) {
+        draft.value = target.value;
+      }
+    }
+
+    // a condition still open when its panel is applied keeps the value typed in it
+    function commit() {
+      if (editing.value && draft.value.trim()) {
+        apply();
+      }
+    }
+
     return {
       uid,
       editing,
@@ -212,6 +228,8 @@ export default defineComponent({
       toggle,
       apply,
       cancel,
+      commit,
+      onInput,
     };
   },
 });

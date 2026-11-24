@@ -154,6 +154,7 @@
                     aria-hidden="true"
                   >{{ translate('DataExplorer_FilterOr') }}</li>
                   <FilterRow
+                    :ref="collectRow"
                     :filter="item.condition"
                     :dimension-name="nameOf(item.condition.dimension)"
                     @update="updateCondition(step, item.index, $event)"
@@ -218,6 +219,7 @@ import {
   computed,
   defineComponent,
   onBeforeUnmount,
+  onBeforeUpdate,
   onMounted,
   PropType,
   ref,
@@ -281,6 +283,16 @@ export default defineComponent({
   emits: ['update:modelValue', 'apply'],
   setup(props, { emit }) {
     const draft = ref<DraftStep[]>([]);
+    let rows: { commit: () => void }[] = [];
+    onBeforeUpdate(() => {
+      rows = [];
+    });
+
+    function collectRow(row: unknown) {
+      if (row) {
+        rows.push(row as { commit: () => void });
+      }
+    }
     const menuFor = ref<number|null>(null);
 
     // the step menu closes on a click anywhere else
@@ -423,13 +435,16 @@ export default defineComponent({
     });
 
     function apply() {
+      rows.forEach((row) => row.commit());
       if (error.value) {
         return;
       }
       const last = draft.value.length - 1;
       emit('apply', draft.value.map((step, index): FunnelStep => ({
         name: step.name.trim(),
-        conditions: groupFilters(step.conditions.map((condition) => ({
+        conditions: groupFilters(step.conditions.filter(
+          (condition) => condition.value.trim() !== '',
+        ).map((condition) => ({
           dimension: condition.dimension,
           operator: condition.operator,
           value: condition.value,
@@ -448,6 +463,7 @@ export default defineComponent({
       nameOf,
       groupsOf,
       addCondition,
+      collectRow,
       updateCondition,
       removeCondition,
       insertStep,

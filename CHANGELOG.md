@@ -2,6 +2,10 @@
 
 ### 6.5.1
 
+- Funnel steps keep a condition whose value was typed or picked from the suggestions without clicking its own Apply: the Apply of the steps panel takes it.
+
+### 6.5.1
+
 - Unused translation strings removed.
 
 ### 6.5.0
