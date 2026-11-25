@@ -102,17 +102,19 @@
       class="dataExplorerFunnelSettings__rows"
     >
       <span>{{ translate('DataExplorer_FunnelBreakdownRows') }}</span>
-      <select
-        class="browser-default"
-        :value="String(funnel.breakdownRows)"
-        @change="setBreakdownRows($event)"
-      >
-        <option
-          v-for="option in breakdownRowOptions"
-          :key="option.key"
-          :value="option.key"
-        >{{ option.value }}</option>
-      </select>
+      <span class="dataExplorerSelect">
+        <select
+          class="browser-default"
+          :value="String(funnel.breakdownRows)"
+          @change="setBreakdownRows($event)"
+        >
+          <option
+            v-for="option in breakdownRowOptions"
+            :key="option.key"
+            :value="option.key"
+          >{{ option.value }}</option>
+        </select>
+      </span>
     </label>
 
     <FunnelStepsEditor

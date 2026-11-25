@@ -1,7 +1,7 @@
 {
   "name": "DataExplorer",
   "description": "Build custom reports, funnels on any dimension and guarded raw SQL queries from your Matomo data, then save, share and export them.",
-  "version": "5.5.1",
+  "version": "5.5.2",
   "theme": false,
   "require": {
     "matomo": ">=5.12.0,<6.0.0-b1"

@@ -112,6 +112,7 @@
         "FilterOperator_lt": "أصغر من",
         "FilterValueLabel": "قيمة عامل التصفية على %s",
         "FilterValuePlaceholder": "القيمة",
+        "FilterShowValues": "عرض القيم",
         "RemoveFilter": "إزالة عامل التصفية على %s",
         "Canvas": "الاستكشاف",
         "HintAddMetric": "أضف مقياسًا إلى القيم لرؤية النتيجة.",

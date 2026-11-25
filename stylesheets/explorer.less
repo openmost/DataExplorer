@@ -1020,32 +1020,6 @@ html.dataExplorer-panel-open {
   padding: 8px 10px 10px;
   border-top: 1px solid @de-border;
 
-  // the Matomo fields keep their look, without the spacing of a full-page form
-  .matomo-form-field.row {
-    margin: 0;
-  }
-
-  .matomo-form-field > .col {
-    padding: 0;
-  }
-
-  .matomo-form-field .input-field {
-    margin: 0;
-  }
-
-  .matomo-form-field > .col:empty {
-    display: none;
-  }
-
-  // the column is narrow: the fields and buttons at the density of the rest of the panel
-  .matomo-form-field .input-field input,
-  .matomo-form-field .select-wrapper input.select-dropdown {
-    height: 32px;
-    margin-bottom: 0;
-    font-size: 13px;
-    line-height: 32px;
-  }
-
   .dataExplorerFilter__actions {
     .btn,
     .btn-flat {
@@ -1923,6 +1897,7 @@ button.dataExplorerCanvas__period {
 }
 
 // one height for every control of the step editor
+.dataExplorerControl,
 .dataExplorerFunnelEditor__name,
 .dataExplorerFunnelEditor__follow,
 .dataExplorerFunnelEditor__withinValue,
@@ -2042,6 +2017,144 @@ button.dataExplorerCanvas__period {
 .dataExplorerFunnelEditor__add {
   margin-top: 12px;
   border: 1px solid @de-border-strong;
+}
+
+// the plugin's own fields: a full border like the rest of the panel, not the Materialize underline
+.dataExplorer input.dataExplorerControl,
+.dataExplorer select.dataExplorerControl,
+.dataExplorerFormPanel input.dataExplorerControl,
+.dataExplorerFormPanel select.dataExplorerControl {
+  display: block;
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  line-height: 32px;
+  box-shadow: none;
+  transition: border-color .12s ease, box-shadow .12s ease;
+
+  &:hover {
+    border-color: @de-text-lighter;
+  }
+
+  &:focus {
+    border-color: @de-accent;
+    outline: 0;
+    box-shadow: 0 0 0 3px @de-accent-soft;
+  }
+
+  &::placeholder {
+    color: @de-text-lighter;
+  }
+}
+
+// every list of the plugin shows the chevron of the report picker and the value combobox,
+// the native arrow differs per browser and per theme
+.dataExplorerSelect {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+
+  &::after {
+    content: "\e908";
+    position: absolute;
+    top: 50%;
+    right: 11px;
+    color: @de-text-light;
+    font-family: 'matomo';
+    font-size: 12px;
+    line-height: 1;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  select {
+    width: 100%;
+    padding-right: 32px;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+  }
+}
+
+// a text field with its searchable list of values
+.dataExplorerCombobox {
+  position: relative;
+
+  &.has-options input.dataExplorerControl {
+    padding-right: 34px;
+  }
+}
+
+.dataExplorerCombobox__toggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 @de-radius-control @de-radius-control 0;
+  background: none;
+  color: @de-text-light;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    color: @de-text-strong;
+  }
+
+  .icon-chevron-down {
+    transition: transform .12s ease;
+  }
+
+  .is-open & .icon-chevron-down {
+    transform: rotate(180deg);
+  }
+}
+
+.dataExplorerCombobox__list {
+  position: absolute;
+  z-index: 1000;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 260px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid @de-border-strong;
+  border-radius: @de-radius-control;
+  background: @de-surface;
+  box-shadow: 0 8px 24px @de-shadow;
+  list-style: none;
+
+  &:empty {
+    display: none;
+  }
+}
+
+.dataExplorerCombobox__option {
+  padding: 6px 8px;
+  border-radius: 4px;
+  color: @de-text;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+
+  &.is-active {
+    background: @de-hover;
+    color: @de-text-strong;
+  }
+
+  &.is-selected {
+    background: @de-selected;
+    color: @de-accent;
+    font-weight: 500;
+  }
 }
 
 // the step editor is wide: a condition on one line, operator, value and buttons

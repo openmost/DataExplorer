@@ -112,6 +112,7 @@
         "FilterOperator_lt": "より小さい",
         "FilterValueLabel": "%s のフィルタの値",
         "FilterValuePlaceholder": "値",
+        "FilterShowValues": "値を表示",
         "RemoveFilter": "%s のフィルタを削除",
         "Canvas": "探索",
         "HintAddMetric": "結果を表示するには値に指標を追加してください。",
