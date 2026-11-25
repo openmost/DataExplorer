@@ -112,6 +112,7 @@
         "FilterOperator_lt": "小于",
         "FilterValueLabel": "%s 过滤器的值",
         "FilterValuePlaceholder": "值",
+        "FilterShowValues": "显示值",
         "RemoveFilter": "移除 %s 的过滤器",
         "Canvas": "探索",
         "HintAddMetric": "在值中添加一个指标以查看结果。",

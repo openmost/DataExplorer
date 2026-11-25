@@ -22,18 +22,20 @@
           v-if="index > 0"
           class="dataExplorerFunnelEditor__link"
         >
-          <select
-            class="dataExplorerFunnelEditor__follow browser-default"
-            :aria-label="translate('DataExplorer_FunnelFollowLabel', String(index + 1))"
-            :value="step.follow"
-            @change="setFollow(step, $event)"
-          >
-            <option
-              v-for="option in followOptions"
-              :key="option.key"
-              :value="option.key"
-            >{{ option.value }}</option>
-          </select>
+          <span class="dataExplorerSelect">
+            <select
+              class="dataExplorerFunnelEditor__follow browser-default"
+              :aria-label="translate('DataExplorer_FunnelFollowLabel', String(index + 1))"
+              :value="step.follow"
+              @change="setFollow(step, $event)"
+            >
+              <option
+                v-for="option in followOptions"
+                :key="option.key"
+                :value="option.key"
+              >{{ option.value }}</option>
+            </select>
+          </span>
           <label class="dataExplorerFunnelEditor__within">
             <input
               type="checkbox"
@@ -51,18 +53,20 @@
               :value="step.within.value"
               @input="setWithinValue(step, $event)"
             />
-            <select
-              class="dataExplorerFunnelEditor__withinUnit browser-default"
-              :aria-label="translate('DataExplorer_FunnelWithinUnit')"
-              :value="step.within.unit"
-              @change="setWithinUnit(step, $event)"
-            >
-              <option
-                v-for="unit in timeUnits"
-                :key="unit.key"
-                :value="unit.key"
-              >{{ unit.value }}</option>
-            </select>
+            <span class="dataExplorerSelect">
+              <select
+                class="dataExplorerFunnelEditor__withinUnit browser-default"
+                :aria-label="translate('DataExplorer_FunnelWithinUnit')"
+                :value="step.within.unit"
+                @change="setWithinUnit(step, $event)"
+              >
+                <option
+                  v-for="unit in timeUnits"
+                  :key="unit.key"
+                  :value="unit.key"
+                >{{ unit.value }}</option>
+              </select>
+            </span>
           </template>
         </li>
         <li class="dataExplorerFunnelEditor__step">

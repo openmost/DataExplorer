@@ -47,48 +47,32 @@
     <div
       v-if="editing"
       class="dataExplorerFilter__fields"
-      @input="onInput"
       @keydown.enter.prevent="apply"
       @keydown.esc.stop.prevent="cancel"
     >
       <div class="dataExplorerFilter__label">{{ translate('DataExplorer_FilterConditions') }}</div>
-      <Field
-        uicontrol="select"
-        :name="`${uid}-operator`"
-        class="dataExplorerFilter__operator"
-        :full-width="true"
-        :options="operatorOptions"
-        :model-value="draft.operator"
-        :ui-control-attributes="{
-          'aria-label': translate('DataExplorer_FilterOperatorLabel', dimensionName),
-        }"
-        @update:model-value="draft.operator = $event"
-      />
-      <Field
-        uicontrol="text"
-        :name="`${uid}-value`"
+      <span class="dataExplorerSelect dataExplorerFilter__operator">
+        <select
+          v-model="draft.operator"
+          class="dataExplorerControl browser-default"
+          :aria-label="translate('DataExplorer_FilterOperatorLabel', dimensionName)"
+        >
+          <option
+            v-for="option in operatorOptions"
+            :key="option.key"
+            :value="option.key"
+          >{{ option.value }}</option>
+        </select>
+      </span>
+      <ValueCombobox
+        v-model="draft.value"
         class="dataExplorerFilter__value"
-        :full-width="true"
+        :options="suggestions"
+        :label="translate('DataExplorer_FilterValueLabel', dimensionName)"
+        :toggle-label="translate('DataExplorer_FilterShowValues')"
         :placeholder="translate('DataExplorer_FilterValuePlaceholder')"
-        :model-value="draft.value"
-        :ui-control-attributes="{
-          'aria-label': translate('DataExplorer_FilterValueLabel', dimensionName),
-          inputmode: isNumeric ? 'decimal' : 'text',
-          list: suggestions.length ? `${uid}-values` : undefined,
-          autocomplete: 'off',
-        }"
-        @update:model-value="draft.value = String($event)"
+        :inputmode="isNumeric ? 'decimal' : 'text'"
       />
-      <datalist
-        v-if="suggestions.length"
-        :id="`${uid}-values`"
-      >
-        <option
-          v-for="value in suggestions"
-          :key="value"
-          :value="value"
-        />
-      </datalist>
       <div class="dataExplorerFilter__actions">
         <button
           type="button"
@@ -116,9 +100,9 @@ import {
   watch,
 } from 'vue';
 import { translate } from 'CoreHome';
-import { Field } from 'CorePluginsAdmin';
 import { FILTER_OPERATORS } from './explorationState';
 import { suggestedValues } from './valueSuggestions';
+import ValueCombobox from './ValueCombobox.vue';
 import type { Filter, FilterOperator } from '../types';
 
 let nextId = 0;
@@ -131,7 +115,7 @@ let nextId = 0;
 export default defineComponent({
   name: 'FilterRow',
   components: {
-    Field,
+    ValueCombobox,
   },
   props: {
     filter: {
@@ -199,14 +183,6 @@ export default defineComponent({
       editing.value = false;
     }
 
-    // a suggestion picked in the datalist only fires input, which the core text field ignores
-    function onInput(event: Event) {
-      const target = event.target as HTMLElement;
-      if (target instanceof HTMLInputElement && target.closest('.dataExplorerFilter__value')) {
-        draft.value = target.value;
-      }
-    }
-
     // a condition still open when its panel is applied keeps the value typed in it
     function commit() {
       if (editing.value && draft.value.trim()) {
@@ -229,7 +205,6 @@ export default defineComponent({
       apply,
       cancel,
       commit,
-      onInput,
     };
   },
 });

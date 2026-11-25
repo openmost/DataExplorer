@@ -1,5 +1,10 @@
 ## Changelog
 
+### 6.5.3
+
+- The value of a filter or a funnel step condition is picked from a searchable list of the values, a value outside the list can still be typed.
+- Filter and funnel fields have a full border and the same chevron on every list.
+
 ### 6.5.2
 
 - Funnel steps keep a condition whose value was typed or picked from the suggestions without clicking its own Apply: the Apply of the steps panel takes it.

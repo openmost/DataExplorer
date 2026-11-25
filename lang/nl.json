@@ -112,6 +112,7 @@
         "FilterOperator_lt": "is kleiner dan",
         "FilterValueLabel": "Waarde van het filter op %s",
         "FilterValuePlaceholder": "Waarde",
+        "FilterShowValues": "Waarden tonen",
         "RemoveFilter": "Filter op %s verwijderen",
         "Canvas": "Verkenning",
         "HintAddMetric": "Voeg een statistiek toe aan Waarden om het resultaat te zien.",

@@ -112,6 +112,7 @@
         "FilterOperator_lt": "小於",
         "FilterValueLabel": "%s 篩選器的值",
         "FilterValuePlaceholder": "值",
+        "FilterShowValues": "顯示值",
         "RemoveFilter": "移除 %s 的篩選器",
         "Canvas": "探索",
         "HintAddMetric": "在值中加入一個指標以查看結果。",

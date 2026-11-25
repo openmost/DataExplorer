@@ -160,6 +160,7 @@ class DataExplorer extends \Piwik\Plugin
         'DataExplorer_CustomReportOpenedReadOnly',
         'DataExplorer_SqlKpiHint',
         'DataExplorer_FilterValueLabel',
+        'DataExplorer_FilterShowValues',
         'DataExplorer_FilterValuePlaceholder',
         'DataExplorer_RemoveFilter',
         'DataExplorer_Canvas',

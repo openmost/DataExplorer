@@ -112,6 +112,7 @@
         "FilterOperator_lt": "es menor que",
         "FilterValueLabel": "Valor del filtro sobre %s",
         "FilterValuePlaceholder": "Valor",
+        "FilterShowValues": "Mostrar los valores",
         "RemoveFilter": "Quitar el filtro sobre %s",
         "Canvas": "Exploración",
         "HintAddMetric": "Añada una métrica a Valores para ver el resultado.",
